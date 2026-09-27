@@ -636,20 +636,13 @@ Add these script tags after the main viewer script:
     });
   }
 
-  function inferApostleMultiplier(bp, damageCards) {
-    const apostle = safeGetCurrentApostle();
-    const cards = []
-      .concat(cloneCards(bp.deck))
-      .concat(cloneCards(bp.discard))
-      .concat(cloneCards(damageCards))
-      .filter((card) => isBpResourceCard(apostle, card));
-
-    let max = 1;
-    cards.forEach((card) => {
-      max = Math.max(max, cardLevelValue(card));
-    });
-
-    return Math.max(1, max);
+  function selectedApostleLevel() {
+    try {
+      const level = typeof currentApostleLevel === "function" ? Number(currentApostleLevel()) : 0;
+      return Number.isFinite(level) && level >= 1 ? Math.floor(level) : 0;
+    } catch {
+      return 0;
+    }
   }
 
   function recordStageLevel(trackKey, stageId) {
@@ -882,16 +875,18 @@ Add these script tags after the main viewer script:
     const damageCards = isChimera ? getRegularDamageCards(apostle, bp) : getAllDamageCards(bp);
     const secondaryDamageCards = getSecondaryDamageCards(apostle, bp);
     const resourceKeys = collectResourceKeys(apostle, map);
-    const inferredMultiplier = inferApostleMultiplier(bp, damageCards);
+    const selectedLevel = selectedApostleLevel();
     const recordMultiplier = Number(options.recordMultiplier || 0);
     const manualMultiplier = Number(options.multiplier || 0);
-    const multiplier = Math.max(1, Math.floor(manualMultiplier || recordMultiplier || inferredMultiplier || 1));
+    const multiplier = Math.max(1, Math.floor(manualMultiplier || selectedLevel || recordMultiplier || 1));
     const resourceMultiplier = resourceMultiplierForApostle(apostle, multiplier);
     const multiplierSource = manualMultiplier > 0
       ? "manual"
-      : recordMultiplier > 0
-        ? "record"
-        : "aibp";
+      : selectedLevel > 0
+        ? "aibp"
+        : recordMultiplier > 0
+          ? "record"
+          : "default";
     const regularDamageCount = damageStackCount(damageCards);
     const secondaryDamageCount = damageStackCount(secondaryDamageCards);
 
@@ -1419,7 +1414,7 @@ Add these script tags after the main viewer script:
         <div>暴击 BP III：${result.woundedBpIIICount}（核心 +${result.woundedBpIIICount}）</div>
         <div>倍率：×${result.multiplier}</div>
         ${result.ignoresLevelResourceMultiplier ? `<div>资源倍率：×${result.resourceMultiplier}（该使徒不按等级乘资源）</div>` : ""}
-        <div>倍率来源：${result.multiplierSource === "record" ? "记录表" : result.multiplierSource === "manual" ? "手动输入" : "AIBP牌堆推断"}</div>
+        <div>倍率来源：${result.multiplierSource === "record" ? "记录表" : result.multiplierSource === "manual" ? "手动输入" : result.multiplierSource === "aibp" ? "AIBP当前始徒等级" : "默认等级 1"}</div>
         ${result.chimeraBonus ? `<div>奇美拉常规损伤：${escapeHtml(String(result.regularDamageCount))}</div>` : ""}
         ${result.chimeraBonus ? `<div>奇美拉第二损伤堆：${escapeHtml(String(result.secondaryDamageCount))}</div>` : ""}
         ${result.chimeraBonus ? `<div>奇美拉奖励条件：${escapeHtml(result.chimeraBonus.rowLabel || "无")}</div>` : ""}
@@ -1676,7 +1671,7 @@ Add these script tags after the main viewer script:
       }
 
       const { apostle } = getCurrentApostleData();
-      const recordMultiplier = await recordMultiplierForApostle(apostle);
+      const recordMultiplier = selectedApostleLevel() ? 0 : await recordMultiplierForApostle(apostle);
       const result = calculateBpLoot({ recordMultiplier });
       renderLootResult(lootDialog, result);
       lootDialog.showModal();

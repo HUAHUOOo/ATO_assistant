@@ -40,6 +40,7 @@ class Element {
   }
   append(...children) { this.children.push(...children); }
   appendChild(child) { this.children.push(child); return child; }
+  replaceWith(replacement) { this.replacement = replacement; }
   addEventListener(type, listener) { this.listeners[type] = listener; }
   setAttribute(name, value) { this[name] = value; }
   querySelectorAll(selector) {
@@ -77,8 +78,9 @@ function settleHarness(options = {}) {
     currentCycleConfig: () => ({ id: options.cycle || 'c1' }),
     currentMapFactions: () => (options.factions === undefined ? ['minoians'] : options.factions),
     mapFactionLabel: (cycleId, factionId) => labels[factionId] || factionId,
-    diplomacyValue: () => (diplomacyBonus === null ? null : 4),
-    diplomacyStatus: () => ({ label: '友善', bonus: diplomacyBonus }),
+    diplomacyValue: (_cycleId, factionId) => Object.hasOwn(options.diplomacyByFaction || {}, factionId)
+      ? options.diplomacyByFaction[factionId] : diplomacyBonus,
+    diplomacyStatus: (_cycleId, value) => ({ label: '外交状态', bonus: value }),
     normalizeCampaignDay: (value) => Math.max(0, Math.floor(Number(value) || 0)),
     isPlainObject: (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value),
     escapeHtml: (value) => String(value ?? ''),
@@ -209,7 +211,7 @@ test('a new draw clears last round settlement marks', () => {
   assert.equal(Object.keys(harness.ctx.state.exploration.settledByCycle.c1).length, 0);
 });
 
-test('a diplomacy menu card settles the branch the tile faction points at', async () => {
+test('a diplomacy menu card settles its named faction branch', async () => {
   const harness = settleHarness({ diplomacyBonus: 1 });
   const entry = { id: '6401', name: 'Minoan Fleet', day: 12 };
   const block = harness.ctx.createExplorationSettleBlock(entry);
@@ -254,4 +256,77 @@ test('a rare resource is appended to the record sheet text field', async () => {
   await clickAndWait(block.buttons[0]);
   assert.equal(harness.written[0].resources['c3-sirenshell'], 3);
   assert.equal(harness.written[0].resources.rare, 'Antedeluvian Sirenshell');
+});
+
+test('Minoan Fleet reads Minoan diplomacy even on another faction tile', () => {
+  const harness = settleHarness({ factions: ['hornsworn'], diplomacyByFaction: { minoians: -2, hornsworn: 1 } });
+  const block = harness.ctx.createExplorationSettleBlock({ id: '6401', name: 'Minoan Fleet', day: 12 });
+  assert.equal(block.buttons.length, 0, '友善的本地角誓者不能触发米诺斯人舰队的资源奖励');
+  const manual = block.descendants().find((node) => node.className === 'exploration-settle-manual');
+  assert.match(manual.children.map((item) => item.textContent).join(' | '), /Denounced.*Lose -1 Titan/);
+});
+
+test('named faction resources are granted even when that faction is not local', async () => {
+  const harness = settleHarness({ factions: ['hornsworn'], diplomacyByFaction: { minoians: 1, hornsworn: -2 } });
+  const block = harness.ctx.createExplorationSettleBlock({ id: '6401', name: 'Minoan Fleet', day: 12 });
+  await clickAndWait(block.buttons[0]);
+  assert.equal(harness.written[0].resources['c1-trireme'], 4);
+  const texts = block.descendants().find((node) => node.className === 'exploration-settle-manual')
+    .children.map((item) => item.textContent).join(' | ');
+  assert.ok(!texts.includes('[Denounced]'), '不能同时应用本地角誓者的惩罚分支');
+});
+
+test('unknown named diplomacy is not replaced by a known local faction', () => {
+  const harness = settleHarness({ factions: ['hornsworn'], diplomacyByFaction: { minoians: null, hornsworn: 1 } });
+  const block = harness.ctx.createExplorationSettleBlock({ id: '6401', name: 'Minoan Fleet', day: 12 });
+  assert.match(block.buttons[0].textContent, /若 Friendly/);
+  assert.equal(harness.written.length, 0);
+});
+
+test('multiple local factions require a player choice before resource settlement', async () => {
+  const harness = settleHarness({ factions: ['minoians', 'hornsworn'], diplomacyByFaction: { minoians: 1, hornsworn: -2 } });
+  const entry = { id: '6404', name: 'Trade Post', day: 12 };
+  const block = harness.ctx.createExplorationSettleBlock(entry);
+  assert.equal(block.buttons.length, 0);
+  assert.match(block.children[0].textContent, /选择.*本地阵营/);
+  const select = block.descendants().find((node) => node.tag === 'select');
+  select.value = 'hornsworn';
+  select.listeners.change();
+  const selected = block.replacement.descendants().find((node) => node.tag === 'select');
+  assert.equal(selected.value, 'hornsworn', '选择后仍应保留阵营控件，允许结算前更改');
+  await clickAndWait(block.replacement.buttons[0]);
+  assert.equal(harness.written[0].resources['c1-trireme'], 1, '选择敌对角誓者应按基础收益结算');
+});
+
+test('selected local faction also controls manual effects, with no mixed branches', () => {
+  const harness = settleHarness({ factions: ['minoians', 'hornsworn'], diplomacyByFaction: { minoians: 1, hornsworn: -2 } });
+  const entry = { id: '6406', name: 'Fishing Pier', day: 12 };
+  const friendly = harness.ctx.createExplorationSettleBlock(entry, 'minoians');
+  assert.ok(!friendly.descendants().some((node) => node.className === 'exploration-settle-manual'));
+  const denounced = harness.ctx.createExplorationSettleBlock(entry, 'hornsworn');
+  assert.ok(denounced.descendants().some((node) => node.className === 'exploration-settle-manual'));
+});
+
+test('rules module never combines multiple faction statuses without a selection', () => {
+  const card = rules.getCard(dataset, 'c1', '6404');
+  const context = { cycleId: 'c1', diplomacy: [{ id: 'minoians', bonus: 1 }, { id: 'hornsworn', bonus: -2 }] };
+  assert.equal(rules.plan(card, context).status, 'choice');
+  const selected = rules.plan(card, { ...context, diplomacyFaction: 'hornsworn' });
+  assert.equal(selected.status, 'auto');
+  assert.equal(selected.grants[0].amount, 1);
+  const named = rules.plan(rules.getCard(dataset, 'c1', '6401'), context);
+  assert.equal(named.grants[0].amount, 4);
+  assert.ok(!named.manual.some((item) => item.badge === 'Denounced'));
+});
+
+test('every card that names a faction carries that faction in settlement data', () => {
+  const expected = {
+    'c1:6401': 'minoians', 'c1:6402': 'hornsworn', 'c1:6403': 'labyrinthians',
+    'c3:13530': 'delphians', 'c3:13531': 'twilightWatch', 'c3:13532': 'sunheirs',
+    'c4:9341': 'wasters', 'c4:9342': 'cloudThieves', 'c4:9343': 'aristotelians',
+    'c5:10300': 'followersOfArete', 'c5:10301': 'cycladeanProtectorate', 'c5:10302': 'outcastVanguard',
+  };
+  for (const [key, faction] of Object.entries(expected)) {
+    assert.equal(dataset.cards[key].diplomacyFaction, faction, key);
+  }
 });

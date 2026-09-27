@@ -375,6 +375,22 @@ def condition_from_badge(badge: str) -> dict | None:
 # output
 # --------------------------------------------------------------------------- #
 
+NAMED_DIPLOMACY_FACTIONS = {
+    "c1:6401": "minoians",
+    "c1:6402": "hornsworn",
+    "c1:6403": "labyrinthians",
+    "c3:13530": "delphians",
+    "c3:13531": "twilightWatch",
+    "c3:13532": "sunheirs",
+    "c4:9341": "wasters",
+    "c4:9342": "cloudThieves",
+    "c4:9343": "aristotelians",
+    "c5:10300": "followersOfArete",
+    "c5:10301": "cycladeanProtectorate",
+    "c5:10302": "outcastVanguard",
+}
+
+
 def serialize_card(card: dict) -> dict:
     grants = []
     for grant in card["grants"]:
@@ -396,6 +412,7 @@ def serialize_card(card: dict) -> dict:
         "kind": card["kind"],
         "autoSettle": card["autoSettle"],
         "diplomacyMenu": card["diplomacyMenu"],
+        "diplomacyFaction": NAMED_DIPLOMACY_FACTIONS.get(card["key"], ""),
         "grants": grants,
         "manual": [
             {"text": item["text"], "badge": item["badge"], "condition": item["condition"]}

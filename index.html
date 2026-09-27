@@ -2359,8 +2359,8 @@
   <script src="./assets/story-doom-card-data.js"></script>
   <script src="./assets/exploration-card-tags.js"></script>
   <script src="./assets/exploration-card-rules.js"></script>
-  <script src="./assets/exploration-card-resource-rules.js"></script>
-  <script src="./assets/exploration-card-resources.js"></script>
+  <script src="./assets/exploration-card-resource-rules.js?v=20260927-settlement-rules1"></script>
+  <script src="./assets/exploration-card-resources.js?v=20260927-settlement-rules1"></script>
   <script src="./map/map-tile-tags.js?v=20260730-c4-oasis-tag"></script>
   <script src="./map/map-data.js?v=20260730-cycle-labels"></script>
   <script src="./map/nemesis-path.js?v=20260924-shared"></script>
@@ -7382,12 +7382,11 @@
       return rules.getCard(explorationResourceDataset(), currentCycleConfig().id, cardId);
     }
 
-    // The printed condition badges are diplomacy statuses, so the automatic
-    // settlement reads the same faction status the toolbar already shows for the
-    // tile the Argo is standing on.
-    function currentExplorationDiplomacy() {
+    // Named factions on cards override the local faction (rulebook P15/P23).
+    function currentExplorationDiplomacy(card = null) {
       const cycleId = currentCycleConfig().id;
-      return currentMapFactions()
+      const factions = card?.diplomacyFaction ? [card.diplomacyFaction] : currentMapFactions();
+      return factions
         .filter((factionId) => factionId && factionId !== "none")
         .map((factionId, index) => {
           const value = diplomacyValue(cycleId, factionId);
@@ -7395,7 +7394,7 @@
           const status = diplomacyStatus(cycleId, value);
           return {
             id: factionId,
-            label: mapFactionLabel(cycleId, factionId, index),
+            label: mapFactionLabel(cycleId, factionId, card?.diplomacyFaction ? -1 : index),
             statusLabel: status.label || "",
             bonus: Number(status.bonus) || 0,
             value,
@@ -7404,10 +7403,12 @@
         .filter(Boolean);
     }
 
-    function explorationSettlementContext() {
+    function explorationSettlementContext(card = null, selectedFaction = "") {
       return {
         cycleId: currentCycleConfig().id,
-        diplomacy: currentExplorationDiplomacy(),
+        diplomacy: currentExplorationDiplomacy(card),
+        diplomacyFaction: card?.diplomacyFaction || selectedFaction,
+        diplomacyFactions: card?.diplomacyFaction ? [card.diplomacyFaction] : currentMapFactions().filter((id) => id !== "none"),
         // Lets the rules module print the record sheet's own resource names.
         dataset: explorationResourceDataset(),
       };
@@ -7484,7 +7485,7 @@
       return record;
     }
 
-    function createExplorationSettleBlock(entry) {
+    function createExplorationSettleBlock(entry, selectedFaction = "") {
       const rules = explorationResourceRules();
       const card = explorationCardResources(entry.id);
       if (!rules || !card || card.kind === rules.KIND_NONE) return null;
@@ -7500,9 +7501,38 @@
 
       const saved = getExplorationSettlement(entry);
       const kindLabel = card.kind === rules.KIND_RESOURCE_ONLY ? "纯资源卡" : "含其它效果";
+      const localFactions = currentMapFactions().filter((id) => id && id !== "none");
+      const needsDiplomacy = [...(card.grants || []), ...(card.manual || [])]
+        .some((item) => item.condition?.type === "diplomacy");
+      if (!saved && !card.diplomacyFaction && needsDiplomacy
+        && localFactions.length > 1) {
+        const select = document.createElement("select");
+        select.setAttribute("aria-label", "探索结算适用阵营");
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "选择本地阵营…";
+        select.appendChild(placeholder);
+        localFactions.forEach((factionId, index) => {
+          const option = document.createElement("option");
+          option.value = factionId;
+          option.textContent = mapFactionLabel(cycleId, factionId, index);
+          select.appendChild(option);
+        });
+        select.value = localFactions.includes(selectedFaction) ? selectedFaction : "";
+        select.addEventListener("change", () => {
+          if (localFactions.includes(select.value)) {
+            block.replaceWith(createExplorationSettleBlock(entry, select.value));
+          }
+        });
+        actions.appendChild(select);
+        if (!localFactions.includes(selectedFaction)) {
+          status.textContent = `${kindLabel} · 请选择本次结算适用的本地阵营`;
+          return block;
+        }
+      }
       // Only computed for an unsettled card: the plan drives both the button and
       // the list of effects the player still has to resolve by hand.
-      const planInfo = saved ? { plan: null } : { plan: rules.plan(card, explorationSettlementContext()) };
+      const planInfo = saved ? { plan: null } : { plan: rules.plan(card, explorationSettlementContext(card, selectedFaction)) };
       const manualList = (items) => {
         const list = items.filter((item) => item?.text);
         if (!list.length) return null;
@@ -7555,7 +7585,8 @@
           : (plan.status === "auto" && !plan.grants.length
             ? `${kindLabel} · 当前外交状态下没有资源收益，只有下列效果`
             : `${kindLabel} · ${plan.summary}`);
-        status.textContent = statusText;
+        status.textContent = `${statusText}${selectedFaction && localFactions.length > 1
+          ? ` · 适用：${mapFactionLabel(cycleId, selectedFaction, localFactions.indexOf(selectedFaction))}` : ""}`;
 
         const runSettle = async (variant) => {
           const grants = variant ? variant.grants : plan.grants;

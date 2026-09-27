@@ -1025,17 +1025,6 @@
     }
   }
 
-  function resolveBabelianVp() {
-    const state = piles.THE_BABELIAN_LUNACY;
-    const bp = state.BP;
-    if (!bp.pending) return;
-    rememberUndo("THE_BABELIAN_LUNACY", "AIBP");
-    const card = removePendingCard(bp);
-    insertRandom(bp.deck, card);
-    savePiles();
-    renderAibpCards();
-  }
-
   function resolveTitanXFeint(card) {
     const state = piles.TITAN_X;
     const pending = state.special.titanX.pendingEffect;
@@ -1286,7 +1275,7 @@
 
   function renderBabelianBpControl() {
     if (!babelianFusionControl) return;
-    const show = currentApostle === "THE_BABELIAN_LUNACY";
+    const show = currentApostle === "THE_BABELIAN_LUNACY" && !piles[currentApostle]?.BP?.combinedAttack;
     babelianFusionControl.hidden = !show;
     if (!show) {
       babelianFusionControl.replaceChildren();
@@ -1688,11 +1677,6 @@
       resolveDahakaBp(mode);
       return;
     }
-    if (currentApostle === "THE_BABELIAN_LUNACY"
-      && (mode === "vp-defeat" || mode === "vp-critical")) {
-      resolveBabelianVp();
-      return;
-    }
     const titanBottom = titanXDrawsFromBottom();
     const pendingLevel = currentApostle === "TITAN_X"
       ? piles.TITAN_X.BP.pending?.level
@@ -1752,18 +1736,6 @@
       && promotionFingerprint("AI") !== before) {
       discardDemidjinnPromotionTop();
     }
-  };
-
-  setImageZoomBpActions = function (show = false) {
-    base.setImageZoomBpActions(show);
-    if (!show || currentApostle !== "THE_BABELIAN_LUNACY") return;
-    const pending = piles[currentApostle]?.BP?.pending;
-    imageZoomBpActions.querySelectorAll("[data-bp-zoom-action]").forEach((button) => {
-      const action = button.dataset.bpZoomAction;
-      if (action !== "vp-defeat" && action !== "vp-critical") return;
-      button.hidden = false;
-      button.disabled = !pending;
-    });
   };
 
   undoLastAibp = function (type = "") {

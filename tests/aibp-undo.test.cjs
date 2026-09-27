@@ -13,6 +13,7 @@ const functions = [
   'startNewCampaign', 'startScry', 'cancelScry',
   'currentBpDamageKey', 'currentBpDamageView', 'currentBpHealIndex', 'healBp',
   'bpDamageValue', 'bpDamageTotalForKey', 'currentBpDamageSummary',
+  'supportsCombinedBp', 'returnedBpPreviewCard', 'combinedBpNotice', 'updateCombinedBpTotal',
 ];
 const clone = (value) => JSON.parse(JSON.stringify(value));
 function initialState() {
@@ -31,7 +32,7 @@ function harness(storage = new Map()) {
     pendingUndoEntry: null, currentApostle: 'TEST', currentAiView: '弃牌', currentBpView: '弃牌',
     activeScry: null, storageKey: 'piles', undoAiButton: {}, undoBpButton: {},
     localStorage: { getItem: (key) => storage.get(key), setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) },
-    ensurePiles() {}, scheduleSecondScreenSnapshot() {},
+    ensurePiles() {}, scheduleSecondScreenSnapshot() {}, renderCombinedBpControl() {},
     updateAiViewTabs() {}, updateBpViewTabs() {}, updateNietzscheStateUi() {},
     renderExtraCards() {}, renderPanelTokens() {}, panelWrap: { querySelector() {} },
     battleMapControl: { render() {}, reset() {} }, window: { confirm: () => true },
@@ -304,4 +305,80 @@ test('DAHAKA keeps its single physical AIBP deck synchronized', () => {
   assert.equal(state.AI, state.BP);
   assert.equal(state.AI, state.aibp);
   assert.equal(ctx.canUndo('DAHAKA', 'AI'), false);
+});
+
+for (const boss of ['SUN_DESCENDANT', 'THE_BABELIAN_LUNACY', 'UR_FLEECE']) {
+  test(`${boss}: returned BP stays on top, preserves its counter, and supports undo`, () => {
+    const { ctx } = harness();
+    ctx.currentApostle = boss;
+    ctx.apostles.push(boss);
+    ctx.piles[boss] = initialState();
+    const original = clone(ctx.piles[boss]);
+    ctx.drawBp();
+    const card = clone(ctx.piles[boss].BP.pending);
+    ctx.resolveBp('return-top');
+    let bp = ctx.piles[boss].BP;
+    assert.equal(bp.pending, null);
+    assert.deepEqual(clone(bp.deck[0]), card);
+    assert.deepEqual(clone(ctx.returnedBpPreviewCard()), card);
+    assert.deepEqual(clone(ctx.piles[boss].AI), original.AI);
+    assert.equal(bp.damage.length, 0);
+    assert.equal(bp.discard.length, 0);
+    assert.equal(bp.deck.length, original.BP.deck.length);
+    ctx.updateCombinedBpTotal(7);
+    ctx.drawBp();
+    assert.deepEqual(clone(bp.pending), card);
+    assert.equal(ctx.returnedBpPreviewCard(), null);
+    assert.match(ctx.combinedBpNotice(), /7/);
+    ctx.resolveBp('return-top');
+    assert.equal(bp.combinedAttack.total, 7);
+    ctx.updateCombinedBpTotal(12);
+    ctx.undoLastAibp('BP');
+    bp = ctx.piles[boss].BP;
+    assert.equal(bp.combinedAttack.total, 7);
+    // The counter lives in the saved BP state and survives serialization.
+    ctx.piles[boss] = clone(ctx.piles[boss]);
+    ctx.drawBp();
+    assert.match(ctx.combinedBpNotice(), /7/);
+    ctx.resolveBp('discard');
+    assert.equal(ctx.piles[boss].BP.combinedAttack, undefined);
+    ctx.undoLastAibp('BP');
+    assert.equal(ctx.piles[boss].BP.combinedAttack.total, 7);
+    assert.deepEqual(clone(ctx.piles[boss].BP.pending), card);
+  });
+}
+
+test('combined BP counter is cleared when a different BP is drawn', () => {
+  const { ctx } = harness();
+  ctx.currentApostle = 'SUN_DESCENDANT';
+  ctx.piles.SUN_DESCENDANT = initialState();
+  ctx.drawBp(); ctx.resolveBp('return-top'); ctx.updateCombinedBpTotal(8);
+  ctx.piles.SUN_DESCENDANT.BP.deck.reverse();
+  assert.equal(ctx.returnedBpPreviewCard(), null);
+  ctx.drawBp();
+  assert.equal(ctx.piles.SUN_DESCENDANT.BP.combinedAttack, undefined);
+  assert.equal(ctx.combinedBpNotice(), '');
+});
+
+test('returning BP is unavailable to unrelated bosses', () => {
+  const { ctx } = harness();
+  ctx.drawBp();
+  const before = clone(ctx.piles.TEST);
+  ctx.resolveBp('return-top');
+  assert.deepEqual(clone(ctx.piles.TEST), before);
+});
+
+test('Nietzschean All For One does not enable BP return or a combined BP reminder', () => {
+  const { ctx } = harness();
+  ctx.currentApostle = 'THE_NIETZSCJEAN';
+  const state = ctx.piles.THE_NIETZSCJEAN = initialState();
+  ctx.drawBp();
+  // A counter left by the earlier implementation must not show a reminder.
+  state.BP.combinedAttack = { card: clone(state.BP.pending), total: 7 };
+  const before = clone(state);
+  assert.equal(ctx.supportsCombinedBp(), false);
+  assert.equal(ctx.combinedBpNotice(), '');
+  ctx.resolveBp('return-top');
+  ctx.updateCombinedBpTotal(9);
+  assert.deepEqual(clone(state), before);
 });

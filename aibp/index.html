@@ -5,6 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AIBP Apostle Viewer</title>
   <style>
+    .bp-combined-counter { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px; border: 1px solid var(--gold); border-radius: 6px; margin: 8px 0; }
+    .bp-combined-counter[hidden] { display: none; }
+    .bp-combined-counter input { width: 80px; }
+    #imageZoomCombinedNotice {
+      color: var(--gold); text-align: center; font-size: 22px; line-height: 1.5;
+      background: #242017; border: 2px solid var(--gold); border-radius: 12px;
+      padding: 14px 24px; margin: 12px auto; max-width: 560px;
+      box-shadow: 0 4px 18px #0008;
+    }
+    #imageZoomCombinedNotice strong {
+      display: block; color: #ffe3a0; font-size: 48px; line-height: 1.2; font-weight: 800;
+      overflow-wrap: anywhere; font-variant-numeric: tabular-nums;
+    }
     :root {
       color-scheme: dark;
       --bg: #10100f;
@@ -2164,6 +2177,7 @@
                 <button type="button" id="discardBpButton" disabled>弃置</button>
                 <button type="button" id="defeatBpButton" disabled>击败</button>
                 <button type="button" id="criticalBpButton" disabled>暴击</button>
+                <button type="button" id="returnBpTopButton" hidden disabled>放回牌堆顶</button>
                 <button type="button" id="healBpButton" disabled title="将损伤堆顶部的一张卡从本场战斗中暂时移除；不再计入损伤，也不提供战后资源。">回生（heal）</button>
                 <label class="damage-target" id="chimeraDamageTarget">
                   <span>奇美拉损伤进入</span>
@@ -2185,6 +2199,14 @@
               <div class="draw-preview" id="bpDrawPreview">未抽取 BP</div>
             </div>
             <div class="babelian-bp-control" id="babelianFusionControl" hidden></div>
+            <div class="bp-combined-counter" id="bpCombinedControl" hidden>
+              <label>累积强度 <input id="bpCombinedTotal" type="number" min="0" step="1" value="0"></label>
+              <button type="button" data-combined-adjust="-1">−1</button>
+              <button type="button" data-combined-adjust="1">+1</button>
+              <button type="button" data-combined-adjust="5">+5</button>
+              <button type="button" data-combined-adjust="clear">归零</button>
+              <span id="bpCombinedHint"></span>
+            </div>
             <div class="card-grid" id="bpGrid"></div>
           </div>
         </div>
@@ -2352,12 +2374,14 @@
         <div class="image-zoom-card-tokens" id="imageZoomCardTokens"></div>
       </div>
       <div class="image-zoom-notice" id="imageZoomNotice"></div>
+      <div id="imageZoomCombinedNotice" hidden role="status"></div>
       <div class="image-zoom-actions" id="imageZoomBpActions" aria-label="BP 处置">
         <button type="button" data-bp-zoom-action="discard">弃置</button>
         <button type="button" data-bp-zoom-action="defeat">击败</button>
         <button type="button" data-bp-zoom-action="vp-defeat" hidden>VP击败</button>
         <button type="button" data-bp-zoom-action="vp-critical" hidden>VP暴击</button>
         <button type="button" data-bp-zoom-action="critical">暴击</button>
+        <button type="button" data-bp-zoom-action="return-top" hidden>放回牌堆顶</button>
       </div>
       <div class="image-zoom-actions" id="imageZoomFlipActions" aria-label="翻面">
         <button type="button" id="imageZoomFlipButton">反面</button>
@@ -2769,6 +2793,11 @@
     const promoteBpSingleButton = document.getElementById("promoteBpSingleButton");
     const promoteBpButton = document.getElementById("promoteBpButton");
     const bpDrawPreview = document.getElementById("bpDrawPreview");
+    const returnBpTopButton = document.getElementById("returnBpTopButton");
+    const bpCombinedControl = document.getElementById("bpCombinedControl");
+    const bpCombinedTotal = document.getElementById("bpCombinedTotal");
+    const bpCombinedHint = document.getElementById("bpCombinedHint");
+    const imageZoomCombinedNotice = document.getElementById("imageZoomCombinedNotice");
     const imageZoomOverlay = document.getElementById("imageZoomOverlay");
     const imageZoomImg = document.getElementById("imageZoomImg");
     const imageZoomCardTokens = document.getElementById("imageZoomCardTokens");
@@ -5048,6 +5077,7 @@
         x: 8 + (tokens.length % 5) * 8,
         y: 8 + Math.floor(tokens.length / 5) * 8
       };
+      if (options.perHit === true) item.perHit = true;
       tokens.push(item);
       return item;
     }
@@ -5061,7 +5091,8 @@
       if (index < 0) index = 0;
 
       for (let i = 0; i < count; i++) {
-        addPanelToken(aiExhaustedBonusTokens[index], 1);
+        const file = aiExhaustedBonusTokens[index];
+        addPanelToken(file, 1, { perHit: file === "DA+.png" });
         index = (index + 1) % aiExhaustedBonusTokens.length;
       }
 
@@ -5071,21 +5102,35 @@
 
     function promoteAiFromLevel(fromLevel, toLevel, damageCount = 1) {
       reshuffleDiscardIfDeckEmpty("AI");
-      if (toLevel === "III" && !hasSupply("AI", "III")) {
+      const ai = piles[currentApostle].AI;
+      const levels = ["I", "II", "III"];
+      const eligibleLevels = levels.slice(Math.max(0, levels.indexOf(fromLevel)));
+      const level = eligibleLevels.find((candidate) =>
+        ai.deck.some((card) => card.level === candidate)
+        || ai.discard.some((card) => card.level === candidate)
+      );
+      if (!level) {
         addAiExhaustedBonusTokens(damageCount);
         return;
       }
-      removeFirstMatchingToRemoved("AI", (card) => card.level === fromLevel);
-      insertPromotedCard("AI", toLevel);
+      // P52: missing matching tiers fall forward; promote the AI actually found.
+      removeFirstMatchingToRemoved("AI", (card) => card.level === level);
+      const promotedLevel = level === fromLevel ? toLevel : (higherLevel(level) || "III");
+      if (promotedLevel === "III" && !hasSupply("AI", "III")) {
+        addAiExhaustedBonusTokens(damageCount);
+      } else {
+        insertPromotedCard("AI", promotedLevel);
+      }
     }
 
     function promoteAiForBpIII(damageCount = 2) {
       reshuffleDiscardIfDeckEmpty("AI");
-      if (!hasSupply("AI", "III")) {
+      // P53: remove the lowest AI before resolving an exhausted III supply.
+      const removed = removeLowestCardToRemoved("AI");
+      if (!removed || !hasSupply("AI", "III")) {
         addAiExhaustedBonusTokens(damageCount);
         return;
       }
-      removeLowestCardToRemoved("AI");
       insertPromotedCard("AI", "III");
     }
 
@@ -5143,6 +5188,7 @@
         bp.deck = shuffleCards(bp.deck.concat(bp.discard));
         bp.discard = [];
       }
+      promoteAiForBpIII(2);
     }
 
     function addBpSpecialDamage(special) {
@@ -5370,21 +5416,7 @@
       ensurePiles(currentApostle);
       if (!lowestLevelCard("BP")) return;
       rememberUndo(currentApostle, "AIBP");
-      const removed = removeLowestCardToRemoved("BP");
-      const removedCard = removed?.card;
-      if (!removedCard) return;
-
-      // 这张 BP 不进入损伤牌堆，而是进入 BP 的移除牌堆；
-      // 但仍按“这张 BP 被击败/造成损伤”完整结算 BP 卡组补新卡和 AI 卡组升级。
-      promoteBpDeckForDefeatedLevel(removedCard.level);
-
-      if (removedCard.level === "I") {
-        promoteAiFromLevel("I", "II");
-      } else if (removedCard.level === "II") {
-        promoteAiFromLevel("II", "III");
-      } else if (removedCard.level === "III") {
-        promoteAiForBpIII();
-      }
+      if (!performLinkedPromotion()) return;
 
       currentBpView = "移除";
       savePiles();
@@ -5397,13 +5429,20 @@
       const removedCard = removed?.card;
       if (!removedCard) return false;
 
-      promoteBpDeckForDefeatedLevel(removedCard.level);
-      if (removedCard.level === "I") {
-        promoteAiFromLevel("I", "II");
-      } else if (removedCard.level === "II") {
-        promoteAiFromLevel("II", "III");
-      } else if (removedCard.level === "III") {
-        promoteAiForBpIII();
+      const bp = piles[currentApostle].BP;
+      if (removedCard.level === "III" && !hasSupply("BP", "III")) {
+        bp.deck = shuffleCards(bp.deck.concat(bp.discard));
+        bp.discard = [];
+      } else {
+        insertPromotedCard("BP", higherLevel(removedCard.level) || "III");
+      }
+
+      // Escalate X (P63) promotes each pile's own lowest tier, without wounds.
+      const aiCard = lowestLevelCard("AI");
+      if (aiCard?.level === "III") {
+        promoteAiForBpIII(0);
+      } else if (aiCard) {
+        promoteAiFromLevel(aiCard.level, higherLevel(aiCard.level), 0);
       }
       return true;
     }
@@ -5480,7 +5519,6 @@
         }
         if (existingAuto.autoLevelBonus === kind) {
           delete existingAuto.autoLevelBonus;
-          delete existingAuto.perHit;
         }
         if ((Number(existingAuto.count) || 0) <= 0) {
           const index = tokens.indexOf(existingAuto);
@@ -5491,17 +5529,12 @@
       if (normalizedCount <= 0) return;
 
       if (perHit) {
-        let perHitToken = tokens.find((item) => item.autoLevelBonus === kind && item.perHit === true);
-        if (!perHitToken) {
-          perHitToken = addPanelToken(file, normalizedCount, { perHit: true });
-        } else {
-          perHitToken.count = normalizedCount;
-        }
+        const perHitToken = addPanelToken(file, normalizedCount, { perHit: true });
         perHitToken.file = file;
-        perHitToken.count = normalizedCount;
         perHitToken.x = position.x;
         perHitToken.y = position.y;
-        perHitToken.autoLevelBonus = kind;
+        perHitToken.autoLevelBonusContributions ||= {};
+        perHitToken.autoLevelBonusContributions[kind] = normalizedCount;
         perHitToken.perHit = true;
         return;
       }
@@ -5576,14 +5609,59 @@
       renderNietzscheBreakLocks(damageSummary.total);
     }
 
+    function supportsCombinedBp(name = currentApostle) {
+      return ["SUN_DESCENDANT", "THE_BABELIAN_LUNACY", "UR_FLEECE"].includes(name);
+    }
+
+    function returnedBpPreviewCard() {
+      const bp = piles[currentApostle]?.BP;
+      return supportsCombinedBp() && !bp?.pending && bp?.combinedAttack
+        && sameCard(bp.combinedAttack.card, bp.deck[0]) ? bp.deck[0] : null;
+    }
+
+    function combinedBpNotice() {
+      const bp = piles[currentApostle]?.BP;
+      const combined = bp?.combinedAttack;
+      return supportsCombinedBp() && combined && sameCard(combined.card, bp.pending)
+        ? `本次攻击可加入已记录的累积强度：${combined.total}`
+        : "";
+    }
+
+    function renderCombinedBpControl() {
+      const bp = piles[currentApostle]?.BP;
+      const supported = supportsCombinedBp();
+      returnBpTopButton.hidden = !supported;
+      returnBpTopButton.disabled = !bp?.pending;
+      const combined = supported ? bp?.combinedAttack : null;
+      bpCombinedControl.hidden = !combined;
+      if (!combined) return;
+      bpCombinedTotal.value = combined.total;
+      bpCombinedHint.textContent = bp.pending && sameCard(combined.card, bp.pending)
+        ? combinedBpNotice()
+        : "BP 已放回牌堆顶；下次攻击沿用此累积强度。";
+    }
+
+    function updateCombinedBpTotal(value) {
+      const combined = piles[currentApostle]?.BP?.combinedAttack;
+      const total = Math.max(0, Math.floor(Number(value) || 0));
+      if (!supportsCombinedBp() || !combined || !Number.isSafeInteger(total) || combined.total === total) return;
+      rememberUndo(currentApostle, "BP");
+      combined.total = total;
+      savePiles();
+      renderCombinedBpControl();
+      updateUndoButtons();
+    }
+
     function renderDrawPreview() {
       ensurePiles(currentApostle);
       const aiPending = piles[currentApostle].AI.pending;
       const bpPending = piles[currentApostle].BP.pending;
+      const returnedBp = returnedBpPreviewCard();
       confirmAiButton.disabled = !aiPending;
       discardBpButton.disabled = !bpPending;
       defeatBpButton.disabled = !bpPending;
       criticalBpButton.disabled = !bpPending;
+      renderCombinedBpControl();
       drawBpButton.disabled = false;
       drawAiButton.disabled = false;
 
@@ -5595,12 +5673,14 @@
         aiDrawPreview.replaceChildren(imageOrMessage(cardSrc(aiPending), "抽取的 AI"));
       }
 
-      if (!bpPending) {
+      if (!bpPending && !returnedBp) {
         bpDrawPreview.classList.remove("has-card");
         bpDrawPreview.textContent = "未抽取 BP";
       } else {
         bpDrawPreview.classList.add("has-card");
-        bpDrawPreview.replaceChildren(imageOrMessage(cardSrc(bpPending), "抽取的 BP"));
+        bpDrawPreview.replaceChildren(imageOrMessage(
+          cardSrc(bpPending || returnedBp), bpPending ? "抽取的 BP" : "已放回牌堆顶的 BP"
+        ));
       }
     }
 
@@ -6403,9 +6483,10 @@
       imageZoomBpActions.querySelectorAll("[data-bp-zoom-action]").forEach((button) => {
         const action = button.dataset.bpZoomAction;
         const isVpAction = action === "vp-defeat" || action === "vp-critical";
-        button.hidden = isVpAction && !isChimera();
+        const isReturnAction = action === "return-top";
+        button.hidden = (isVpAction && !isChimera()) || (isReturnAction && !supportsCombinedBp());
         button.disabled = !pending
-          || (isVpAction && !isChimera());
+          || (isVpAction && !isChimera()) || (isReturnAction && !supportsCombinedBp());
       });
     }
 
@@ -6507,7 +6588,8 @@
         .map((item) => ({
           file: item.file,
           count: Math.max(1, Math.floor(Number(item.count) || 1)),
-          autoLevelBonus: item.autoLevelBonus || ""
+          autoLevelBonus: item.autoLevelBonus || "",
+          perHit: isPerHitTokenStack(item)
         }));
     }
 
@@ -6526,10 +6608,10 @@
         items.filter((item) => group.matches(item.file)).forEach((item) => {
           const tokenItem = document.createElement("div");
           tokenItem.className = "image-zoom-card-token";
-          if (item.autoLevelBonus === "danger" && currentApostleLevel() >= 5) {
+          if (isPerHitTokenStack(item)) {
             tokenItem.classList.add("auto-level-danger-per-hit");
           }
-          tokenItem.title = `${item.file} ×${item.count}`;
+          tokenItem.title = `${item.file} ×${item.count}${isPerHitTokenStack(item) ? "（每命中）" : ""}`;
 
           const img = document.createElement("img");
           img.src = tokenSrc(item.file);
@@ -6584,6 +6666,16 @@
       imageZoomNotice.parentElement.classList.toggle("has-side-notices", sideNotices);
       setImageZoomCardTokens(options.cardTokens || []);
       setImageZoomBpActions(Boolean(options.bpActions));
+      const combinedNotice = options.bpActions ? combinedBpNotice() : "";
+      imageZoomCombinedNotice.textContent = combinedNotice;
+      if (combinedNotice) {
+        const label = document.createElement("span");
+        label.textContent = "本次攻击可加入累积强度";
+        const total = document.createElement("strong");
+        total.textContent = String(piles[currentApostle].BP.combinedAttack.total);
+        imageZoomCombinedNotice.replaceChildren(label, total);
+      }
+      imageZoomCombinedNotice.hidden = !combinedNotice;
       setImageZoomFlipActions(options.flipContext || null);
       setImageZoomMoveActions(options.moveContext || null);
       setImageZoomTokenActions(options.tokenContext || null);
@@ -6699,7 +6791,7 @@
         }
         tokenItem.classList.toggle(
           "auto-level-danger-per-hit",
-          item.autoLevelBonus === "danger" && currentApostleLevel() >= 5
+          isPerHitTokenStack(item)
         );
         tokenItem.style.setProperty("--token-left", `${item.x}%`);
         tokenItem.style.setProperty("--token-top", `${item.y}%`);
@@ -6716,7 +6808,7 @@
           ? `${panelCounterLabel}通用标记 ×${item.count}${(Number(item.count) || 0) >= threshold ? "，立即处理" : "，点击增加"}`
           : isCriticalMass
             ? `临界质量通用标记 ×${item.count}${(Number(item.count) || 0) >= threshold ? "，立即处理" : ""}`
-            : `${item.file} ×${item.count}，拖动可调整位置`;
+            : `${item.file} ×${item.count}${isPerHitTokenStack(item) ? "（每命中）" : ""}，拖动可调整位置`;
 
         const img = document.createElement("img");
         img.src = tokenSrc(item.file);
@@ -7078,6 +7170,9 @@
         return;
       }
       bp.pending = bp.deck[0];
+      if (bp.combinedAttack && !sameCard(bp.combinedAttack.card, bp.pending)) {
+        delete bp.combinedAttack;
+      }
       piles[currentApostle].lastPendingType = "BP";
       savePiles();
       renderAibpCards();
@@ -7110,10 +7205,26 @@
       ensurePiles(currentApostle);
       const bp = piles[currentApostle].BP;
       if (!bp.pending) return;
+      if (mode === "return-top" && !supportsCombinedBp()) return;
+      if (!["return-top", "discard", "defeat", "critical", "vp-defeat", "vp-critical"].includes(mode)) return;
 
       rememberUndo(currentApostle, "BP");
       const card = removePendingFromDeck("BP");
       bp.pending = null;
+
+      if (mode === "return-top") {
+        const previous = bp.combinedAttack;
+        bp.deck.unshift(card);
+        bp.combinedAttack = {
+          card: { ...card },
+          total: previous && sameCard(previous.card, card) ? previous.total : 0
+        };
+        currentBpView = "当前";
+        savePiles();
+        renderAibpCards();
+        return;
+      }
+      delete bp.combinedAttack;
 
       if (card?.specialBp) {
         bp.removed.push(card);
@@ -7538,10 +7649,22 @@
     drawFeintButton.addEventListener("click", drawFeint);
     drawBpButton.addEventListener("click", drawBp);
     bpDrawPreview.addEventListener("click", () => {
+      if (returnedBpPreviewCard()) return;
       if (!piles[currentApostle]?.BP?.pending) drawBp();
     });
     undoBpButton.addEventListener("click", () => undoLastAibp("BP"));
     discardBpButton.addEventListener("click", () => resolveBp("discard"));
+    returnBpTopButton.addEventListener("click", () => resolveBp("return-top"));
+    bpCombinedTotal.addEventListener("change", () => {
+      updateCombinedBpTotal(bpCombinedTotal.value);
+      renderCombinedBpControl();
+    });
+    bpCombinedControl.addEventListener("click", (event) => {
+      const action = event.target.closest("[data-combined-adjust]")?.dataset.combinedAdjust;
+      if (action === undefined) return;
+      const total = piles[currentApostle]?.BP?.combinedAttack?.total || 0;
+      updateCombinedBpTotal(action === "clear" ? 0 : total + Number(action));
+    });
     defeatBpButton.addEventListener("click", () => resolveBp("defeat"));
     criticalBpButton.addEventListener("click", () => resolveBp("critical"));
     healBpButton.addEventListener("click", healBp);
@@ -7572,8 +7695,8 @@
   <script src="ps/other/resouce/bp_resource_map.js"></script>
   <script src="ps/other/resouce/bp_resource_map_c1_c3.js"></script>
   <script src="ps/other/resouce/bp_resource_map_c4_c5.js?v=20260730e"></script>
-  <script src="c45_specials.js?v=20260926-titan-group-layout1"></script>
-  <script src="bp_loot_calculator_addon.js?v=20260926-c5-resource-icons1"></script>
+  <script src="c45_specials.js?v=20260927-bp-combined1"></script>
+  <script src="bp_loot_calculator_addon.js?v=20260927-settlement-rules1"></script>
   <script src="../assets/ato-terms.js?v=20260919-chimera"></script>
   <script src="../assets/term-language.js?v=20260923-nocascade"></script>
 </body>

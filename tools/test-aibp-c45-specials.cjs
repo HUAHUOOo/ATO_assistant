@@ -862,7 +862,7 @@ test("Demidjinn migrates legacy Wish for a Wish counts into its panel token", ()
   assert.equal(token.count, 4);
 });
 
-test("Babelian BP module records and clears its bonus without VP overwrites", () => {
+test("Babelian BP module records and clears its bonus without discard overwrites", () => {
   const app = makeHarness();
   app.renderApostle("THE_BABELIAN_LUNACY");
   const state = app.piles.THE_BABELIAN_LUNACY;
@@ -882,9 +882,9 @@ test("Babelian BP module records and clears its bonus without VP overwrites", ()
 
   const card = state.BP.deck[0];
   state.BP.pending = card;
-  app.resolveBp("vp-defeat");
+  app.resolveBp("discard");
   assert.equal(state.BP.pending, null);
-  assert.equal(state.BP.deck.some((candidate) => app.sameCard(candidate, card)), true);
+  assert.equal(state.BP.discard.some((candidate) => app.sameCard(candidate, card)), true);
   assert.equal(state.BP.damage.length, 0);
   assert.equal(state.special.babelian.fusionBonus, 1);
 

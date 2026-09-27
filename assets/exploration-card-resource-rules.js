@@ -50,7 +50,15 @@
   // ----------------------------------------------------------------------- //
 
   function diplomacyItems(context) {
-    return Array.isArray(context?.diplomacy) ? context.diplomacy.filter((item) => Number.isFinite(Number(item?.bonus))) : [];
+    const items = Array.isArray(context?.diplomacy)
+      ? context.diplomacy.filter((item) => item?.bonus !== null && Number.isFinite(Number(item?.bonus)))
+      : [];
+    if (context?.diplomacyFaction) {
+      return items.filter((item) => item.id === context.diplomacyFaction);
+    }
+    // P23: multiple local factions require one player choice, never an OR of all.
+    if (context?.diplomacyFactions?.length > 1) return [];
+    return items.length === 1 ? items : [];
   }
 
   // Returns true (condition holds), false (it does not) or null (the app cannot
@@ -157,6 +165,9 @@
    *            cannot be resolved from the live state
    */
   function plan(card, context = {}) {
+    if (card?.diplomacyFaction) {
+      context = { ...context, diplomacyFaction: card.diplomacyFaction };
+    }
     const grants = Array.isArray(card?.grants) ? card.grants : [];
     const manual = manualEntries(card, context, null);
     if (!grants.length) {
