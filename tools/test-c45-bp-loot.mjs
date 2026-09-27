@@ -182,4 +182,33 @@ result = context.AIBP_calculateBpLoot();
 assert.equal(result.totals.core || 0, 0);
 assert.ok(Object.values(result.totals).every((amount) => amount === 0));
 
-console.log("C4-C5 and Blackbeak BP loot rules verified.");
+// Execute the real heal action, then use the complete resource calculator.
+const aibpSource = fs.readFileSync(path.join(root, "aibp", "index.html"), "utf8");
+Object.assign(context, {
+  ensurePiles() {}, rememberUndo() {}, savePiles() {}, renderAibpCards() {},
+  isChimera: () => context.currentApostle === "CHIMERA_METASTASIOS",
+  bpDamageTargetSelect: { value: "damage1" }, currentBpView: "损伤",
+});
+for (const name of ["currentBpDamageKey", "currentBpDamageView", "currentBpHealIndex", "healBp"]) {
+  const fn = aibpSource.match(new RegExp("^    function " + name + "\\([^]*?^    }", "m"));
+  assert.ok(fn, name);
+  vm.runInContext(fn[0], context);
+}
+for (const topCard of [
+  { type: "BP", level: "III", index: 1, src: "ps/HERMESIAN_PURSUER/HERMESIAN_PURSUER_BP_III_001.jpg" },
+  { special: "SW" },
+  { special: "DW" },
+]) {
+  const bp = context.piles.BLACKBEAK.BP;
+  bp.deck = [{ type: "BP", level: "III", index: 1, src: "ps/HERMESIAN_PURSUER/HERMESIAN_PURSUER_BP_III_001.jpg" }];
+  bp.damage = [topCard];
+  const beforeHeal = context.AIBP_calculateBpLoot();
+  assert.ok(Object.values(beforeHeal.totals).some((amount) => amount > 0));
+  context.healBp();
+  const afterHeal = context.AIBP_calculateBpLoot();
+  assert.equal(afterHeal.damageCount, 0);
+  assert.ok(Object.values(afterHeal.totals).every((amount) => amount === 0), "healed BP/SW/DW grants no loot");
+  assert.equal(bp.removed.at(-1), topCard);
+}
+
+console.log("C4-C5, Blackbeak and heal BP loot rules verified.");

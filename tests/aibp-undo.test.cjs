@@ -6,11 +6,13 @@ const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, '../aibp/index.html'), 'utf8').replace(/\r\n/g, '\n');
 const functions = [
-  'isPlainObject', 'clonePileState', 'loadSavedPiles', 'savePiles',
+  'isPlainObject', 'clonePileState', 'migrateLegacyHealedPiles', 'loadSavedPiles', 'savePiles',
   'rememberUndo', 'trimUndoStack', 'undoSharedState', 'captureUndoEffects',
   'undoEntryIndex', 'reverseUndoEffects', 'canUndo', 'undoLastAibp', 'updateUndoButtons',
   'drawAi', 'drawBp', 'discardAiPending', 'removePendingFromDeck', 'resolveBp', 'sameCard',
   'startNewCampaign', 'startScry', 'cancelScry',
+  'currentBpDamageKey', 'currentBpDamageView', 'currentBpHealIndex', 'healBp',
+  'bpDamageValue', 'bpDamageTotalForKey', 'currentBpDamageSummary',
 ];
 const clone = (value) => JSON.parse(JSON.stringify(value));
 function initialState() {
@@ -34,10 +36,11 @@ function harness(storage = new Map()) {
     renderExtraCards() {}, renderPanelTokens() {}, panelWrap: { querySelector() {} },
     battleMapControl: { render() {}, reset() {} }, window: { confirm: () => true },
     initialState, applyBurdenInitialLinkedPromotion() {}, applyCurrentApostleLevelBonuses() {}, setSecondScreenMode() {},
+    isChimera: () => ctx.currentApostle === 'CHIMERA', bpDamageTargetSelect: { value: 'damage1' },
     shuffleCards: (cards) => cards.slice().reverse(), cardSrc: () => '',
     currentPanelCardTokens: () => [], currentBpNoticeImages: () => [], chimeraName: 'CHIMERA',
     scryDialog: { dataset: { scryType: 'AI' } }, scryCountInput: { value: '2' },
-    scrySetup: {}, scryCards: {}, scryStartButton: {}, scryTopButton: {}, scryBottomButton: {}, scryShuffleButton: {}, scryRemoveButton: {}, renderScryCards() {},
+    scrySetup: {}, scryCards: {}, scryStartButton: {}, scryTopButton: {}, scryBottomButton: {}, scryShuffleButton: {}, scryDiscardButton: {}, scryRemoveButton: {}, renderScryCards() {},
   });
   ctx.renderAibpCards = () => ctx.updateUndoButtons();
   ctx.openImageZoom = (_src, _label, onClose) => { if (onClose) onClose(); };
@@ -166,6 +169,97 @@ test('legacy saves without history still load', () => {
   const { ctx } = harness(new Map([['piles', JSON.stringify({ TEST: state })]]));
   assert.deepEqual(clone(ctx.piles.TEST), state);
   assert.equal(ctx.canUndo('TEST', 'AI'), false);
+});
+
+test('heal removes the whole top damage card, persists and supports BP undo', () => {
+  let { ctx, storage } = harness();
+  const bottom = { type: 'BP', level: 'I', index: 1 };
+  const top = { type: 'BP', level: 'III', index: 2, damageValue: 2 };
+  ctx.piles.TEST.BP.damage = [bottom, top];
+  ctx.piles.TEST.tokens.push({ file: 'CM.jpg', count: 3 });
+  const before = clone(ctx.piles.TEST);
+  assert.equal(ctx.currentBpDamageSummary().total, 3);
+  ctx.healBp();
+  assert.deepEqual(clone(ctx.piles.TEST.BP.damage), [bottom]);
+  assert.deepEqual(clone(ctx.piles.TEST.BP.removed), [top]);
+  assert.equal(ctx.currentBpDamageSummary().total, 1);
+  assert.deepEqual(clone(ctx.piles.TEST.tokens), before.tokens);
+  assert.equal(ctx.currentBpView, '移除');
+  ctx = harness(storage).ctx;
+  assert.deepEqual(clone(ctx.piles.TEST.BP.removed), [top]);
+  ctx.undoLastAibp('BP');
+  assert.deepEqual(clone(ctx.piles.TEST), before);
+});
+
+test('heal on an empty damage stack does not add undo history', () => {
+  const { ctx, storage } = harness();
+  ctx.healBp();
+  assert.equal(ctx.currentBpHealIndex(), -1);
+  assert.equal(ctx.canUndo('TEST', 'BP'), false);
+  assert.equal(storage.size, 0);
+});
+
+test('legacy heal saves and undo snapshots merge into the existing removed pile', () => {
+  const before = initialState();
+  const existing = { type: 'BP', level: 'I', index: 1 };
+  const healed = { type: 'BP', level: 'II', index: 2 };
+  before.BP.removed = [existing];
+  before.BP.damage = [healed];
+  before.BP.healed = [];
+  const state = clone(before);
+  state.BP.damage = [];
+  state.BP.healed = [healed];
+  const storage = new Map([['piles', JSON.stringify({ TEST: state, undoStacks: {
+    TEST: [{ scope: 'BP', state: before, aiView: '弃牌', bpView: '回生移除' }],
+  } })]]);
+  const { ctx } = harness(storage);
+  assert.deepEqual(clone(ctx.piles.TEST.BP.removed), [existing, healed]);
+  assert.equal(ctx.piles.TEST.BP.healed, undefined);
+  ctx.undoLastAibp('BP');
+  assert.deepEqual(clone(ctx.piles.TEST.BP.removed), [existing]);
+  assert.deepEqual(clone(ctx.piles.TEST.BP.damage), [healed]);
+  assert.equal(ctx.piles.TEST.BP.healed, undefined);
+  assert.equal(ctx.currentBpView, '移除');
+});
+
+test('Chimera heal uses only the selected damage stack, including special wounds', () => {
+  const { ctx } = harness();
+  ctx.currentApostle = 'CHIMERA';
+  ctx.piles.CHIMERA = initialState();
+  ctx.piles.CHIMERA.BP.damage1 = [{ special: 'SW' }];
+  ctx.piles.CHIMERA.BP.damage2 = [{ special: 'DW' }];
+  ctx.bpDamageTargetSelect.value = 'damage2';
+  ctx.healBp();
+  assert.equal(ctx.piles.CHIMERA.BP.damage1.length, 1);
+  assert.equal(ctx.piles.CHIMERA.BP.damage2.length, 0);
+  assert.equal(ctx.currentBpView, '移除');
+  assert.equal(ctx.currentBpDamageSummary().total, 1);
+  ctx.healBp();
+  assert.equal(ctx.undoStacks.CHIMERA.length, 1);
+  ctx.bpDamageTargetSelect.value = 'damage1';
+  ctx.healBp();
+  assert.equal(ctx.currentBpDamageSummary().total, 0);
+  assert.equal(ctx.piles.CHIMERA.BP.removed.length, 2);
+});
+
+test('Titan X group heal removes the current target top wound and leaves other enemies intact', () => {
+  const { ctx } = harness();
+  ctx.currentApostle = 'TITAN_X';
+  ctx.piles.TITAN_X = initialState();
+  ctx.piles.TITAN_X.special.titanX = { group: { target: 1 } };
+  const wounds = [
+    { special: 'SW', titanXOwner: 1 },
+    { special: 'DW', titanXOwner: 1 },
+    { special: 'DW', titanXOwner: 2 },
+  ];
+  ctx.piles.TITAN_X.BP.damage = wounds.slice();
+  ctx.healBp();
+  assert.deepEqual(clone(ctx.piles.TITAN_X.BP.damage), [wounds[0], wounds[2]]);
+  assert.deepEqual(clone(ctx.piles.TITAN_X.BP.removed), [wounds[1]]);
+  assert.equal(ctx.currentBpDamageSummary().total, 1);
+  ctx.healBp();
+  assert.equal(ctx.currentBpHealIndex(), -1);
+  assert.equal(ctx.piles.TITAN_X.BP.damage[0].titanXOwner, 2);
 });
 
 test('new draws after independent undo form a new history without resurrecting the other pile', () => {

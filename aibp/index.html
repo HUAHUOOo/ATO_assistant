@@ -2164,6 +2164,7 @@
                 <button type="button" id="discardBpButton" disabled>弃置</button>
                 <button type="button" id="defeatBpButton" disabled>击败</button>
                 <button type="button" id="criticalBpButton" disabled>暴击</button>
+                <button type="button" id="healBpButton" disabled title="将损伤堆顶部的一张卡从本场战斗中暂时移除；不再计入损伤，也不提供战后资源。">回生（heal）</button>
                 <label class="damage-target" id="chimeraDamageTarget">
                   <span>奇美拉损伤进入</span>
                   <select id="bpDamageTargetSelect">
@@ -2756,6 +2757,7 @@
     const discardBpButton = document.getElementById("discardBpButton");
     const defeatBpButton = document.getElementById("defeatBpButton");
     const criticalBpButton = document.getElementById("criticalBpButton");
+    const healBpButton = document.getElementById("healBpButton");
     const addSwButton = document.getElementById("addSwButton");
     const addDwButton = document.getElementById("addDwButton");
     const addSwDamage2Button = document.getElementById("addSwDamage2Button");
@@ -2841,9 +2843,21 @@
       viewDeckOrderToggle.checked = localStorage.getItem(deckOrderViewStorageKey) !== "0";
     }
 
+    function migrateLegacyHealedPiles(state) {
+      if (!state || typeof state !== "object") return;
+      if (Array.isArray(state.healed)) {
+        state.removed = [...(state.removed || []), ...state.healed];
+        delete state.healed;
+      }
+      if (state.bpView === "回生移除") state.bpView = "移除";
+      // 同时迁移当前牌堆、隐藏 BOSS 各模式及撤销快照。
+      Object.values(state).forEach(migrateLegacyHealedPiles);
+    }
+
     function loadSavedPiles() {
       try {
         const saved = JSON.parse(localStorage.getItem(storageKey) || "{}");
+        migrateLegacyHealedPiles(saved);
         const session = saved.activeScry;
         const history = saved.undoStacks;
         delete saved.activeScry;
@@ -4002,6 +4016,29 @@
       if (!card) return 0;
       if (card.special === "DW" || card.level === "III") return 2;
       return Math.max(1, Math.floor(Number(card.damageValue) || 1));
+    }
+
+    function currentBpHealIndex() {
+      const cards = piles[currentApostle].BP[currentBpDamageKey()] || [];
+      const group = currentApostle === "TITAN_X" && piles.TITAN_X?.special?.titanX?.group;
+      // 损伤用 push 入堆，最后加入的实体卡就是堆顶；群战只处理当前目标。
+      for (let index = cards.length - 1; index >= 0; index--) {
+        if (!group || cards[index].titanXOwner === group.target) return index;
+      }
+      return -1;
+    }
+
+    function healBp() {
+      ensurePiles(currentApostle);
+      const index = currentBpHealIndex();
+      if (index < 0) return;
+      rememberUndo(currentApostle, "BP");
+      const bp = piles[currentApostle].BP;
+      const [card] = bp[currentBpDamageKey()].splice(index, 1);
+      bp.removed.push(card);
+      currentBpView = "移除";
+      savePiles();
+      renderAibpCards();
     }
 
     function notifyBpWound(card) {
@@ -5535,6 +5572,7 @@
       bpDamageSummary.textContent = isChimera()
         ? `损伤：${damageSummary.total}（${damageSummary.damage1}+${damageSummary.damage2}）`
         : `损伤：${damageSummary.total}`;
+      healBpButton.disabled = currentBpHealIndex() < 0;
       renderNietzscheBreakLocks(damageSummary.total);
     }
 
@@ -7506,6 +7544,7 @@
     discardBpButton.addEventListener("click", () => resolveBp("discard"));
     defeatBpButton.addEventListener("click", () => resolveBp("defeat"));
     criticalBpButton.addEventListener("click", () => resolveBp("critical"));
+    healBpButton.addEventListener("click", healBp);
     addSwButton.addEventListener("click", () => addBpSpecialDamage("SW"));
     addDwButton.addEventListener("click", () => addBpSpecialDamage("DW"));
     addSwDamage2Button.addEventListener("click", addChimeraDamage2Sw);
