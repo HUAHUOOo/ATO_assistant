@@ -369,7 +369,11 @@
       gap: var(--gap);
       margin-bottom: 18px;
       overflow: auto;
+      scrollbar-width: none;
     }
+
+    .viewer::-webkit-scrollbar,
+    .extra-grid::-webkit-scrollbar { display: none; }
 
     .section {
       flex: 0 0 auto;
@@ -674,6 +678,7 @@
       max-width: 100%;
       max-height: calc(var(--side-card-image-height) * 2 + 10px);
       overflow: auto;
+      scrollbar-width: none;
     }
 
     .extra-grid img {
@@ -2142,7 +2147,7 @@
         </div>
       </div>
 
-      <div class="viewer" id="viewer">
+      <div class="viewer" id="viewer" tabindex="0" aria-label="卡牌展示区，可横向滚动">
         <section class="section">
           <div class="image-wrap" id="panelWrap"></div>
         </section>
@@ -2156,7 +2161,7 @@
 
         <section class="section extra-section">
           <div class="image-wrap">
-            <div class="extra-grid" id="extraGrid"></div>
+            <div class="extra-grid" id="extraGrid" tabindex="0" aria-label="Trait 卡牌，可横向滚动"></div>
           </div>
         </section>
       </div>
@@ -7682,6 +7687,15 @@
     });
     nietzscheStateButton.addEventListener("click", cycleNietzscheState);
     traitButton.addEventListener("click", openTraitDialog);
+    extraGrid.addEventListener("wheel", (event) => {
+      if (event.ctrlKey || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      const maxScroll = extraGrid.scrollWidth - extraGrid.clientWidth;
+      if (maxScroll <= 0) return;
+      const nextScroll = Math.max(0, Math.min(maxScroll, extraGrid.scrollLeft + event.deltaY));
+      if (nextScroll === extraGrid.scrollLeft) return;
+      extraGrid.scrollLeft = nextScroll;
+      event.preventDefault();
+    }, { passive: false });
     tokenButton.addEventListener("click", openTokenDialog);
     traitCloseButton.addEventListener("click", () => traitDialog.close());
     traitClearButton.addEventListener("click", clearTraitSelection);

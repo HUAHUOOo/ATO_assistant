@@ -362,6 +362,14 @@
     return value.trim().toLowerCase();
   }
 
+  function searchEntryContent(entry, book) {
+    if (storyVersion === "官方版" && supportsOfficialVersion(book)) {
+      const official = officialEntries.get(`${book.id}:${entry.key}`);
+      return { title: official?.officialTitle || entry.title, text: official?.officialText || "" };
+    }
+    return { title: entry.title, text: entry.text || "" };
+  }
+
   function buildVersionData(official) {
     if (!official || !fanData?.books) return fanData;
     // These source-transcribed paragraphs have no counterpart in the fan index.
@@ -699,13 +707,25 @@
       return sortForCurrentContext(entriesById(book, q.toUpperCase()));
     }
 
-    return scopedEntries
-      .filter((entry) => {
-        const correctedTitle = entry.chapterKey === "dreams-of-pharos" ? storyTitleText(entry) : "";
-        const haystack = `${entry.id} ${entry.title} ${correctedTitle} ${entry.englishTitle || ""} ${entry.chapter} ${entry.encounter || ""} ${entry.section || ""} ${entry.text} ${entry.originalText || ""}`.toLowerCase();
-        return haystack.includes(q);
-      })
-      .slice(0, 100);
+    const titleMatches = [];
+    const bodyMatches = [];
+    const sectionMatches = [];
+    book.entries.forEach((entry) => {
+      const content = searchEntryContent(entry, book);
+      const correctedTitle = entry.chapterKey === "dreams-of-pharos" ? storyTitleText(entry) : "";
+      if (`${entry.id} ${content.title} ${correctedTitle} ${entry.englishTitle || ""}`.toLowerCase().includes(q)) {
+        titleMatches.push(entry);
+      } else if (`${content.text} ${storyVersion === "民间版" ? entry.originalText || "" : ""}`.toLowerCase().includes(q)) {
+        bodyMatches.push(entry);
+      } else if (`${entry.chapter} ${entry.encounter || ""} ${entry.section || ""}`.toLowerCase().includes(q)) {
+        sectionMatches.push(entry);
+      }
+    });
+    return [
+      ...sortForCurrentContext(titleMatches),
+      ...sortForCurrentContext(bodyMatches),
+      ...sortForCurrentContext(sectionMatches),
+    ];
   }
 
   function renderResults(entries) {
@@ -715,23 +735,40 @@
       return;
     }
 
-    const fragment = document.createDocumentFragment();
-    entries.forEach((entry) => {
-      const title = entry.chapterKey === "dreams-of-pharos"
-        ? storyTitleText(entry)
-        : `${entry.id} · ${entry.title || "故事段落"}`;
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = `result-item${activeEntry && entry.key === activeEntry.key ? " active" : ""}`;
-      button.innerHTML = `
-        <span class="result-id">${escapeHtml(title)}</span>
-        <span class="result-section">${escapeHtml(entry.encounter ? `${entry.chapter} / ${entry.encounter}` : entry.chapter || "未命名模块")}</span>
-        <span class="result-preview">${escapeHtml(entry.text.replace(/\s+/g, " ").slice(0, 72))}</span>
-      `;
-      button.addEventListener("click", () => showEntry(entry, true));
-      fragment.appendChild(button);
-    });
-    resultList.appendChild(fragment);
+    const book = currentBook();
+    function appendBatch(start) {
+      const end = Math.min(start + 100, entries.length);
+      const fragment = document.createDocumentFragment();
+      entries.slice(start, end).forEach((entry) => {
+        const content = searchEntryContent(entry, book);
+        const title = entry.chapterKey === "dreams-of-pharos"
+          ? storyTitleText(entry)
+          : `${entry.id} · ${content.title || "故事段落"}`;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `result-item${activeEntry && entry.key === activeEntry.key ? " active" : ""}`;
+        button.innerHTML = `
+          <span class="result-id">${escapeHtml(title)}</span>
+          <span class="result-section">${escapeHtml(entry.encounter ? `${entry.chapter} / ${entry.encounter}` : entry.chapter || "未命名模块")}</span>
+          <span class="result-preview">${escapeHtml(content.text.replace(/\s+/g, " ").slice(0, 72))}</span>
+        `;
+        button.addEventListener("click", () => showEntry(entry, true));
+        fragment.appendChild(button);
+      });
+      resultList.appendChild(fragment);
+      if (end < entries.length) {
+        const more = document.createElement("button");
+        more.type = "button";
+        more.className = "result-item";
+        more.textContent = `显示更多（剩余 ${entries.length - end} 条）`;
+        more.addEventListener("click", () => {
+          more.remove();
+          appendBatch(end);
+        });
+        resultList.appendChild(more);
+      }
+    }
+    appendBatch(0);
   }
 
   function linkify(text, book) {

@@ -14,16 +14,57 @@ function setup() {
     window,
     document: { getElementById: () => null },
     fanData: window.STORYBOOK_DATA, officialData: window.STORYBOOK_OFFICIAL_DATA,
+    officialEntries: new Map(window.STORYBOOK_OFFICIAL_DATA.books.flatMap(book =>
+      (book.entries || []).map(entry => [`${book.id}:${entry.key}`, entry]))),
+    storyVersion: '民间版',
     activeEntry: null, selectedChapterKey: () => 'all', selectedEncounterKey: () => 'all',
   });
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../assets/pharos-codes.js'), 'utf8'), context);
-  for (const name of ['buildVersionData', 'entriesById', 'hasEntryContent', 'preferEntriesWithContent', 'preferredEntry', 'entryFromDeepLink', 'normalizeQuery', 'sortForCurrentContext', 'searchEntries', 'pharosTitleAnswer', 'storyTitleText', 'renderEntryTitle', 'syncStoryLanguage']) {
+  for (const name of ['buildVersionData', 'entriesById', 'hasEntryContent', 'preferEntriesWithContent', 'preferredEntry', 'entryFromDeepLink', 'normalizeQuery', 'supportsOfficialVersion', 'searchEntryContent', 'sortForCurrentContext', 'searchEntries', 'pharosTitleAnswer', 'storyTitleText', 'renderEntryTitle', 'syncStoryLanguage']) {
     const start = source.indexOf(`  function ${name}(`);
     const end = source.indexOf('\n  }', start) + 4;
     vm.runInContext(source.slice(start, end), context);
   }
   return context;
 }
+
+test('关键词搜索整本故事书，并按当前版本检索正文', () => {
+  const ctx = setup();
+  const sourceBook = ctx.fanData.books.find(book => book.id === 'c1');
+  const main = sourceBook.entries.find(entry => entry.chapterKey === 'main');
+  const battle = sourceBook.entries.find(entry => entry.key === 'c1-15-0');
+  const book = { id: 'c1', entries: [main, battle] };
+  ctx.currentBook = () => book;
+  ctx.currentScopedEntries = () => [main];
+  ctx.selectedChapterKey = () => 'main';
+
+  assert.equal(ctx.searchEntries('百臂巨人')[0].key, battle.key);
+  assert.equal(ctx.searchEntries('在生物学上是不可能的')[0].key, battle.key);
+  assert.equal(ctx.searchEntries('百手巨魔').length, 0);
+  ctx.storyVersion = '官方版';
+  assert.equal(ctx.searchEntries('百手巨魔')[0].key, battle.key);
+  assert.equal(ctx.searchEntries('在生物学上是不可能的').length, 0);
+  assert.match(ctx.searchEntryContent(battle, book).text, /百手巨魔/);
+});
+
+test('正文命中不会被大量章节名称命中挤出结果', () => {
+  const ctx = setup();
+  const sectionEntries = Array.from({ length: 105 }, (_, order) => ({
+    key: `section-${order}`, id: `S${order}`, title: `段落 ${order}`,
+    chapterKey: 'main', chapter: '稀有词章节', text: '其他内容', order,
+  }));
+  const bodyEntry = {
+    key: 'body-hit', id: 'B1', title: '正文段落',
+    chapterKey: 'battle', chapter: '战斗', text: '这里提到了稀有词', order: 106,
+  };
+  const book = { id: 'c4', entries: [...sectionEntries, bodyEntry] };
+  ctx.currentBook = () => book;
+  ctx.currentScopedEntries = () => sectionEntries;
+  ctx.selectedChapterKey = () => 'main';
+  const results = ctx.searchEntries('稀有词');
+  assert.equal(results.length, 106);
+  assert.equal(results[0].key, bodyEntry.key);
+});
 
 test('官方独有段落进入对应模块，按编号和唯一键均可跳转，民间索引不受污染', () => {
   const ctx = setup();
