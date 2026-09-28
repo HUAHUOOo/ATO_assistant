@@ -3549,7 +3549,9 @@
           const migratedTraits = [];
           const migratedKeys = new Set();
           piles[name].traits.forEach((card) => {
-            const migrated = card?.type === "TR" && (card.level === "I" || card.level === "X") && (card.index === 1 || card.index === 2)
+            const migrated = card?.type === "TR" && !card.scope && ["I", "II", "X"].includes(card.level) && Number(card.index) === 2
+              ? { ...card, level: "O" }
+              : card?.type === "TR" && (card.level === "I" || card.level === "X") && card.index === 1
               ? { ...card, level: "II" }
               : card;
             const key = `${migrated?.type || "TR"}-${migrated?.level}-${migrated?.index}-${migrated?.ext || "jpg"}`;
@@ -5762,7 +5764,23 @@
 
     function traitSrc(name, level, index, ext = "jpg") {
       if (name === "BLACKBEAK") name = hermesianName;
+      // 人人为我改按特性 O 管理，继续读取玩家已有的 II_002 卡图。
+      if (name === nietzscheName && level === "O" && Number(index) === 2) level = "II";
       return `ps/${name}/${traitFileName(name, level, index, ext)}`;
+    }
+
+    function syncNietzscheAllForOneTrait(state, setupId) {
+      if (!state) return false;
+      state.traits ||= [];
+      const hasCard = state.traits.some((card) => card?.type === "TR" && !card.scope
+        && card.level === "O" && Number(card.index) === 2);
+      if (setupId !== "what-are-you" || hasCard) return false;
+      state.traits.push({ type: "TR", level: "O", index: 2, ext: "jpg", scope: "" });
+      return true;
+    }
+
+    function isNietzscheAllForOneLegacyTrait(name, level, index) {
+      return name === nietzscheName && level === "II" && Number(index) === 2;
     }
 
     function commonTraitFileName(index, ext = "jpg") {
@@ -5798,6 +5816,9 @@
     }
 
     function traitCardLabel(card) {
+      if (currentApostle === nietzscheName && !card?.scope && card?.level === "O" && Number(card.index) === 2) {
+        return "TR O 2 · 人人为我";
+      }
       const definition = cycleTraitDefinition(card);
       if (definition) {
         const group = card.scope === "c4-cursed"
@@ -5888,6 +5909,7 @@
 
       traitLevels.forEach((level) => {
         for (let index = 1; index <= traitProbeMaxIndex; index++) {
+          if (isNietzscheAllForOneLegacyTrait(name, level, index)) continue;
           traitProbeExtensions.forEach((ext) => {
             const src = traitSrc(name, level, index, ext);
             const img = new Image();
@@ -5907,10 +5929,10 @@
               checkbox.dataset.scope = "";
               checkbox.checked = selected.has(traitKey(level, index, ext, ""));
 
-              img.alt = `TR ${level} ${String(index).padStart(3, "0")}`;
+              img.alt = traitCardLabel({ level, index, ext });
 
               const caption = document.createElement("span");
-              caption.textContent = `TR ${level} ${String(index).padStart(3, "0")}`;
+              caption.textContent = img.alt;
 
               option.append(checkbox, img, caption);
               traitDialogGrid.appendChild(option);
@@ -6127,6 +6149,7 @@
 
       automaticTraitLevels().forEach((level) => {
         for (let index = 1; index <= defaultTraitProbeMaxIndex; index++) {
+          if (isNietzscheAllForOneLegacyTrait(currentApostle, level, index)) continue;
           traitProbeExtensions.forEach((ext) => {
             if (selectedTraitKeys.has(traitKey(level, index, ext, ""))) return;
             const card = { level, index, ext };
@@ -7070,6 +7093,7 @@
       currentApostle = name;
       activateHeliosMode();
       ensurePiles(name);
+      if (name === nietzscheName && syncNietzscheAllForOneTrait(piles[name], piles[name].battleMap?.setupId)) savePiles();
       applyBurdenInitialLinkedPromotion();
       applyCurrentApostleLevelBonuses();
       updateAiViewTabs();
@@ -7615,7 +7639,10 @@
       setMap: (battleMap) => {
         ensurePiles(currentApostle);
         piles[currentApostle].battleMap = battleMap;
+        const traitAdded = currentApostle === nietzscheName
+          && syncNietzscheAllForOneTrait(piles[currentApostle], battleMap?.setupId);
         savePiles();
+        if (traitAdded) renderExtraCards();
       },
       // 视线参数不进存档（不属于 battleMap），但要立刻推给第二屏。
       onLosChange: () => scheduleSecondScreenSnapshot(),
