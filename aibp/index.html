@@ -5,9 +5,37 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AIBP Apostle Viewer</title>
   <style>
-    .bp-combined-counter { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px; border: 1px solid var(--gold); border-radius: 6px; margin: 8px 0; }
+    .bp-combined-counter {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin: 4px 0 8px;
+      padding: 5px 8px;
+      border: 1px solid rgba(199, 173, 114, 0.28);
+      border-radius: 7px;
+      background: var(--panel);
+    }
     .bp-combined-counter[hidden] { display: none; }
-    .bp-combined-counter input { width: 80px; }
+    .bp-combined-title { flex: 0 0 auto; margin-right: 3px; color: var(--gold); font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .bp-combined-reset { margin-left: auto; min-width: 42px; white-space: nowrap; }
+    .bp-combined-counter input {
+      width: 54px;
+      min-width: 0;
+      height: 28px;
+      padding: 2px 4px;
+      border: 1px solid rgba(199, 173, 114, 0.6);
+      border-radius: 5px;
+      background: #10100f;
+      color: #ffe3a0;
+      font-size: 18px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+      appearance: textfield;
+    }
+    .bp-combined-counter input::-webkit-inner-spin-button,
+    .bp-combined-counter input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    .bp-combined-adjust { min-width: 30px; height: 28px; padding: 2px 5px; font-size: 12px; font-weight: 700; }
     #imageZoomCombinedNotice {
       color: var(--gold); text-align: center; font-size: 22px; line-height: 1.5;
       background: #242017; border: 2px solid var(--gold); border-radius: 12px;
@@ -2200,12 +2228,12 @@
             </div>
             <div class="babelian-bp-control" id="babelianFusionControl" hidden></div>
             <div class="bp-combined-counter" id="bpCombinedControl" hidden>
-              <label>累积强度 <input id="bpCombinedTotal" type="number" min="0" step="1" value="0"></label>
-              <button type="button" data-combined-adjust="-1">−1</button>
-              <button type="button" data-combined-adjust="1">+1</button>
-              <button type="button" data-combined-adjust="5">+5</button>
-              <button type="button" data-combined-adjust="clear">归零</button>
-              <span id="bpCombinedHint"></span>
+              <span class="bp-combined-title">累积强度</span>
+              <button type="button" class="bp-combined-adjust" data-combined-adjust="-1" aria-label="累积强度减一">−1</button>
+              <input id="bpCombinedTotal" type="number" min="0" step="1" value="0" aria-label="累积强度">
+              <button type="button" class="bp-combined-adjust" data-combined-adjust="1" aria-label="累积强度加一">+1</button>
+              <button type="button" class="bp-combined-adjust" data-combined-adjust="5" aria-label="累积强度加五">+5</button>
+              <button type="button" class="bp-combined-adjust bp-combined-reset" data-combined-adjust="clear">归零</button>
             </div>
             <div class="card-grid" id="bpGrid"></div>
           </div>
@@ -2796,7 +2824,6 @@
     const returnBpTopButton = document.getElementById("returnBpTopButton");
     const bpCombinedControl = document.getElementById("bpCombinedControl");
     const bpCombinedTotal = document.getElementById("bpCombinedTotal");
-    const bpCombinedHint = document.getElementById("bpCombinedHint");
     const imageZoomCombinedNotice = document.getElementById("imageZoomCombinedNotice");
     const imageZoomOverlay = document.getElementById("imageZoomOverlay");
     const imageZoomImg = document.getElementById("imageZoomImg");
@@ -2837,7 +2864,7 @@
     let heliosAccessGranted = false;
     let heliosAccountId = "";
     let currentAiView = "弃牌";
-    let currentBpView = "弃牌";
+    let currentBpView = "损伤";
     let nietzscheStateIndex = Number(localStorage.getItem(nietzscheStateKey) || String(nietzscheDefaultStateIndex));
     if (!Number.isInteger(nietzscheStateIndex) || nietzscheStateIndex < 0 || nietzscheStateIndex >= nietzscheStates.length) {
       nietzscheStateIndex = nietzscheDefaultStateIndex;
@@ -5586,7 +5613,7 @@
       undoStacks[currentApostle] = [];
       piles[currentApostle] = initialState();
       currentAiView = "弃牌";
-      currentBpView = "弃牌";
+      currentBpView = currentBpDamageView();
       applyBurdenInitialLinkedPromotion();
       applyCurrentApostleLevelBonuses();
       savePiles();
@@ -5638,9 +5665,6 @@
       bpCombinedControl.hidden = !combined;
       if (!combined) return;
       bpCombinedTotal.value = combined.total;
-      bpCombinedHint.textContent = bp.pending && sameCard(combined.card, bp.pending)
-        ? combinedBpNotice()
-        : "BP 已放回牌堆顶；下次攻击沿用此累积强度。";
     }
 
     function updateCombinedBpTotal(value) {
@@ -5664,7 +5688,8 @@
       defeatBpButton.disabled = !bpPending;
       criticalBpButton.disabled = !bpPending;
       renderCombinedBpControl();
-      drawBpButton.disabled = false;
+      drawBpButton.disabled = Boolean(bpPending);
+      drawBpButton.textContent = bpPending ? "已抽取 BP" : returnedBp ? "重抽此 BP" : "抽取 BP";
       drawAiButton.disabled = false;
 
       if (!aiPending) {
@@ -6239,7 +6264,7 @@
       if (isChimera() && currentBpView === "损伤1") currentBpView = "常规损伤堆";
       if (isChimera() && currentBpView === "损伤2") currentBpView = "第二损伤堆";
       if (!allowedViews.includes(currentBpView)) {
-        currentBpView = allowedViews.includes("弃牌") ? "弃牌" : allowedViews[0];
+        currentBpView = isChimera() ? "常规损伤堆" : "损伤";
       }
 
       bpViewTabs.replaceChildren();
@@ -7197,6 +7222,7 @@
       if (bp.combinedAttack && !sameCard(bp.combinedAttack.card, bp.pending)) {
         delete bp.combinedAttack;
       }
+      currentBpView = currentBpDamageView();
       piles[currentApostle].lastPendingType = "BP";
       savePiles();
       renderAibpCards();
@@ -7243,7 +7269,7 @@
           card: { ...card },
           total: previous && sameCard(previous.card, card) ? previous.total : 0
         };
-        currentBpView = "当前";
+        currentBpView = currentBpDamageView();
         savePiles();
         renderAibpCards();
         return;
@@ -7675,8 +7701,12 @@
     drawFlareButton.addEventListener("click", drawFlare);
     drawFeintButton.addEventListener("click", drawFeint);
     drawBpButton.addEventListener("click", drawBp);
-    bpDrawPreview.addEventListener("click", () => {
-      if (returnedBpPreviewCard()) return;
+    bpDrawPreview.addEventListener("click", (event) => {
+      if (returnedBpPreviewCard()) {
+        event.stopPropagation();
+        drawBp();
+        return;
+      }
       if (!piles[currentApostle]?.BP?.pending) drawBp();
     });
     undoBpButton.addEventListener("click", () => undoLastAibp("BP"));

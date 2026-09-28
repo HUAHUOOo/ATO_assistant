@@ -316,7 +316,9 @@ for (const boss of ['SUN_DESCENDANT', 'THE_BABELIAN_LUNACY', 'UR_FLEECE']) {
     const original = clone(ctx.piles[boss]);
     ctx.drawBp();
     const card = clone(ctx.piles[boss].BP.pending);
+    assert.equal(ctx.currentBpView, '损伤');
     ctx.resolveBp('return-top');
+    assert.equal(ctx.currentBpView, '损伤');
     let bp = ctx.piles[boss].BP;
     assert.equal(bp.pending, null);
     assert.deepEqual(clone(bp.deck[0]), card);
@@ -327,6 +329,7 @@ for (const boss of ['SUN_DESCENDANT', 'THE_BABELIAN_LUNACY', 'UR_FLEECE']) {
     assert.equal(bp.deck.length, original.BP.deck.length);
     ctx.updateCombinedBpTotal(7);
     ctx.drawBp();
+    assert.equal(ctx.currentBpView, '损伤');
     assert.deepEqual(clone(bp.pending), card);
     assert.equal(ctx.returnedBpPreviewCard(), null);
     assert.match(ctx.combinedBpNotice(), /7/);
@@ -347,6 +350,20 @@ for (const boss of ['SUN_DESCENDANT', 'THE_BABELIAN_LUNACY', 'UR_FLEECE']) {
     assert.deepEqual(clone(ctx.piles[boss].BP.pending), card);
   });
 }
+
+test('drawing BP selects the damage view, including Chimera second damage', () => {
+  const { ctx } = harness();
+  ctx.currentBpView = '当前';
+  ctx.drawBp();
+  assert.equal(ctx.currentBpView, '损伤');
+
+  ctx.currentApostle = 'CHIMERA';
+  ctx.piles.CHIMERA = initialState();
+  ctx.bpDamageTargetSelect.value = 'damage2';
+  ctx.currentBpView = '当前';
+  ctx.drawBp();
+  assert.equal(ctx.currentBpView, '第二损伤堆');
+});
 
 test('combined BP counter is cleared when a different BP is drawn', () => {
   const { ctx } = harness();
