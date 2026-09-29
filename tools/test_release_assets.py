@@ -106,9 +106,13 @@ def check_release_notes_files(failures: list[str]) -> None:
             if text.strip() != expected:
                 failures.append(f"{path.name} 必须只包含剧透提示与资源包更新提醒")
             continue
-        for section in ("## 更新", "## 下载", "## 验证"):
-            if section not in text:
-                failures.append(f"{path.name} 缺少段落 {section}")
+        # Earlier announcements were intentionally brief; require the structured
+        # format only for releases made after that convention was introduced.
+        version = tuple(map(int, re.match(r"v(\d+)\.(\d+)\.(\d+)", path.name).groups()))
+        if version >= (2, 1, 7):
+            for section in ("## 更新", "## 下载", "## 验证"):
+                if section not in text:
+                    failures.append(f"{path.name} 缺少段落 {section}")
 
 
 def main() -> int:

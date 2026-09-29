@@ -486,6 +486,36 @@ test("Dahaka uses one visible shared AI/BP pile and BP-only promotion", () => {
   );
 });
 
+test("Dahaka keeps the printed AI and BP levels separate on every shared card", () => {
+  const app = makeHarness();
+  app.renderApostle("DAHAKA");
+  const pile = app.piles.DAHAKA.aibp;
+  const expected = {
+    I: ["II", "I", "I", "I", "I", "I"],
+    II: ["II", "II", "II", "II", "II", "I"],
+    III: ["III", "III", "III", "III", "III", "III"]
+  };
+
+  for (const [bpLevel, aiLevels] of Object.entries(expected)) {
+    const cards = bpLevel === "I" ? pile.deck : pile.supply[bpLevel];
+    assert.equal(cards.length, 6);
+    for (const card of cards) {
+      assert.equal(card.level, aiLevels[card.index - 1], card.fileName);
+      assert.equal(card.bpLevel, bpLevel, card.fileName);
+    }
+  }
+
+  const mismatch = pile.deck.find((card) => card.index === 1);
+  pile.deck = [mismatch];
+  const nextSupplyBefore = pile.supply.II.length;
+  app.drawBp();
+  assert.equal(pile.pending.level, "II");
+  assert.equal(pile.pending.bpLevel, "I");
+  app.resolveBp("defeat");
+  assert.equal(pile.supply.II.length, nextSupplyBefore - 1);
+  assert.equal(pile.damage[0].fileName, mismatch.fileName);
+});
+
 test("Dahaka AI card can be defeated or critically hit as BP", () => {
   const app = makeHarness();
   app.renderApostle("DAHAKA");
@@ -546,6 +576,25 @@ test("Dahaka migrates a legacy AI save without clearing other progress", () => {
   assert.equal(app.piles.DAHAKA.aibp.deck[0].bpLevel, "II");
   assert.equal(app.piles.DAHAKA.aibp.discard[0].bpLevel, "I");
   assert.equal(app.piles.DAHAKA.tokens[0].id, "keep");
+});
+
+test("Dahaka repairs persisted cards whose AI level was copied from BP", () => {
+  const app = makeHarness();
+  const legacy = initialState();
+  legacy.aibp = {
+    deck: [{ type: "AI", level: "I", bpLevel: "I", index: 1, fileName: "DAHAKA_AI_I_001.jpg" }],
+    discard: [{ type: "AI", level: "II", bpLevel: "II", index: 6, fileName: "DAHAKA_AI_II_006.jpg" }],
+    supply: { I: [], II: [], III: [] }
+  };
+  app.piles.DAHAKA = legacy;
+
+  app.renderApostle("DAHAKA");
+  assert.equal(legacy.aibp.deck[0].level, "II");
+  assert.equal(legacy.aibp.deck[0].bpLevel, "I");
+  assert.equal(legacy.aibp.discard[0].level, "I");
+  assert.equal(legacy.aibp.discard[0].bpLevel, "II");
+  assert.strictEqual(legacy.AI, legacy.aibp);
+  assert.strictEqual(legacy.BP, legacy.aibp);
 });
 
 test("Demidjinn keeps AI IV aside and AI O at the bottom at level IV", () => {

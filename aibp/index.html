@@ -3015,7 +3015,7 @@
         : cardSrc(card);
       return {
         src,
-        label: card.titanXOwner ? cardAlt(card) : card.special
+        label: card.combinedAibp || card.titanXOwner ? cardAlt(card) : card.special
           ? `${card.special} 特殊损伤`
           : `${card.type || "卡牌"} ${card.level || ""} ${String(card.index || "").padStart(3, "0")}`.trim(),
         damageValue: bpDamageValue(card),
@@ -4077,7 +4077,7 @@
 
     function bpDamageValue(card) {
       if (!card) return 0;
-      if (card.special === "DW" || card.level === "III") return 2;
+      if (card.special === "DW" || (card.bpLevel || card.level) === "III") return 2;
       return Math.max(1, Math.floor(Number(card.damageValue) || 1));
     }
 
@@ -4318,6 +4318,10 @@
       if (card.titanXOwner) return `泰坦 X ${card.titanXOwner} · ${card.special || `${card.type} ${card.level} ${card.index}`}`;
       if (card.special) {
         return `${card.special} 特殊损伤`;
+      }
+      if (card.combinedAibp) {
+        const damageLabel = card.damageValue > 1 ? `，视作 ${card.damageValue} 个损伤` : "";
+        return `AI ${card.level} / BP ${card.bpLevel} ${String(card.index).padStart(3, "0")}${damageLabel}`;
       }
       if (card.damageValue && card.damageValue > 1) {
         return `${card.type} ${card.level} ${card.index}，视作 ${card.damageValue} 个损伤`;
@@ -7766,7 +7770,7 @@
   <script src="ps/other/resouce/bp_resource_map.js"></script>
   <script src="ps/other/resouce/bp_resource_map_c1_c3.js"></script>
   <script src="ps/other/resouce/bp_resource_map_c4_c5.js?v=20260730e"></script>
-  <script src="c45_specials.js?v=20260927-bp-combined1"></script>
+  <script src="c45_specials.js?v=20260929-dahaka-levels1"></script>
   <script src="bp_loot_calculator_addon.js?v=20260927-settlement-rules1"></script>
   <script src="../assets/ato-terms.js?v=20260919-chimera"></script>
   <script src="../assets/term-language.js?v=20260923-nocascade"></script>

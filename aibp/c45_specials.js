@@ -347,27 +347,40 @@
     };
   }
 
-  function makeDahakaCard(level, index) {
-    return makeCard("AI", level, index, {
-      bpLevel: level,
+  // Card files are grouped by BP level. The AI level printed on the same card
+  // can differ, so it must be read from the physical card rather than its file name.
+  const DAHAKA_AI_LEVELS = {
+    I: ["II", "I", "I", "I", "I", "I"],
+    II: ["II", "II", "II", "II", "II", "I"],
+    III: ["III", "III", "III", "III", "III", "III"]
+  };
+
+  function dahakaAiLevel(bpLevel, index) {
+    return DAHAKA_AI_LEVELS[bpLevel]?.[index - 1] || bpLevel;
+  }
+
+  function makeDahakaCard(bpLevel, index) {
+    return makeCard("AI", dahakaAiLevel(bpLevel, index), index, {
+      bpLevel,
       combinedAibp: true,
-      fileName: `DAHAKA_AI_${level}_${String(index).padStart(3, "0")}.jpg`
+      fileName: `DAHAKA_AI_${bpLevel}_${String(index).padStart(3, "0")}.jpg`
     });
   }
 
   function normalizeDahakaCard(card) {
     if (!card || card.special) return card;
-    const level = card.bpLevel || card.level || "I";
-    const index = Math.max(1, Number(card.index || 1));
+    const fileParts = String(card.fileName || "").match(/^DAHAKA_AI_(I|II|III)_(\d{3})\.jpg$/);
+    const bpLevel = fileParts?.[1] || card.bpLevel || card.level || "I";
+    const index = fileParts ? Number(fileParts[2]) : Math.max(1, Number(card.index || 1));
     return {
       ...card,
       type: "AI",
-      level,
-      bpLevel: level,
+      level: dahakaAiLevel(bpLevel, index),
+      bpLevel,
       index,
       combinedAibp: true,
       fileName: card.fileName
-        || `DAHAKA_AI_${level}_${String(index).padStart(3, "0")}.jpg`
+        || `DAHAKA_AI_${bpLevel}_${String(index).padStart(3, "0")}.jpg`
     };
   }
 
