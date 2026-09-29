@@ -347,8 +347,8 @@
     };
   }
 
-  // Card files are grouped by BP level. The AI level printed on the same card
-  // can differ, so it must be read from the physical card rather than its file name.
+  // The file groups follow the backs (AI I/BP I, II/II, III/III). The AI
+  // level printed on the front can differ from that back and the front BP level.
   const DAHAKA_AI_LEVELS = {
     I: ["II", "I", "I", "I", "I", "I"],
     II: ["II", "II", "II", "II", "II", "I"],

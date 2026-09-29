@@ -56,6 +56,6 @@ test("the Hypertime Oracle special AI X is shown as 3 in card-back previews", ()
   );
   assert.match(
     source,
-    /aiBackInfo\.textContent = deckBackDisplayText\(piles\[currentApostle\]\.AI\.deck\)/
+    /const aiCards = piles\[currentApostle\]\.AI\.deck;\s+aiBackInfo\.textContent = deckBackDisplayText\(aiCards\)/
   );
 });

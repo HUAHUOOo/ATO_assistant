@@ -70,8 +70,15 @@ assert.equal(
   "ps/LABYRINTHAUROS/LABYRINTHAUROS_BP_III_001_BACK.jpg"
 );
 
+ctx.currentApostle = "DAHAKA";
+const dahakaStarting = { type: "AI", level: "II", bpLevel: "I", combinedAibp: true, index: 1 };
+const dahakaBpTwo = { type: "AI", level: "I", bpLevel: "II", combinedAibp: true, index: 6 };
+const dahakaBpThree = { type: "AI", level: "III", bpLevel: "III", combinedAibp: true, index: 1 };
+assert.equal(ctx.deckBackText([dahakaStarting, dahakaBpTwo, dahakaBpThree]), "1-2-3");
+
+ctx.currentApostle = "LABYRINTHAUROS";
 ctx.viewDeckOrderToggle.checked = false;
 assert.match(ctx.deckBackDisplayText([special, bp1, bp3]), /^3（/);
 assert.doesNotMatch(ctx.deckBackDisplayText([special, bp1, bp3]), /X/);
 
-console.log("迷宫机牛特殊 BP 卡背显示测试通过：洗入后按 BP3 显示，不暴露为 X");
+console.log("迷宫机牛与达哈卡卡背显示测试通过");

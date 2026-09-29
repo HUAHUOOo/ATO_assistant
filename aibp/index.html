@@ -4860,7 +4860,9 @@
         && card.index === 2) {
         return "3";
       }
-      const level = card.backLevel || (card.specialBp ? "III" : card.level);
+      const level = card.combinedAibp
+        ? card.bpLevel
+        : card.backLevel || (card.specialBp ? "III" : card.level);
       return levelBack[level] || level || "?";
     }
 
