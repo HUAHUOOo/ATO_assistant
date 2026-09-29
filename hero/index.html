@@ -176,14 +176,52 @@
       gap: 12px;
       min-width: 0;
     }
+    /* 拖动排序：把手在第一个面板标题右侧，按住它就能把整个英雄框挪到别的位置。 */
+    .heroes-grid.is-dragging { user-select: none; -webkit-user-select: none; }
+    .hero-column.is-dragging {
+      opacity: 0.6;
+      outline: 2px dashed var(--accent);
+      outline-offset: 3px;
+      border-radius: 8px;
+    }
+    .hero-heading-tools { display: inline-flex; align-items: center; gap: 8px; }
+    .hero-drag-handle {
+      display: inline-grid;
+      place-items: center;
+      width: 26px;
+      min-width: 26px;
+      height: 26px;
+      min-height: 26px;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--muted);
+      cursor: grab;
+      touch-action: none; /* 触屏上从把手开始拖动时不要滚动页面 */
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .hero-drag-handle:hover { border-color: var(--accent); color: var(--accent); }
+    .hero-drag-handle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .hero-column.is-dragging .hero-drag-handle,
+    .hero-drag-handle:active { cursor: grabbing; }
+    .hero-drag-handle svg { width: 14px; height: 14px; display: block; fill: currentColor; }
+
     .hero-column .panel { font-size: 13px; }
     .hero-column .panel-heading h2 { font-size: 14px; }
     .hero-column .panel:first-child .panel-heading h2 { cursor: pointer; padding-left: 72px; }
     .hero-column .panel-body { padding: 12px; }
+    /* 头像和三幅节那一行：宽度够时并排，塞不下时三幅节整行换到下面占满整个英雄框，
+       免得四个英雄并排、窗口又不宽的时候把加减按钮压成一团。 */
     .hero-column .identity-grid {
-      grid-template-columns: 64px minmax(0, 1fr);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
       gap: 10px;
     }
+    .hero-column .identity-grid .portrait-box { flex: 0 0 auto; }
+    .hero-column .identity-grid .triskelion-row { flex: 1 1 250px; min-width: 0; }
     .hero-column .portrait-box {
       width: 64px;
       height: 84px;
@@ -209,11 +247,22 @@
       gap: 8px;
     }
     .hero-column .skill-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      /* 技能卡要同时放得下名字和「− 数值 +」，不够宽就一行一张卡，别硬挤成两列。 */
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
       gap: 6px;
     }
     .hero-column .skill-card { padding: 6px 8px; }
     .hero-column .skill-icon { width: 18px; height: 18px; }
+    /* 名字挤不下时截断显示省略号，避免像以前那样一列一个字、还压到加减按钮上。 */
+    .hero-column .skill-name { flex: 1 1 auto; }
+    .hero-column .skill-card .skill-number { flex: 0 0 auto; }
+    .hero-column .skill-card .skill-name-text { overflow: hidden; }
+    .hero-column .skill-card .skill-name-zh,
+    .hero-column .skill-card .skill-name-en {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .hero-column .skill-value { font-size: 16px; min-width: 22px; }
     .hero-column .skill-number button { width: 22px; min-width: 22px; min-height: 22px; font-size: 11px; }
     .hero-column .skill-number { grid-template-columns: 22px 30px 22px; gap: 2px; }
@@ -277,6 +326,17 @@
       width: 18px;
       height: 18px;
     }
+    /* 每一组「− 数值 +」原来固定 22+30+22 = 78px 宽，比格子里剩下的地方还宽，于是相邻两组
+       互相压住、第三组还压到重置按钮上。改成按钮最宽 24px、空间不够时可以继续收缩，
+       数值列按内容宽度走，格子里的内容整体居中。 */
+    .hero-column .triskelion-item .skill-number {
+      width: 100%;
+      grid-template-columns: minmax(0, 24px) auto minmax(0, 24px);
+      justify-content: center;
+      gap: 2px;
+    }
+    .hero-column .triskelion-item .skill-number button { width: 100%; min-width: 0; padding: 0; }
+    .hero-column .triskelion-item .skill-value { min-width: 0; }
 
     .hero-empty-slot {
       min-height: 200px;
@@ -959,6 +1019,12 @@
     const serverStorageUrl = "../api/campaign-state.php";
     const serverStorageSection = "heroes";
 
+    // 拖动把手的图标（两列圆点）。用内联 SVG 而不是字符，避免不同字体下显示成方框。
+    const HERO_DRAG_ICON = '<svg viewBox="0 0 16 16" aria-hidden="true">'
+      + '<circle cx="5.5" cy="4" r="1.5"/><circle cx="10.5" cy="4" r="1.5"/>'
+      + '<circle cx="5.5" cy="8" r="1.5"/><circle cx="10.5" cy="8" r="1.5"/>'
+      + '<circle cx="5.5" cy="12" r="1.5"/><circle cx="10.5" cy="12" r="1.5"/></svg>';
+
     const ARGONAUTS = [
       { id: "odys", en: "Odys Zero", zh: "奥德修斯·零" },
       { id: "circe", en: "Circegard", zh: "喀耳刻卫" },
@@ -1565,6 +1631,7 @@
       state.heroes.forEach(hero => {
         setupHeroColumnEvents(hero);
       });
+      setupHeroDragAndDrop();
     }
 
     function renderHeroColumn(hero, likelihoodType) {
@@ -1581,10 +1648,11 @@
           : "";
       hero.triskelion = hero.triskelion || { fury: 0, fate: 0, danger: 0 };
       const skillPreviewHtml = SKILLS.map(skill => `<span class="skill-preview-item" title="${escHtml(skill.zh)} ${escHtml(skill.en)}"><img src="${escHtml(assetSrc(`skill_${skill.id}.png`))}" alt=""><span class="skill-preview-abbr">${escHtml(skill.abbr)}</span>${total[skill.id]}</span>`).join("");
+      const dragHandleHtml = `<button class="hero-drag-handle" type="button" data-hero-drag="${escHtml(hid)}" title="按住拖动，调换英雄位置（也可用方向键）" aria-label="拖动调整「${escHtml(heroDisplayName(hero))}」的位置">${HERO_DRAG_ICON}</button>`;
 
       return `<div class="hero-column" data-hero-id="${escHtml(hid)}">
         <section class="panel">
-          <div class="panel-heading"><h2>${escHtml(heroDisplayName(hero))}</h2>${likelihoodHtml}</div>
+          <div class="panel-heading"><h2>${escHtml(heroDisplayName(hero))}</h2><div class="hero-heading-tools">${likelihoodHtml}${dragHandleHtml}</div></div>
           <div class="panel-body">
             <div class="identity-grid">
               <div class="portrait-box" data-portrait="${escHtml(hid)}">
@@ -1715,6 +1783,173 @@
       // Retire / Death
       const retireBtn = col.querySelector(`[data-retire-hero="${hero.id}"]`);
       if (retireBtn) retireBtn.onclick = () => { state.activeHeroId = hero.id; retireHero(); };
+    }
+
+    // ── 拖动排序：四个英雄框可以在四个位置之间自由调换 ──────────────────────────
+    // 显示顺序就是 state.heroes 数组的顺序（跟着存档一起同步到 NAS），拖动只把数组重排一遍，
+    // 似然判定、增删英雄这些逻辑都不受影响。
+    //
+    // 用 Pointer Events，而不是 HTML5 的 dragstart/drop：同一套代码同时支持鼠标、触屏和
+    // 手写笔；配合把手上的 touch-action: none，触屏拖动时不会误触发页面滚动。
+    const HERO_DRAG_THRESHOLD = 4; // 移动超过这么多像素才算拖动，避免手抖就换位
+
+    // 纯函数：这批框是横排还是竖排——比较前两框中心的偏移，横向更大就是横排（四列 / 两列），
+    // 纵向更大就是竖排（手机上的单列，或两列换行后的下一行）。
+    function heroLayoutIsHorizontal(rects) {
+      if (rects.length < 2) return true;
+      const first = rects[0];
+      const second = rects[1];
+      const dx = Math.abs((second.left + second.width / 2) - (first.left + first.width / 2));
+      const dy = Math.abs((second.top + second.height / 2) - (first.top + first.height / 2));
+      return dx >= dy;
+    }
+
+    // 纯函数：指针落在哪个框上、该插到它前面还是后面。
+    // rects 是「其余几个框」按当前显示顺序给出的矩形（不含被拖动的那个），
+    // 返回值是插入位置：0 = 插到最前，rects.length = 插到最后。
+    function heroDropIndex(rects, pointerX, pointerY) {
+      if (!rects.length) return 0;
+      let nearestIndex = 0;
+      let nearestDistance = Infinity;
+      rects.forEach((rect, index) => {
+        // 指针到矩形的距离；落在框内时为 0。
+        const dx = Math.max(rect.left - pointerX, 0, pointerX - (rect.left + rect.width));
+        const dy = Math.max(rect.top - pointerY, 0, pointerY - (rect.top + rect.height));
+        const distance = Math.hypot(dx, dy);
+        if (distance < nearestDistance) { nearestDistance = distance; nearestIndex = index; }
+      });
+      const rect = rects[nearestIndex];
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      let before;
+      if (rects.length < 2) {
+        // 只剩一个框（一共两个英雄）时看不出布局方向，就按指针偏离中心更大的那一轴判断，
+        // 这样宽屏左右拖、手机单列上下拖都能换位。
+        const offsetX = (pointerX - centerX) / Math.max(1, rect.width);
+        const offsetY = (pointerY - centerY) / Math.max(1, rect.height);
+        before = Math.abs(offsetY) > Math.abs(offsetX) ? offsetY < 0 : offsetX < 0;
+      } else {
+        before = heroLayoutIsHorizontal(rects) ? pointerX < centerX : pointerY < centerY;
+      }
+      return before ? nearestIndex : nearestIndex + 1;
+    }
+
+    // 纯函数：把 draggedId 从原顺序里抽出来，插到其余几个框的第 insertIndex 个位置。
+    function moveHeroInOrder(order, draggedId, insertIndex) {
+      const rest = order.filter(id => id !== draggedId);
+      rest.splice(Math.max(0, Math.min(insertIndex, rest.length)), 0, draggedId);
+      return rest;
+    }
+
+    // 按 DOM 里的新顺序重排英雄数组。orderedIds 里没提到的英雄（例如拖动途中正好被删掉）
+    // 保持原相对顺序补到末尾，任何情况下都不丢记录。
+    function reorderHeroesByIds(heroes, orderedIds) {
+      const byId = new Map(heroes.map(hero => [hero.id, hero]));
+      const next = [];
+      orderedIds.forEach(id => {
+        const hero = byId.get(id);
+        if (!hero) return;
+        byId.delete(id);
+        next.push(hero);
+      });
+      byId.forEach(hero => next.push(hero));
+      return next;
+    }
+
+    // 拖动途中只改 DOM 顺序做实时预览，松手时才写回 state.heroes 并保存：拖动过程里不整页
+    // 重绘，把手和拖动状态就不会被清掉。监听挂在 window 上，即使中途重绘换掉了把手，
+    // 松手时也能正常收尾。
+    function setupHeroDragAndDrop() {
+      const container = document.getElementById("heroContent");
+      if (!container) return;
+      const columnsInOrder = () => [...container.querySelectorAll(".hero-column")];
+      columnsInOrder().forEach(column => {
+        const handle = column.querySelector("[data-hero-drag]");
+        if (!handle) return;
+        let pointerId = null;
+        let dragging = false;
+        let startX = 0;
+        let startY = 0;
+
+        function onMove(event) {
+          if (pointerId === null || event.pointerId !== pointerId) return;
+          if (!dragging) {
+            if (Math.hypot(event.clientX - startX, event.clientY - startY) < HERO_DRAG_THRESHOLD) return;
+            dragging = true;
+            column.classList.add("is-dragging");
+            container.classList.add("is-dragging");
+          }
+          if (event.cancelable) event.preventDefault();
+          const others = columnsInOrder().filter(other => other !== column);
+          if (!others.length) return;
+          const rects = others.map(other => {
+            const rect = other.getBoundingClientRect();
+            return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+          });
+          const index = heroDropIndex(rects, event.clientX, event.clientY);
+          const reference = index < others.length ? others[index] : null;
+          if (reference === column.nextElementSibling) return; // 已经在目标位置，别再动 DOM，免得来回抖
+          container.insertBefore(column, reference);
+        }
+
+        function onKeyDown(event) {
+          const step = (event.key === "ArrowLeft" || event.key === "ArrowUp") ? -1
+            : (event.key === "ArrowRight" || event.key === "ArrowDown") ? 1 : 0;
+          if (!step) return;
+          event.preventDefault();
+          const heroId = column.dataset.heroId;
+          const order = state.heroes.map(hero => hero.id);
+          const from = order.indexOf(heroId);
+          const to = from + step;
+          if (from < 0 || to < 0 || to >= order.length) return;
+          state.heroes = reorderHeroesByIds(state.heroes, moveHeroInOrder(order, heroId, to));
+          queueSave();
+          renderAll();
+          // 重绘后焦点回到同一个英雄的把手上，方便连着按方向键。
+          const nextHandle = [...container.querySelectorAll("[data-hero-drag]")]
+            .find(el => el.dataset.heroDrag === heroId);
+          if (nextHandle) nextHandle.focus({ preventScroll: true });
+        }
+
+        function finish(event, commit) {
+          if (pointerId === null || (event && event.pointerId !== pointerId)) return;
+          const id = pointerId;
+          pointerId = null;
+          window.removeEventListener("pointermove", onMove);
+          window.removeEventListener("pointerup", onUp);
+          window.removeEventListener("pointercancel", onCancel);
+          if (handle.hasPointerCapture && handle.hasPointerCapture(id)) handle.releasePointerCapture(id);
+          if (!dragging) return;
+          dragging = false;
+          column.classList.remove("is-dragging");
+          container.classList.remove("is-dragging");
+          const orderedIds = columnsInOrder().map(col => col.dataset.heroId);
+          const changed = orderedIds.join("|") !== state.heroes.map(hero => hero.id).join("|");
+          if (!changed) return;
+          if (commit) {
+            state.heroes = reorderHeroesByIds(state.heroes, orderedIds);
+            queueSave();
+          }
+          renderAll();
+        }
+        function onUp(event) { finish(event, true); }
+        // 拖动被系统打断（手势取消等）：这次移动不算，重绘回原来的顺序。
+        function onCancel(event) { finish(event, false); }
+
+        handle.addEventListener("pointerdown", (event) => {
+          if (pointerId !== null) return;
+          if (event.pointerType === "mouse" && event.button !== 0) return; // 只认左键
+          pointerId = event.pointerId;
+          dragging = false;
+          startX = event.clientX;
+          startY = event.clientY;
+          window.addEventListener("pointermove", onMove);
+          window.addEventListener("pointerup", onUp);
+          window.addEventListener("pointercancel", onCancel);
+          try { handle.setPointerCapture(event.pointerId); } catch {}
+        });
+        handle.addEventListener("keydown", onKeyDown);
+      });
     }
 
     function renderColumnMnemos(hero) {
