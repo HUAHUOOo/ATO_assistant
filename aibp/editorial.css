@@ -1,0 +1,109 @@
+/* Paper, cycle colors and continuous sections shared with the record pages. */
+:root { color-scheme: light; --text: var(--ink); --panel-2: var(--accent-soft); --radius: 0; --shadow: none; }
+body { background: var(--bg); line-height: 1.6; }
+aside { background: var(--bg); border-color: var(--line); box-shadow: none; padding: 26px 16px; }
+h1, h2, h3, .card-column-title { font-family: "Songti SC", "Noto Serif CJK SC", SimSun, Georgia, serif; color: var(--accent-strong); font-weight: 600; }
+#aibpTitle { display: flex; align-items: center; gap: 10px; font-size: 26px; margin-bottom: 24px; }
+#aibpTitle .cycle-symbol { width: 32px; height: 36px; object-fit: contain; }
+.title-row { flex-wrap: wrap; overflow: visible; padding-bottom: 18px; border-bottom: 1px solid var(--line); gap: 16px; }
+.title-row h2 { margin: 0; font-size: 30px; }
+.title-actions { flex: 1 1 auto; flex-wrap: wrap; gap: 8px; }
+.title-actions .return-main-link { order: 10; margin-left: auto; background: var(--accent-strong); border: 1px solid var(--accent-strong); color: #fff; }
+body :is(button, select, input:not([type="checkbox"]), textarea) { border-radius: 0; border-color: var(--line); background: var(--panel); color: var(--ink); box-shadow: none; }
+body input[type="checkbox"] { accent-color: var(--accent); }
+body :is(button, a, select, input, textarea):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+body button:not(:disabled):not(.panel-state-marker):hover { background: var(--accent-soft); border-color: var(--accent); transform: none; }
+.sidebar-toggle { background: var(--panel); color: var(--accent-strong); border-color: var(--line); }
+body:not(.sidebar-collapsed) .sidebar-toggle { left: 212px; top: 24px; }
+.title-actions .return-main-link { border-radius: 0; }
+.title-actions .return-main-link:hover { background: var(--accent); color: #fff; }
+.apostle-title, .map-faction-status { flex-wrap: wrap; white-space: normal; }
+.apostle-title { flex: 1 1 auto; }
+.map-faction-chip { white-space: normal; }
+.nav { gap: 0; }
+.nav button { border: 0; border-bottom: 1px solid var(--line); padding: 12px 10px; }
+.nav button.active, .nav button:hover { background: var(--accent-soft); border-color: var(--line); box-shadow: inset 3px 0 0 var(--accent); }
+.boss-search-results button { border: 0; border-bottom: 1px solid var(--line); }
+.sidebar-boss-search label { color: var(--accent-strong); }
+.title-actions :is(.deck-order-toggle, .second-screen-mode-toggle), .map-faction-chip { border-radius: 0; background: transparent; color: var(--muted); border-color: var(--line); }
+.map-faction-chip { border: 0; padding-left: 0; }
+.cards-panel { width: 100%; max-width: 100%; border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--panel); box-shadow: none; }
+.card-column { padding: 18px; }
+.card-column + .card-column { border-color: var(--line); }
+.card-column-head { border-bottom: 1px solid var(--line); padding-bottom: 12px; margin-bottom: 14px; }
+.draw-box { padding: 0 0 14px; border: 0; border-bottom: 1px solid var(--line); background: transparent; border-radius: 0; }
+.draw-actions button { min-height: 30px; }
+/* The existing draw layout explicitly fixes button radii with !important. */
+.draw-actions button, .draw-panel button { border-radius: 0 !important; }
+.bp-damage-summary { border-radius: 0; background: #f7e1dc; border-color: #d7aaa0; color: #8e2b20; }
+#drawAiButton, #drawBpButton { min-height: 38px; padding: 8px 14px; border-radius: 0; background: var(--accent-strong); color: #fff; border-color: var(--accent-strong); box-shadow: none; }
+#drawAiButton:hover, #drawBpButton:hover { background: var(--accent); color: #fff; }
+.segmented button.active { background: var(--accent-soft); border-color: var(--accent); box-shadow: none; color: var(--accent-strong); }
+.draw-preview, .draw-preview:not(.has-card):hover { background: var(--bg); border-color: var(--line); border-radius: 0; }
+.card-grid img, .draw-preview img, .extra-grid img, .scry-card, .scry-card img { border-radius: 0; background: transparent; border-color: var(--line); box-shadow: none; }
+.bp-combined-counter { border-radius: 0; background: var(--accent-soft); border-color: var(--line); }
+body dialog { border-radius: 0; border-color: var(--line); background: var(--panel); color: var(--ink); }
+.trait-dialog-head, .trait-dialog-actions, .section-header, .scry-cards { background: var(--bg); border-color: var(--line); }
+.trait-option, .custom-trait-preview, .custom-trait-preview img { border-radius: 0; box-shadow: none; background: var(--panel); border-color: var(--line); }
+.c45-specials, .babelian-bp-control, .battle-map-panel { border-color: var(--line); }
+.c45-specials-title, .c45-counter-label, .c45-counter-value, .c45-section-title { color: var(--accent-strong); }
+.c45-counter-row, .c45-status-row, .c45-trait-row { color: var(--ink); }
+.c45-wish-view, .c45-stepper-output, .c45-wish-copy, .titan-group-stat, .titan-group-g6 { background: var(--bg); color: var(--ink); border-color: var(--line); border-radius: 0; }
+.c45-control-title, .c45-wish-name, .c45-wish-copy-label, .titan-group-stat strong, .titan-group-g6 strong, .c45-status-name { color: var(--accent-strong); }
+.c45-roster-source, .c45-derived, .c45-track-scale, .c45-wish-empty, .c45-control-note, .titan-group-target-state, .titan-group-wounds small, .titan-group-stat small, .titan-group-head .c45-control-title > span { color: var(--muted); }
+.c45-roster-row label, .c45-toggle, .c45-status-card { color: var(--ink); }
+.c45-derived.warning { color: #a23e20; }
+body .titan-group-target.is-selected { background: var(--accent-soft); border-color: var(--accent); }
+body .loot-dialog { background: var(--panel); color: var(--ink); box-shadow: none; }
+body :is(.loot-dialog-head, .loot-dialog-actions, .loot-dialog-body) { background: var(--bg); }
+
+/* Selection and scry dialogs have their own legacy dark surfaces. */
+body .trait-dialog { max-height: min(760px, calc(100dvh - 32px)); overflow: hidden; border: 1px solid var(--line); box-shadow: 0 18px 60px rgb(36 33 29 / 18%); }
+.trait-dialog form { max-height: calc(min(760px, 100dvh - 32px) - 2px); }
+.trait-dialog::backdrop { background: rgb(36 33 29 / 40%); }
+.trait-dialog [hidden] { display: none !important; }
+.trait-dialog .trait-dialog-head { padding: 18px 22px; background: var(--panel); }
+.trait-dialog .trait-dialog-title { color: var(--accent-strong); font: 600 23px/1.4 "Songti SC", SimSun, Georgia, serif; letter-spacing: .04em; }
+.trait-dialog .trait-dialog-actions { padding: 14px 22px; gap: 10px; background: var(--panel); }
+.trait-dialog :is(.trait-dialog-head, .trait-dialog-actions) button { min-height: 36px; padding: 6px 14px; }
+.trait-dialog :is(.trait-dialog-grid, .scry-cards, .token-folder-tools, .custom-trait-editor, .custom-token-input-wrap, .scry-setup) { background: var(--bg); border-color: var(--line); }
+.trait-dialog :is(.trait-dialog-grid, .scry-cards) { padding: 22px; gap: 22px 18px; }
+.trait-dialog .trait-dialog-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+#traitDialog:has(#traitDialogGrid > .trait-option:only-child) { width: min(420px, calc(100vw - 28px)); }
+#traitDialog:has(#traitDialogGrid > .trait-option:only-child) .trait-dialog-grid { grid-template-columns: minmax(0, 1fr); }
+#traitDialog:has(#traitDialogGrid > .trait-option:only-child) .trait-option img { max-height: min(380px, 48vh); }
+#tokenDialog form { grid-template-rows: auto auto minmax(0, 1fr) auto; }
+.trait-dialog :is(.trait-option, .scry-card) { padding: 10px; background: transparent; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; }
+.trait-dialog .trait-option:hover, .trait-dialog .trait-option:has(input:checked) { background: var(--accent-soft); border-color: var(--accent); }
+.trait-dialog .trait-option:has(input:checked) { box-shadow: inset 3px 0 0 var(--accent); }
+.trait-dialog :is(.trait-option img, .scry-card img) { background: transparent; border: 0; border-radius: 0; }
+.trait-dialog .trait-option.token-option img.token-image-missing { background: var(--panel); border: 1px dashed var(--line); }
+.trait-dialog .token-folder-tools { padding: 12px 22px; }
+.trait-dialog .token-folder-hint { color: var(--muted); }
+.trait-dialog :is(input:not([type="checkbox"]), textarea, select, button) { background: var(--panel); color: var(--ink); border-color: var(--line); border-radius: 0; }
+.trait-dialog :is(#traitSaveButton, #tokenSaveButton, #scryStartButton, #scryTopButton, #customTraitSaveButton, #customTokenSaveButton) { background: var(--accent-strong); color: #fff; border-color: var(--accent-strong); }
+.trait-dialog :is(#traitSaveButton, #tokenSaveButton, #scryStartButton, #scryTopButton, #customTraitSaveButton, #customTokenSaveButton):hover { background: var(--accent); color: #fff; }
+.scry-dialog form { grid-template-rows: auto minmax(0, 1fr) auto; }
+.scry-dialog:not(:has(.scry-card)) { width: min(620px, calc(100vw - 28px)); }
+.scry-dialog:has(.scry-card:only-child) { width: min(440px, calc(100vw - 28px)); }
+.scry-dialog:has(.scry-card:nth-child(2):last-child) { width: min(660px, calc(100vw - 28px)); }
+.scry-dialog .scry-setup { padding: 24px 22px; gap: 12px; flex-wrap: wrap; }
+.scry-dialog .scry-setup input { min-height: 38px; width: 76px; }
+.scry-dialog .scry-setup button { min-height: 38px; padding: 8px 18px; }
+.scry-dialog .scry-cards { grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); align-items: start; }
+.scry-dialog .scry-card img { justify-self: center; max-height: 280px; }
+.scry-dialog .scry-card-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.scry-dialog .scry-card-actions button { min-height: 32px; padding: 5px; font-size: 12px; }
+#scryActions:not(:has(button:not([hidden]))) { display: none; }
+@media (max-width: 600px) {
+  .trait-dialog :is(.trait-dialog-grid, .scry-cards) { padding: 14px; gap: 16px 10px; }
+  .trait-dialog :is(.trait-dialog-head, .trait-dialog-actions) { padding: 14px; flex-wrap: wrap; }
+  .trait-dialog .trait-dialog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .scry-dialog .scry-cards { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  body:not(.sidebar-collapsed) .sidebar-toggle { left: auto; right: 16px; }
+  .title-actions { flex-basis: 100%; }
+  .card-column { padding: 12px; }
+  .title-row h2 { font-size: 25px; }
+}

@@ -2155,9 +2155,12 @@
       }
     }
   </style>
+  <link rel="stylesheet" href="./dashboard.css?v=20261001-card-dialog-theme">
+  <link rel="stylesheet" href="./assets/theme.css?v=20261001">
+  <script src="./assets/theme.js?v=20261001" defer></script>
   <link rel="stylesheet" href="./assets/update/update-check.css?v=2">
 </head>
-<body>
+<body data-theme-dashboard>
   <section id="authGate" class="auth-gate" hidden>
     <div class="auth-panel">
       <div>
@@ -2188,30 +2191,34 @@
       <div>
         <div class="title-row">
           <h1 id="dashboardTitle" class="cycle-title">ATO 战役主控台</h1>
-          <label class="title-cycle-control">
-            当前 Cycle
-            <select id="cycleSelect"></select>
-          </label>
         </div>
-        <p class="subtitle"><span id="campaignSaveStatus" class="campaign-save-status" data-state="saving" aria-live="polite">正在连接存档...</span></p>
       </div>
       <section class="day-card" aria-label="当前天数">
         <label>
-          当前 Day
-          <input id="dayInput" type="text" inputmode="numeric" value="0">
+          <input id="dayInput" type="text" inputmode="numeric" value="0" aria-label="当前天数">
         </label>
-        <div class="record-links">
-          <a class="record-card-link" href="./record/index.html" data-cycle-link>阿尔戈号记录表</a>
-          <a class="record-card-link hero-card-link" href="./hero/index.html" data-cycle-link>英雄记录表</a>
-          <a class="record-card-link aibp-card-link" href="./aibp/index.html" data-cycle-link>AIBP</a>
-          <a class="record-card-link technology-card-link" href="./technology/index.html">科技</a>
-        </div>
         <div class="day-actions">
           <button id="nextDayButton" type="button">进入下一天</button>
           <button id="resetTodayButton" type="button" class="secondary">重置今日</button>
         </div>
       </section>
     </header>
+
+    <div class="dashboard-navigation">
+      <nav class="record-links" aria-label="战役工具">
+        <span id="campaignSaveStatus" class="campaign-save-status" data-state="saving" aria-live="polite">正在连接存档...</span>
+        <a class="record-card-link" href="./record/index.html" data-cycle-link>阿尔戈号记录表</a>
+        <a class="record-card-link hero-card-link" href="./hero/index.html" data-cycle-link>英雄记录表</a>
+        <a class="record-card-link aibp-card-link" href="./aibp/index.html" data-cycle-link>AIBP</a>
+        <a class="record-card-link technology-card-link" href="./technology/index.html">科技</a>
+        <a class="record-card-link" href="./map/index.html" data-cycle-link>地图</a>
+        <a class="record-card-link" href="./story/index.html" data-cycle-link data-story-book-link>故事书</a>
+      </nav>
+      <label class="title-cycle-control">
+        当前 Cycle
+        <select id="cycleSelect"></select>
+      </label>
+    </div>
 
     <section id="dashboardWriterNotice" class="dashboard-writer-notice" role="status" aria-live="polite" hidden>
       <span id="dashboardWriterMessage">另一个主控制台正在编辑。本页只读，不会保存修改。</span>
@@ -2317,6 +2324,32 @@
           </div>
           <div class="panel-body">
             <div id="bgmControls" class="bgm-controls" data-term-ignore></div>
+          </div>
+        </section>
+
+        <section class="panel theme-panel" aria-label="主题设置">
+          <div class="panel-head"><h2>主题</h2></div>
+          <div class="panel-body theme-controls">
+            <label for="themeModeSelect">界面配色
+              <select id="themeModeSelect" data-dashboard-readonly-allowed>
+                <option value="auto">自动（跟随当前循环）</option>
+                <option value="c1">固定循环 I</option>
+                <option value="c2">固定循环 II</option>
+                <option value="c3">固定循环 III</option>
+                <option value="c4">固定循环 IV</option>
+                <option value="c5">固定循环 V</option>
+                <option value="custom">自定义 RGB</option>
+              </select>
+            </label>
+            <div id="themeCustomControls" class="theme-custom-controls" hidden>
+              <label for="themeColorInput">颜色<input id="themeColorInput" type="color" value="#7f4b26" data-dashboard-readonly-allowed></label>
+              <div class="theme-rgb">
+                <label>R<input type="number" data-theme-rgb min="0" max="255" step="1" value="127" aria-label="R 红色" data-dashboard-readonly-allowed></label>
+                <label>G<input type="number" data-theme-rgb min="0" max="255" step="1" value="75" aria-label="G 绿色" data-dashboard-readonly-allowed></label>
+                <label>B<input type="number" data-theme-rgb min="0" max="255" step="1" value="38" aria-label="B 蓝色" data-dashboard-readonly-allowed></label>
+              </div>
+            </div>
+            <p class="theme-note">同步当前浏览器中的所有模块。自定义颜色会自动生成背景、边框和按钮配色。</p>
           </div>
         </section>
 
@@ -2491,7 +2524,7 @@
         title: "发展",
         kind: "可选执行",
         desc: "**打造装备**、结算发展事件、**开发新科技**，或使用已有科技。",
-        links: [{ label: "Technology", href: "./technology/index.html" }],
+        links: [{ label: "科技", href: "./technology/index.html" }],
       },
       {
         id: "story",
@@ -5885,6 +5918,8 @@
         elements.cycleSelect.appendChild(option);
       });
       elements.cycleSelect.value = currentProfile().activeCycleId;
+      document.body.dataset.cycle = currentProfile().activeCycleId;
+      window.ATO_THEME?.setCycle(currentProfile().activeCycleId);
       window.ATO_CYCLE_SYMBOLS?.prependTitleIcon(
         document.querySelector("#dashboardTitle"),
         currentProfile().activeCycleId,
@@ -5893,6 +5928,9 @@
       document.querySelectorAll("[data-cycle-link]").forEach((link) => {
         const url = new URL(link.getAttribute("href"), window.location.href);
         url.searchParams.set("cycle", currentProfile().activeCycleId);
+        if (link.hasAttribute("data-story-book-link")) {
+          url.searchParams.set("book", currentCycleConfig().storyBook);
+        }
         link.href = url.href;
       });
     }
@@ -7819,11 +7857,11 @@
       const destructionTools = createExplorationDestructionTools(selectedIds, destructionPileIds);
       if (destructionTools) wrapper.appendChild(destructionTools);
       wrapper.appendChild(builder);
-      // 「已选 N / M 张」跟着「选择探索卡库」入口走：它说的是牌库选择，不占抽牌那一行。
+      // 选择数量属于卡库内容，随卡库一起折叠。
       const selectedCount = document.createElement("div");
       selectedCount.className = "exploration-count";
       selectedCount.textContent = `已选 ${selectedIds.length} / ${library.length} 张`;
-      wrapper.appendChild(selectedCount);
+      builderBody.prepend(selectedCount);
       return wrapper;
     }
 
@@ -7916,7 +7954,7 @@
 
     function getStepLinks(step) {
       if (step.id === "move" || step.id === "explore" || step.id === "end") {
-        return currentCycleConfig().map ? [{ label: "Map", href: getMapHref() }] : [];
+        return currentCycleConfig().map ? [{ label: "地图", href: getMapHref() }] : [];
       }
       if (step.id === "survey") {
         if (currentCycleConfig().storyBook) return [
@@ -7943,7 +7981,7 @@
       if (step.id === "encounter") {
         return currentCycleConfig().storyBook ? [{ label: "战斗模块", href: getStoryHref({ module: "battle" }) }] : [];
       }
-      if (step.id === "development") return [{ label: "Technology", href: getTechnologyHref() }];
+      if (step.id === "development") return [{ label: "科技", href: getTechnologyHref() }];
       return step.links || [];
     }
 
@@ -8405,7 +8443,7 @@
             title: icon.label,
             tag: icon,
             desc: `时间表标记了今日${icon.label}突破，在发展阶段处理。`,
-            className: "tech",
+            className: `tech ${icon.className}`,
           }));
       }
 
@@ -8460,7 +8498,7 @@
       }
 
       // Insert an element so the term-language observer also translates rerenders.
-      elements.dateTrackMeta.innerHTML = `<span>${escapeHtml(`${track.label} · 当前 Day ${state.day}`)}</span>`;
+      elements.dateTrackMeta.innerHTML = `<span>${escapeHtml(`${track.label} · ${state.day}`)}</span>`;
       const fragment = document.createDocumentFragment();
       track.entries.forEach((entry) => {
         const eventText = entry.day == null ? "" : track.events[entry.day];

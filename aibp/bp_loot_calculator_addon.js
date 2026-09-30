@@ -433,11 +433,11 @@ Add these script tags after the main viewer script:
     const allPiles = safeGetPiles();
 
     if (!apostle || !allPiles || !allPiles[apostle]) {
-      throw new Error("没有找到当前使徒存档。请先打开一个使徒页面。");
+      throw new Error("没有找到当前始徒存档。请先打开一个始徒页面。");
     }
 
     if (!allPiles[apostle].BP) {
-      throw new Error("当前使徒没有 BP 存档。");
+      throw new Error("当前始徒没有 BP 存档。");
     }
 
     return {
@@ -1031,7 +1031,7 @@ Add these script tags after the main viewer script:
         nietzscheBonus: nietzscheBonusDetails,
         coreBonus: coreDetails,
         levelBonus: levelResourceBonus
-          ? [{ source: "使徒等级奖励", resource: levelResourceBonus, multiplier: 1 }]
+          ? [{ source: "始徒等级奖励", resource: levelResourceBonus, multiplier: 1 }]
           : []
       },
       warnings
@@ -1058,7 +1058,7 @@ Add these script tags after the main viewer script:
         <div class="loot-dialog-body">
           <div class="loot-toolbar">
             <label class="loot-multiplier-label">
-              使徒等级倍率
+              始徒等级倍率
               <input type="number" min="1" max="10" step="1" class="loot-multiplier-input">
             </label>
             <label class="loot-multiplier-label loot-burden-summit-label" hidden>
@@ -1373,14 +1373,14 @@ Add these script tags after the main viewer script:
 
     summary.innerHTML = `
       <div class="loot-meta">
-        <div>当前使徒：<strong>${escapeHtml(apostleZhName(result.apostle))}</strong></div>
+        <div>当前始徒：<strong>${escapeHtml(apostleZhName(result.apostle))}</strong></div>
         <div>损伤堆卡数：${result.damageCount}</div>
         <div>普通BP损伤：${result.normalDamageCount}</div>
         <div>单重损伤：${result.swCount}</div>
         <div>双重损伤：${result.dwCount}</div>
         <div>暴击 BP III：${result.woundedBpIIICount}（核心 +${result.woundedBpIIICount}）</div>
         <div>倍率：×${result.multiplier}</div>
-        ${result.ignoresLevelResourceMultiplier ? `<div>资源倍率：×${result.resourceMultiplier}（该使徒不按等级乘资源）</div>` : ""}
+        ${result.ignoresLevelResourceMultiplier ? `<div>资源倍率：×${result.resourceMultiplier}（该始徒不按等级乘资源）</div>` : ""}
         <div>倍率来源：${result.multiplierSource === "record" ? "记录表" : result.multiplierSource === "manual" ? "手动输入" : result.multiplierSource === "aibp" ? "AIBP当前始徒等级" : "默认等级 1"}</div>
         ${result.chimeraBonus ? `<div>奇美拉常规损伤：${escapeHtml(String(result.regularDamageCount))}</div>` : ""}
         ${result.chimeraBonus ? `<div>奇美拉第二损伤堆：${escapeHtml(String(result.secondaryDamageCount))}</div>` : ""}
@@ -1425,7 +1425,7 @@ Add these script tags after the main viewer script:
     if (levelBonusRows) {
       details.insertAdjacentHTML("beforeend", `
         <section>
-          <h4>使徒等级奖励</h4>
+          <h4>始徒等级奖励</h4>
           ${levelBonusRows}
         </section>
       `);
@@ -1505,7 +1505,7 @@ Add these script tags after the main viewer script:
       <div class="loot-detail-row">
         <div class="loot-detail-cardbox">
           <div class="loot-detail-cardtext">
-            <div class="loot-detail-source">${escapeHtml(item.source || "使徒等级奖励")}</div>
+            <div class="loot-detail-source">${escapeHtml(item.source || "始徒等级奖励")}</div>
           </div>
         </div>
         <div class="loot-detail-res">
@@ -1535,10 +1535,10 @@ Add these script tags after the main viewer script:
 
   function resultToText(result) {
     const lines = [];
-    lines.push(`使徒：${apostleZhName(result.apostle)}`);
+    lines.push(`始徒：${apostleZhName(result.apostle)}`);
     lines.push(`倍率：×${result.multiplier}`);
     if (result.ignoresLevelResourceMultiplier) {
-      lines.push(`资源倍率：×${result.resourceMultiplier}（该使徒不按等级乘资源）`);
+      lines.push(`资源倍率：×${result.resourceMultiplier}（该始徒不按等级乘资源）`);
     }
     lines.push(`损伤堆卡数：${result.damageCount}`);
     lines.push(`普通 BP 损伤：${result.normalDamageCount}`);
@@ -1577,7 +1577,7 @@ Add these script tags after the main viewer script:
       (result.details.nietzscheBonus || []).forEach((item) => lines.push(`  尼采超人伤害额外奖励：${formatResource(item.resource)}`));
       if (result.nietzscheBonus.specialReward) lines.push(`  尼采超人特殊奖励：${result.nietzscheBonus.specialReward}`);
     }
-    (result.details.levelBonus || []).forEach((item) => lines.push(`  使徒等级奖励：${formatResource(item.resource)}`));
+    (result.details.levelBonus || []).forEach((item) => lines.push(`  始徒等级奖励：${formatResource(item.resource)}`));
 
     if (result.warnings.length) {
       lines.push("");

@@ -53,6 +53,8 @@ $allowedPaths = @(
   'assets/page-focus-router.js',
   'assets/story-doom-card-data.js',
   'assets/term-language.js',
+  'assets/theme.css',
+  'assets/theme.js',
   'assets/update/app-version.js',
   'assets/update/update-check.css',
   'assets/update/update-check.js',

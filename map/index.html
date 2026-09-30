@@ -4,7 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ATO 地图模块</title>
-  <link rel="stylesheet" href="./styles.css?v=20260924-titan-x-track">
+  <link rel="stylesheet" href="./styles.css?v=20261001-tile-lookup-compact">
+  <link rel="stylesheet" href="../cycle-theme.css">
+  <link rel="stylesheet" href="./map.css?v=20261001-square-selection">
+  <script src="../assets/theme.js?v=20261001" defer></script>
 </head>
 <body>
   <script>if (new URLSearchParams(location.search).get("second") === "1") document.body.classList.add("second-screen-map");</script>
@@ -12,10 +15,13 @@
     <header class="topbar">
       <div>
         <h1 id="mapTitle" class="cycle-title">ATO 地图模块</h1>
-        <p>按 Cycle 管理地图板块、当前位置和已探索状态。</p>
+        <p id="campaignSaveStatus" class="campaign-save-status" data-state="connecting" aria-live="polite">正在连接存档...</p>
       </div>
       <div class="topbar-tools">
-        <a class="back-link" href="../index.html">返回主控台</a>
+        <div class="header-return-actions">
+          <a class="return-without-save" href="../index.html">不保存，返回控制台</a>
+          <button id="headerSaveReturnButton" class="back-link" type="button">保存并返回</button>
+        </div>
         <div class="cycle-tabs" id="cycleTabs"></div>
       </div>
     </header>
@@ -26,10 +32,16 @@
         当前板块
         <select id="currentTileSelect"></select>
       </label>
-      <label>
-        搜索板块
-        <input id="searchInput" placeholder="例如 001、T03">
-      </label>
+      <div class="tile-lookup">
+        <label for="searchInput">搜索 / 揭示板块</label>
+        <div class="tile-lookup-row">
+          <input id="searchInput" type="text" inputmode="text" autocomplete="off" placeholder="例如 001、T03">
+          <div class="tile-lookup-actions">
+            <button id="searchTileButton" type="button" class="secondary">搜索</button>
+            <button id="revealTileButton" type="button">揭示</button>
+          </div>
+        </div>
+      </div>
       <label class="zoom-control">
         地图缩放
         <span class="zoom-row">
@@ -65,7 +77,6 @@
       <div class="map-status">
         <strong id="cycleTitle">Cycle</strong>
         <span id="cycleMeta"></span>
-        <span id="campaignSaveStatus" class="campaign-save-status" data-state="connecting" aria-live="polite">正在连接存档...</span>
       </div>
       <div class="tool-cluster token-cluster">
         <span class="toolbar-label">图标</span>
@@ -95,11 +106,6 @@
           <div id="titanXTrackSpaces" class="titan-x-track-spaces"></div>
           <button id="titanXRetreatButton" type="button" class="secondary" title="本次探索阶段没有激活探索指示物时，向 7 移动一格">减缓</button>
           <span id="titanXTrackStatus" class="titan-x-track-status" aria-live="polite"></span>
-        </div>
-        <div class="action-group reveal-group">
-          <span class="toolbar-label">揭示</span>
-          <input id="revealTileInput" type="text" inputmode="text" autocomplete="off" placeholder="板块ID" aria-label="揭示板块 ID">
-          <button id="revealTileButton" type="button" class="secondary">确认</button>
         </div>
         <div class="action-group">
           <span class="toolbar-label">流程</span>
@@ -137,7 +143,7 @@
   <script src="../assets/cycle-symbols.js?v=20260918"></script>
   <script src="../assets/campaign-session.js?v=20260917"></script>
   <script src="./nemesis-path.js?v=20260924-shared"></script>
-  <script src="./app.js?v=20260924-c5-face-reveal"></script>
+  <script src="./app.js?v=20261001-tile-lookup"></script>
   <script src="../assets/ato-terms.js?v=20260912f"></script>
   <script src="../assets/term-language.js?v=20260923-nocascade"></script>
 </body>

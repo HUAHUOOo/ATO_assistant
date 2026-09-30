@@ -1731,7 +1731,7 @@
       display: grid;
     }
 
-    /* 有两张完整面板的使徒（目前是乌尔-弗里斯）：普通状态下也能直接换大卡。 */
+    /* 有两张完整面板的始徒（目前是乌尔-弗里斯）：普通状态下也能直接换大卡。 */
     .panel-card-switch {
       position: absolute;
       right: 8px;
@@ -2069,14 +2069,35 @@
       font-weight: 900;
     }
 
-    .image-zoom-actions {
-      display: none;
+    .image-zoom-action-stack {
+      display: grid;
       grid-column: 2;
       grid-row: 2;
       width: 128px;
-      gap: 8px;
+      gap: 16px;
+      max-height: 86vh;
+      overflow: auto;
       align-self: center;
       justify-self: start;
+      cursor: default;
+    }
+
+    .image-zoom-action-stack:has(.image-zoom-actions.show) {
+      padding: 2px;
+    }
+
+    .image-zoom-action-stack:not(:has(.image-zoom-actions.show)) {
+      display: none;
+    }
+
+    .image-zoom-action-stack .image-zoom-action-title {
+      color: #ddd5c8;
+    }
+
+    .image-zoom-actions {
+      display: none;
+      width: 100%;
+      gap: 8px;
       cursor: default;
     }
 
@@ -2174,12 +2195,25 @@
         width: clamp(48px, 15vw, 72px);
       }
 
-      .image-zoom-actions {
+      .image-zoom-overlay.show {
+        overflow: auto;
+        align-items: start;
+      }
+
+      .image-zoom-content {
+        max-height: none;
+      }
+
+      .image-zoom-action-stack {
         grid-column: 1;
         grid-row: auto;
         width: min(96vw, 360px);
-        grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+        max-height: none;
         justify-self: center;
+      }
+
+      .image-zoom-actions {
+        grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
       }
 
       .image-zoom-notice {
@@ -2240,12 +2274,15 @@
   </style>
   <link rel="stylesheet" href="c45_specials.css?v=20260926-titan-group-layout1">
   <link rel="stylesheet" href="battle_map_control.css?v=20260819-c5-light1">
+  <link rel="stylesheet" href="../cycle-theme.css">
+  <script src="../assets/theme.js?v=20261001" defer></script>
+  <link rel="stylesheet" href="editorial.css?v=20261001">
 </head>
 <body>
   <button type="button" class="sidebar-toggle" id="sidebarToggle" aria-label="折叠左侧边栏" title="展开/折叠左侧边栏">×</button>
   <div class="app">
     <aside>
-      <h1>使徒</h1>
+      <h1 id="aibpTitle">始徒</h1>
       <div class="sidebar-boss-search">
         <label for="bossSearchInput">搜索 BOSS</label>
         <form class="boss-search-form" id="bossSearchForm">
@@ -2262,7 +2299,7 @@
         <div class="apostle-title">
           <h2 id="title"></h2>
           <div class="map-faction-status" id="mapFactionStatus"></div>
-          <select class="apostle-level-select" id="apostleLevelSelect" aria-label="使徒当前等级">
+          <select class="apostle-level-select" id="apostleLevelSelect" aria-label="始徒当前等级">
             <option value="">跟随记录表</option>
             <option value="1">等级 I</option>
             <option value="2">等级 II</option>
@@ -2278,7 +2315,7 @@
         </div>
         <div class="title-actions">
           <label class="deck-order-toggle" title="切换 AI/BP 卡背信息的详细程度">
-            <input type="checkbox" id="viewDeckOrderToggle" checked>
+            <input type="checkbox" id="viewDeckOrderToggle">
             查看牌背顺序
           </label>
           <label class="second-screen-mode-toggle" title="勾选后第二屏显示决战版图，取消勾选后显示地图">
@@ -2444,7 +2481,7 @@
                 <label class="battle-map-los-field">
                   视线来源
                   <select data-battle-map-los-source aria-label="视线来源单位">
-                    <option value="apostle" selected>使徒</option>
+                    <option value="apostle" selected>始徒</option>
                     <option value="titan">泰坦（1 格）</option>
                   </select>
                 </label>
@@ -2464,7 +2501,7 @@
                   </select>
                 </label>
                 <div class="battle-map-los-path-tools" data-battle-map-los-path-tools hidden>
-                  <button type="button" data-battle-map-los-path-source aria-pressed="true">设置使徒</button>
+                  <button type="button" data-battle-map-los-path-source aria-pressed="true">设置始徒</button>
                   <button type="button" data-battle-map-los-path-target aria-pressed="false" disabled>设置目标</button>
                   <button type="button" data-battle-map-los-path-clear disabled>清除目标</button>
                 </div>
@@ -2598,6 +2635,7 @@
       </div>
       <div class="image-zoom-notice" id="imageZoomNotice"></div>
       <div id="imageZoomCombinedNotice" hidden role="status"></div>
+      <div class="image-zoom-action-stack">
       <div class="image-zoom-actions" id="imageZoomBpActions" aria-label="BP 处置">
         <button type="button" data-bp-zoom-action="discard">弃置</button>
         <button type="button" data-bp-zoom-action="defeat">击败</button>
@@ -2619,10 +2657,13 @@
         <button type="button" data-token-zoom-action="minus">-1</button>
         <button type="button" data-token-zoom-action="clear">清空</button>
       </div>
+      </div>
     </div>
   </div>
 
   <script src="../assets/campaign-session.js?v=20260917"></script>
+  <script src="../assets/cycle-symbols.js?v=20260918"></script>
+  <script src="cycle-theme.js?v=20261001"></script>
   <script src="../assets/page-focus-router.js?v=20260813-no-screen-focus1"></script>
   <script src="../map/map-tile-tags.js"></script>
   <script src="ps/CHIMERA_METASTASIOS/bp_status_map.js"></script>
@@ -2860,7 +2901,7 @@
     let campaignMapFactionRefreshInFlight = false;
     const chimeraName = "CHIMERA_METASTASIOS";
     const criticalMassApostles = new Set([chimeraName, "CYCLONUS", "HEKATON", "HYPERTIME_ORACLE"]);
-    // 少数使徒印了两张完整面板（大卡）：乌尔-弗里斯原来只有 UR_FLEECE.jpg，后来又补了
+    // 少数始徒印了两张完整面板（大卡）：乌尔-弗里斯原来只有 UR_FLEECE.jpg，后来又补了
     // UR_FLEECE_2.jpg。数组第 1 项是控制台与第二屏默认显示的；点开面板时先给「原来的
     // 大卡」（第 2 项），放大图里的按钮可以在两张之间来回切。
     const apostlePanelCards = {
@@ -3151,7 +3192,7 @@
     let traitLoadToken = 0;
 
     if (viewDeckOrderToggle) {
-      viewDeckOrderToggle.checked = localStorage.getItem(deckOrderViewStorageKey) !== "0";
+      viewDeckOrderToggle.checked = localStorage.getItem(deckOrderViewStorageKey) === "1";
     }
 
     function migrateLegacyHealedPiles(state) {
@@ -4107,6 +4148,7 @@
     function applyCampaignMapFactionState(campaign, user) {
       heliosAccountId = String(user?.id || "");
       const dashboardCycle = activeDashboardCycleFromCampaign(campaign);
+      window.AIBP_CYCLE_THEME?.setCycle(dashboardCycle?.cycleId);
       syncHeliosAccess(campaign, dashboardCycle);
       const mapState = dashboardMapFactions(dashboardCycle);
       campaignMapFactionState = {
@@ -5879,7 +5921,7 @@
     }
 
     function startNewCampaign() {
-      if (!window.confirm("开启新战役会重置当前使徒的 AI/BP 牌堆、弃牌记录和战役标记。确定继续吗？")) return;
+      if (!window.confirm("开启新战役会重置当前始徒的 AI/BP 牌堆、弃牌记录和战役标记。确定继续吗？")) return;
       ensurePiles(currentApostle);
       undoStacks[currentApostle] = [];
       piles[currentApostle] = initialState();
@@ -7052,7 +7094,7 @@
       }
     }
 
-    // 面板大卡的放大图状态：cards 是这个使徒的全部大卡，index 是放大图里正在看的那张。
+    // 面板大卡的放大图状态：cards 是这个始徒的全部大卡，index 是放大图里正在看的那张。
     let panelZoomState = null;
 
     function panelZoomCardsFor(name = currentApostle) {
@@ -7088,7 +7130,7 @@
       applyPanelCardIndex();
     }
 
-    // 点开使徒面板时先看「原来的大卡」（第 2 张），和面板上默认显示的那张对照着看。
+    // 点开始徒面板时先看「原来的大卡」（第 2 张），和面板上默认显示的那张对照着看。
     function openPanelZoom() {
       const cards = panelZoomCardsFor();
       if (cards.length < 2) return false;
@@ -7422,7 +7464,7 @@
       slot.classList.toggle("show", available && !token);
       slot.title = available
         ? "点击放置 1 个临界质量通用标记"
-        : "使徒达到 II 级后可使用";
+        : "始徒达到 II 级后可使用";
     }
 
     function makePanelTokenDraggable(tokenItem) {

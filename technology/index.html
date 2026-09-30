@@ -1130,14 +1130,24 @@ button.gear-group-name:hover {
   .gear-items { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
 }
 </style>
+<link rel="stylesheet" href="../cycle-theme.css">
+<link rel="stylesheet" href="../assets/theme.css?v=20261001">
+<link rel="stylesheet" href="editorial.css?v=20261001">
+<script src="../assets/theme.js?v=20261001" defer></script>
 </head>
-<body>
+<body data-theme-module="technology">
 <div class="app">
   <main class="main">
+    <header class="page-heading">
+      <div>
+        <h1 id="technologyTitle">科技</h1>
+      </div>
+      <button class="tool-btn return-main" id="returnMain" type="button">保存并返回主控台</button>
+    </header>
     <div class="topbar">
+      <span id="campaignSaveStatus" class="campaign-save-status" data-state="saving" aria-live="polite">正在连接...</span>
       <div class="tabs" id="tabs"></div>
       <div class="tools">
-        <button class="tool-btn return-main" id="returnMain" type="button">保存并返回主控台</button>
         <select id="accountSelect" class="account-select" aria-label="账户" hidden></select>
         <select id="cycleSelect" class="cycle-select" aria-label="当前循环"></select>
         <button class="tool-btn" id="languageToggle" type="button">中文名</button>
@@ -1152,7 +1162,6 @@ button.gear-group-name:hover {
           <input id="hideImageToggle" type="checkbox">
           不显示底图
         </label>
-        <span id="campaignSaveStatus" class="campaign-save-status" data-state="saving" aria-live="polite">正在连接...</span>
         <span id="count"></span>
       </div>
     </div>
@@ -1177,6 +1186,7 @@ button.gear-group-name:hover {
 </div>
   <script src="../assets/page-focus-router.js?v=20260813-no-screen-focus1"></script>
   <script src="../assets/campaign-session.js?v=20260917"></script>
+  <script src="../assets/cycle-symbols.js?v=20260918"></script>
 <script>
 const TECH_DICTIONARY_URL = 'tech_card_dictionary.min.json';
 const GEAR_PRODUCTION_URL = 'ato_gear_production.json';
@@ -3946,6 +3956,7 @@ function renderCard(card, node) {
   </section>`;
 }
 function renderTabs() {
+  updateTechnologyTheme();
   const tabItems = [
     ...data.pages.map(page => ({ key: page.key, label: page.label })),
     { key: 'unlocked', label: '已解锁科技' },
@@ -3973,11 +3984,19 @@ function renderTabs() {
     renderTree();
   }));
 }
+function updateTechnologyTheme() {
+  const cycleId = MAIN_CYCLE_BY_TECH_CYCLE[currentCycle] || 'c1';
+  if (document.body.dataset.cycle === cycleId) return;
+  document.body.dataset.cycle = cycleId;
+  window.ATO_CYCLE_SYMBOLS?.prependTitleIcon(document.querySelector('#technologyTitle'), cycleId, '../');
+}
 function renderCycleSelect() {
+  updateTechnologyTheme();
   cycleSelect.innerHTML = data.pages.map(page => `<option value="${esc(page.key)}">当前${esc(page.label)}</option>`).join('');
   cycleSelect.value = currentCycle;
 }
 function renderTree() {
+  updateTechnologyTheme();
   document.querySelector('.app').classList.remove('unlocked-mode');
   const page = pageByKey(viewPage);
   currentTab = viewPage;
