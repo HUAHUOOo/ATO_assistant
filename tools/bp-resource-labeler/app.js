@@ -158,7 +158,7 @@
 
   function fillApostleFilter() {
     elements.apostleFilter.innerHTML = [
-      '<option value="">全部使徒</option>',
+      '<option value="">全部始徒</option>',
       ...manifest.apostles.map((apostle) =>
         `<option value="${apostle.id}">${apostle.cycle} · ${apostle.label}</option>`
       )

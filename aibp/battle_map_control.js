@@ -95,13 +95,13 @@
     const losPathSummary = root.querySelector("[data-battle-map-los-path-summary]");
     let selectedId = "";
     // Line-of-sight UI state.
-    //   source  "titan" = 1 格；"apostle" = 当前使徒，尺寸/盲区/移速都读自面板数据。
+    //   source  "titan" = 1 格；"apostle" = 当前始徒，尺寸/盲区/移速都读自面板数据。
     //   reach   攻击距离，默认 1（贴身近战）；射程 = 移速 + 攻击距离。远程 AI 牌自行调大。
     //   facing  朝向（版图上画黄箭头，盲区取其反向）。null = 跟随该图的初始朝向。
     // 迷宫感应（仅迷宫机牛 / ALPHA_TEMENOS）不设开关：板面限定「对泰坦的视线」，而
-    // 使徒能看的目标只有泰坦，这个条件恒成立，所以有此特性就无条件生效。
+    // 始徒能看的目标只有泰坦，这个条件恒成立，所以有此特性就无条件生效。
     // 高地(循环IV+)是**手动复选框 + 自动跟随**：泰坦踩上高地板块时自动勾选、移下自动取消，
-    // 但玩家随时可以手动改（比如手动关掉、或给使徒手动开）。自动只在「跨越高地边界」的
+    // 但玩家随时可以手动改（比如手动关掉、或给始徒手动开）。自动只在「跨越高地边界」的
     // 那一刻触发（边沿触发），平时不覆盖手动选择——见 syncAutoElevated。
     const losState = {
       active: false,
@@ -269,13 +269,13 @@
     }
 
     // ---- line of sight ---------------------------------------------------
-    // 当前使徒的面板数据（尺寸/移速/盲点/特殊视线），按该图的初始等级取。
+    // 当前始徒的面板数据（尺寸/移速/盲点/特殊视线），按该图的初始等级取。
     function losProfile(map) {
       if (losState.source !== "apostle") return null;
       return window.BattleTerrain.getApostleProfile(options.getApostle(), map?.startLevel) || null;
     }
 
-    // 来源脚印边长：泰坦固定 1 格，使徒直接读面板图示的尺寸。
+    // 来源脚印边长：泰坦固定 1 格，始徒直接读面板图示的尺寸。
     function losSourceSize(map) {
       const profile = losProfile(map);
       return profile ? profile.size : 1;
@@ -317,8 +317,8 @@
       );
     }
 
-    // 迷宫感应此刻是否真的在生效：使徒带这个特性，且图上真有大迷宫。泰坦来源没有
-    // 使徒特性，自然不适用。
+    // 迷宫感应此刻是否真的在生效：始徒带这个特性，且图上真有大迷宫。泰坦来源没有
+    // 始徒特性，自然不适用。
     function losMazesenseActive(map, occ) {
       const profile = losProfile(map);
       if (!profile || !profile.mazesense) return false;
@@ -334,7 +334,7 @@
     // （或反过来）的那一刻才自动改复选框，平时不动，这样玩家的手动选择能保留。
     let lastOnHigh = false;
 
-    // 泰坦是否站在高地板块格上（使徒不吃高地，恒 false）。
+    // 泰坦是否站在高地板块格上（始徒不吃高地，恒 false）。
     function sourceOnHighGround(map) {
       if (losState.source !== "titan") return false;
       const occ = lastOcc;
@@ -441,7 +441,7 @@
       ];
       if (profile.speed === Infinity) parts.push("射程 全图");
       else parts.push(`射程 ${profile.speed + losState.reach} 格`);
-      // 朝向 0/90/180/270 = 上/右/下/左，后方即其反向。朝向对每个使徒都标（版图上
+      // 朝向 0/90/180/270 = 上/右/下/左，后方即其反向。朝向对每个始徒都标（版图上
       // 有黄箭头），盲区只有带这个特性的才有。
       const face = { 0: "上", 90: "右", 180: "下", 270: "左" }[losFacing(map)] || "上";
       const rear = { 0: "下", 90: "左", 180: "上", 270: "右" }[losFacing(map)] || "下";
@@ -459,17 +459,17 @@
       losToggle.textContent = losState.active ? "关闭" : "开启";
       if (losBody) losBody.hidden = !losState.active;
       if (losSourceSelect) {
-        // 使徒那一项的标签跟着当前使徒的面板尺寸走。
+        // 始徒那一项的标签跟着当前始徒的面板尺寸走。
         const apostleOption = losSourceSelect.querySelector('option[value="apostle"]');
         if (apostleOption) {
           const size = window.BattleTerrain.getApostleProfile(options.getApostle(), map?.startLevel)?.size;
-          apostleOption.textContent = size ? `使徒（${size}×${size}）` : "使徒";
+          apostleOption.textContent = size ? `始徒（${size}×${size}）` : "始徒";
         }
         losSourceSelect.value = losState.source;
       }
       if (losReachField) losReachField.hidden = !profile;
       if (losReachInput) losReachInput.value = String(losState.reach);
-      // 朝向对**任何**使徒都要显示：箭头是常驻标注，不再只服务于盲区。
+      // 朝向对**任何**始徒都要显示：箭头是常驻标注，不再只服务于盲区。
       // 泰坦没有朝向（单格、无盲区、面板也没印），仍然隐藏。
       if (losFacingField) losFacingField.hidden = !profile;
       if (losFacingSelect) losFacingSelect.value = losState.facing === null ? "auto" : String(losState.facing);
@@ -509,7 +509,7 @@
           notes.push("泰坦位于高地板块，可勾选「高地」以无视遮蔽与红线（已被手动取消）。");
         } else if (profile && lastOcc && lastOcc.elevated && lastOcc.elevated.size
           && losSourceCells(map).some(({ c, r }) => lastOcc.elevated.has(`${c},${r}`))) {
-          // 使徒踩在高地板块上：规则里高地只对泰坦生效。
+          // 始徒踩在高地板块上：规则里高地只对泰坦生效。
           notes.push("来源所在板块带高地关键词，但高地（循环Ⅳ+）规则只对泰坦生效。");
         }
         notes.push(losState.anchor
@@ -523,7 +523,7 @@
           } else if (profile.speed === Infinity) {
             notes.push("移速 ∞，全图都在射程内，故不画射程层；格内数字=到来源的正交距离。");
           } else if (profile.speed === 0) {
-            notes.push("该使徒不可移动，射程只有攻击距离（紫框）；格内数字=到来源的正交距离。");
+            notes.push("该始徒不可移动，射程只有攻击距离（紫框）；格内数字=到来源的正交距离。");
           } else {
             notes.push("紫框=移动后能攻击到的格子；格内数字=到来源的正交距离。");
           }
@@ -531,7 +531,7 @@
         if (profile) {
           notes.push(profile.blindspot
             ? "黄箭头=朝向，斜纹格=盲区（在朝向的反向），永远不算有视线。"
-            : "黄箭头=朝向；该使徒没有盲区。");
+            : "黄箭头=朝向；该始徒没有盲区。");
         }
         if (profile && profile.mazesense) {
           notes.push(losMazesenseActive(map, lastOcc)
