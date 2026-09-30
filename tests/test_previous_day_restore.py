@@ -126,6 +126,27 @@ class PreviousDayRestoreTest(unittest.TestCase):
         self.assertEqual(status, 200, saved)
         self.assertEqual(saved['revision'], before['sectionRevisions']['dashboard'] + 1)
 
+    def test_import_can_clear_sections_and_stale_clients_cannot_resurrect_them(self):
+        self.save('dashboard', self.dashboard(1))
+        for section in ('heroes', 'map'):
+            self.save(section, {'value': 'created after the backup'})
+            revision = self.campaign()['sectionRevisions'][section]
+            status, cleared = self.request(payload={
+                'section': section, 'state': None,
+                'expectedRevision': revision, 'expectedAccountId': self.account,
+            })
+            self.assertEqual(status, 200, cleared)
+            status, latest = self.request('?section=' + section)
+            self.assertEqual(status, 200)
+            self.assertFalse(latest['exists'])
+            self.assertIsNone(latest['state'])
+            self.assertEqual(latest['revision'], revision + 1)
+            status, stale = self.request(payload={
+                'section': section, 'state': {'value': 'stale'},
+                'expectedRevision': revision, 'expectedAccountId': self.account,
+            })
+            self.assertEqual((status, stale['code']), (409, 'SAVE_CONFLICT'))
+
 
 if __name__ == '__main__':
     unittest.main()

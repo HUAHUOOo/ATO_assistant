@@ -1369,9 +1369,31 @@
         const base = keyed(baseState?.[field]);
         const local = keyed(localState?.[field]);
         const remote = keyed(serverState?.[field]);
-        return [...new Set([...local.keys(), ...remote.keys(), ...base.keys()])]
-          .map(id => merge(base.get(id), local.get(id), remote.get(id), `${field}.${id}`))
-          .filter(item => item !== undefined);
+        const merged = new Map([...new Set([...local.keys(), ...remote.keys(), ...base.keys()])]
+          .map(id => [id, merge(base.get(id), local.get(id), remote.get(id), `${field}.${id}`)])
+          .filter(([, item]) => item !== undefined));
+        // Compare the relative order of surviving baseline entries separately
+        // from their fields. Adding/removing a hero is not itself a reorder.
+        const shared = new Set([...base.keys()].filter(id => local.has(id) && remote.has(id) && merged.has(id)));
+        const order = list => [...list.keys()].filter(id => shared.has(id));
+        const baseOrder = order(base), localOrder = order(local), remoteOrder = order(remote);
+        const localMoved = !equal(localOrder, baseOrder);
+        const remoteMoved = !equal(remoteOrder, baseOrder);
+        if (localMoved && remoteMoved && !equal(localOrder, remoteOrder)) conflicts.push(`${field}.order`);
+        const useRemoteOrder = !localMoved && remoteMoved;
+        const primary = useRemoteOrder ? remote : local;
+        const secondary = [...(useRemoteOrder ? local : remote).keys()].filter(id => merged.has(id));
+        const ids = [...primary.keys()].filter(id => merged.has(id));
+        // Insert entries added only on the other side next to their surviving
+        // neighbours, without disturbing the chosen order of existing heroes.
+        secondary.forEach((id, index) => {
+          if (ids.includes(id)) return;
+          const previous = secondary.slice(0, index).reverse().find(key => ids.includes(key));
+          const next = secondary.slice(index + 1).find(key => ids.includes(key));
+          const at = previous !== undefined ? ids.indexOf(previous) + 1 : next !== undefined ? ids.indexOf(next) : ids.length;
+          ids.splice(at, 0, id);
+        });
+        return ids.map(id => merged.get(id));
       }
       return { state: {
         heroes: mergeList("heroes"),

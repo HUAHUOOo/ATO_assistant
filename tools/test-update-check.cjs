@@ -28,7 +28,9 @@ function setup({ version = '1.2.9', release = { tag_name: 'v1.2.10', body: '<scr
     window: { ATO_APP_VERSION: version }, document: { querySelector: node },
     localStorage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) },
     AbortController, setTimeout, clearTimeout, setInterval() {},
-    async fetch() {
+    async fetch(url) {
+      // 本地更新能力探测不属于 GitHub 检查/缓存/重试次数。
+      if (String(url).startsWith('./api/')) return response(200, { body: { supported: false } });
       requests += 1;
       if (handler) return handler(requests);
       if (fail) throw new Error('offline');

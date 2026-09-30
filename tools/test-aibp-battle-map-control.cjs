@@ -58,6 +58,7 @@ class FakeElement {
       clientY: 0,
       ...values,
       stopped: false,
+      preventDefault() {},
       stopPropagation() { this.stopped = true; },
     };
     (this.listeners.get(type) || []).forEach((listener) => listener(event));
@@ -151,10 +152,12 @@ const initialCount = map.terrain.length;
 const city = map.terrain.find((placement) => placement.name === "City");
 let cityButton = terrainLayer.children.find((button) => button.dataset.terrainId === city.id);
 cityButton.dispatch("click", { clientX: 825, clientY: 225 });
+assert.equal(elements["[data-battle-map-rotate-right]"].disabled, true);
+cityButton.dispatch("dblclick", { clientX: 825, clientY: 225 });
 assert.equal(elements["[data-battle-map-rotate-right]"].disabled, false);
 
 cityButton = terrainLayer.children.find((button) => button.dataset.terrainId === city.id);
-cityButton.dispatch("click", { clientX: 775, clientY: 175 });
+board.dispatch("click", { clientX: 775, clientY: 175 });
 assert.equal(map.terrain.find((placement) => placement.id === city.id).column, 16);
 assert.equal(map.terrain.find((placement) => placement.id === city.id).row, 11);
 

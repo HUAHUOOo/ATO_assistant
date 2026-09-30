@@ -6,3 +6,6 @@
 .update-notice h3 { margin: 0 0 8px; }
 .update-report { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow-y: auto; line-height: 1.65; font-family: inherit; font-size: 14px; }
 .update-actions a { padding: 8px 12px; border: 1px solid #8b7547; border-radius: 8px; }
+/* 一键更新的进度与错误都写在这一行里；没有内容时不占高度。 */
+#applyUpdateStatus:empty { display: none; }
+.update-status.update-error { color: #ff9c9c; }

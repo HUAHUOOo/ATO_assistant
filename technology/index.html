@@ -3549,9 +3549,7 @@ async function saveAndReturnMain() {
   returnMain.disabled = true;
   try {
     saveAccounts();
-    // 同样是离线放行：本地快照已经写好，服务端那份会在重连后补上。
-    const wasOffline = !campaignStorageAvailable;
-    if (!await flushCampaignTechnologySave() && !wasOffline) {
+    if (!await flushCampaignTechnologySave()) {
       throw new Error('科技进度尚未写入服务器，已保留当前修改并等待重连。');
     }
     await writeSnapshotToMainArchive(unlockedTechSnapshot());
@@ -3581,13 +3579,11 @@ function renderAccountSelect() {
 async function switchAccount(id) {
   if (!accounts[id]) return;
   saveAccounts();
-  // 离线时 flush 必然返回 false，但那只是「还没同步到服务器」：saveAccounts() 已经
-  // 把本页改动落到本地，切换档案不该被永久挡住 —— 旧行为会让离线会话完全无法切换，
-  // 而提示里说的「请先处理保存提示」离线时并没有可操作的处理方式。只有「本来就
-  // 在线、却写不进去」才算硬阻塞。
-  const wasOffline = !campaignStorageAvailable;
-  if (!await flushCampaignTechnologySave() && !wasOffline) {
-    alert('当前档案尚未保存，已暂停切换。请先处理保存提示。');
+  // saveAccounts only updates memory. Keep this profile and its merge baseline
+  // until the server confirms the save, including while offline.
+  if (!await flushCampaignTechnologySave()) {
+    renderAccountSelect();
+    alert('当前档案尚未同步，已暂停切换并保留本页修改。请等待连接恢复、保存成功后再切换。');
     return;
   }
   try {

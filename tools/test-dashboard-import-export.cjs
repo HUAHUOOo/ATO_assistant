@@ -228,6 +228,25 @@ async function main() {
     assert.equal(ctxImport.campaignSectionRevision, 11);
   });
 
+  await check('完整备份显式空模块恢复为空，旧格式缺失模块不清空', async () => {
+    const posted = [];
+    const ctxImport = importContext({ fetch: async (url, options) => {
+      posted.push(JSON.parse(options.body));
+      return { ok: true, status: 200, json: async () => ({ ok: true, revision: 12 }) };
+    } });
+    ctxImport.importStateFile({ app: 'ATO Campaign Save Package', version: 3,
+      sections: { dashboard: sections.dashboard, heroes: null, map: null } });
+    await Reader.last.done;
+    assert.equal(alertText, '导入完成。');
+    assert.deepEqual(posted.map(p => [p.section, p.state]), [
+      ['dashboard', sections.dashboard], ['map', null], ['heroes', null],
+    ]);
+    posted.length = 0;
+    ctxImport.importStateFile({ sections: { dashboard: sections.dashboard, heroes: null } });
+    await Reader.last.done;
+    assert.deepEqual(posted.map(p => p.section), ['dashboard']);
+  });
+
   // --- 主控台地图命令：409 必须读回最新状态再重放本次改动 ---
   await check('地图命令 409 变基重放', async () => {
     const posts = [];

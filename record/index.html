@@ -2310,7 +2310,8 @@
     let serverSaveNeedsRetry = false;
     let serverSaveQueuedBeforeReady = false;
     let serverSectionRevision = 0;
-    let serverStateBaseline = null;
+    let serverStateBaseline = cloneJson(state);
+    let serverLoadInFlight = false;
     let serverConflictMerging = false;
     let serverExternalSyncInFlight = false;
     const recordSyncChannel = typeof BroadcastChannel === "function" ? new BroadcastChannel("ato-record-sync-v1") : null;
@@ -2470,7 +2471,11 @@
 
     async function syncRecordFromExternalUpdate(options = {}) {
       if (campaignSession.changed) { setSaveStatus("登录账号已切换，已停止保存，请刷新页面。"); return; }
-      if (!serverStorageAvailable || serverExternalSyncInFlight || serverConflictMerging || serverSaveInFlight) return;
+      if (serverExternalSyncInFlight || serverConflictMerging || serverSaveInFlight) return;
+      if (!serverStorageAvailable) {
+        await loadServerState();
+        return;
+      }
       serverExternalSyncInFlight = true;
       try {
         const latest = await readLatestRecordState();
@@ -2516,7 +2521,7 @@
     }
 
     function loadState() {
-      return normalizeState(defaultState);
+      return normalizeState(cloneJson(defaultState));
     }
 
     function defaultDayForCycle(cycleId) {
@@ -2749,21 +2754,30 @@
     }
 
     async function loadServerState() {
+      if (serverLoadInFlight || campaignSession.changed) return;
+      serverLoadInFlight = true;
       try {
         const response = await fetch(serverStorageUrl, { cache: "no-store" });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const payload = campaignSession.accept(await response.json());
         if (!payload.ok) throw new Error(payload.error || "读取失败");
         serverStorageAvailable = true;
-        const flushQueuedSave = serverSaveQueuedBeforeReady;
+        const flushQueuedSave = serverSaveQueuedBeforeReady || !jsonEqual(state, serverStateBaseline);
         serverSaveQueuedBeforeReady = false;
         const latest = recordStateFromCampaign(payload.campaign || {});
+        let nextState = latest.state;
+        if (flushQueuedSave) {
+          const merged = mergeRecordChanges(serverStateBaseline, state, latest.state);
+          if (!merged.conflicts.length || window.confirm(
+            `读取存档期间的修改与服务器存在冲突：\n${merged.conflicts.slice(0, 8).join("\n")}\n\n确定：保留本页冲突字段并合并保存\n取消：加载服务器版本`
+          )) nextState = normalizeState(merged.value);
+        }
         campaignUserId = latest.userId;
         serverSectionRevision = latest.revision;
         serverStateBaseline = cloneJson(latest.state);
         recordProfileLoaded = true;
+        state = nextState;
         if (payload.campaign?.sections?.record) {
-          state = latest.state;
           applyRequestedCycleFromUrl();
           const importedDashboardSurveyNote = consumeDashboardSurveyNote();
           renderAll();
@@ -2779,7 +2793,9 @@
         serverStorageAvailable = false;
         console.warn(error);
         clearDashboardSurveyNoteFromUrl();
-        setSaveStatus("NAS 存档接口不可用，当前修改只保留在页面内存中，刷新或关闭页面会丢失");
+        setSaveStatus("NAS 暂时不可用，正在等待重连；修改保留在本页，刷新或关闭会丢失");
+      } finally {
+        serverLoadInFlight = false;
       }
     }
 
@@ -4266,18 +4282,18 @@
           ],
           "A7": [
                 "C1 | 特殊事件 > 教程总结——跳过教程 (TUTORIAL SUMMARY - SKIPPING THE TUTORIAL) > tutorial-summary-skipping-the-tutorial line 9: 获得 1 个西西弗斯之泪 (Sisyphus Tear) 神圣资源 / 在选择矩阵 (Choice Matrix) 上标记 A7 或 A8（随机）",
-                "C1 | 教程 > LTP上手指南: 在船骸水域中选择将阿尔戈号开入深处保护特遣队，失去-1船体 / 标记 A7"
+                "数据外材料 | C1 教程《LTP 上手指南》 > 船骸水域: 选择将阿尔戈号开入深处保护特遣队，失去 -1 船体 / 标记 A7 （数据外材料：该指南不在故事书数据中，记录表无法跳转核验）"
           ],
           "A8": [
                 "C1 | 特殊事件 > 教程总结——跳过教程 (TUTORIAL SUMMARY - SKIPPING THE TUTORIAL) > tutorial-summary-skipping-the-tutorial line 9: 获得 1 个西西弗斯之泪 (Sisyphus Tear) 神圣资源 / 在选择矩阵 (Choice Matrix) 上标记 A7 或 A8（随机）",
-                "C1 | 教程 > LTP上手指南: 在船骸水域中选择让船员冒险而保全阿尔戈号，失去-1船员 / 标记 A8"
+                "数据外材料 | C1 教程《LTP 上手指南》 > 船骸水域: 选择让船员冒险而保全阿尔戈号，失去 -1 船员 / 标记 A8 （数据外材料：该指南不在故事书数据中，记录表无法跳转核验）"
           ],
           "A9": [
-                "C1 | 教程 > LTP上手指南: 放走商人并索取海岸地图，失去-1命运，米诺斯人：外交+1，角誓者：外交-1 / 标记 A9",
+                "数据外材料 | C1 教程《LTP 上手指南》 > 商人遭遇: 放走商人并索取海岸地图，失去 -1 命运，米诺斯人：外交 +1，角誓者：外交 -1 / 标记 A9 （数据外材料：该指南不在故事书数据中，记录表无法跳转核验）",
                 "C3 | 冒险枢纽 03 - 我们身后留下的 > 0009 line 16: 这对人民来说肯定是更好的结果吧 / 标记 A9"
           ],
           "A10": [
-                "C1 | 教程 > LTP上手指南: 强行没收商人物资以解决船员饥饿问题 / 标记 A10"
+                "数据外材料 | C1 教程《LTP 上手指南》 > 商人遭遇: 强行没收商人物资以解决船员饥饿问题 / 标记 A10 （数据外材料：该指南不在故事书数据中，记录表无法跳转核验）；另：C1–C5 全库扫描本格 0 次出现"
           ],
           "A11": [
                 "C1 | 回忆突破 > 塞壬幸存者 (Siren Survivor) > M023 line 52: 接受死亡 / 标记 A11"
@@ -4292,7 +4308,7 @@
                 "C1 | 休憩冒险 > 33 > 33 line 6: 很多很多的山羊 / 标记 B3"
           ],
           "B4": [
-                "C3 | 线索卡 - 致逝者 (To Those Long Dead) > 2A line 59: 在选择矩阵中标记你从故事 2A 中获得的所有 3 个代码 / 来源限定为 C3 线索卡 2A 面 / 本格 B4"
+                "C3 | 主线故事 - 冷酷太阳 > 0059 line 59: 标记你从故事 2A 中获得的所有 3 个代码 / 本格 B4＝剧情2A线索卡 CC1563「捐赠精炼神浆」：位于板块 54 的故事阶段，失去任意 10 个原初资源，揭露神浆库存里的杂质"
           ],
           "B5": [
                 "C1 | 主线故事 - 迷宫真相 > 0103 line 100: 迷宫徒(Labyrinthians)：外交 +1，角誓者(Hornsworn)：外交 +1 / 标记 B5"
@@ -4330,7 +4346,7 @@
                 "C1 | 主线故事 - 迷宫真相 > 0067 line 67: 你不会杀死他们，但你肯定不会帮助他们 / 标记 C3"
           ],
           "C4": [
-                "C2 | 痛苦产业 (Misery Industry) v2.0 > 0032 line 33: 你的决定引起了分歧，但你希望你做出了正确的选择 / 标记 c4"
+                "C2 | 痛苦产业 (Misery Industry) v2.0 > 0032 line 33: 你的决定引起了分歧，但你希望你做出了正确的选择 / 标记 C4"
           ],
           "C6": [
                 "C3 | 冒险枢纽 06 - 父辈们的罪孽 > 0040 line 47: 获得祖父 (Grandfather) 的装备卡（秘密卡组 8，卡牌 94） / 标记 C6"
@@ -4365,7 +4381,7 @@
                 "C2 | 当陆地与海洋相遇 (When the Land Meets the Sea) v2.0 > 0040 line 36: 你们想起了你们为什么要打这场仗，于是你们没有打扰他们，而是去寻找更多的葡萄酒，脸上带着微笑 / 标记 D3"
           ],
           "D4": [
-                "C2 | 蝴蝶寓言 (Parable Of The Butterfly) v2.0 > 0004 line 11: 无论结果如何，其中一个男孩，埃菲 (Efi)，都紧紧地贴着你 / 标记 d4",
+                "C2 | 蝴蝶寓言 (Parable Of The Butterfly) v2.0 > 0004 line 11: 无论结果如何，其中一个男孩，埃菲 (Efi)，都紧紧地贴着你 / 标记 D4",
                 "C2 | 当陆地与海洋相遇 (When the Land Meets the Sea) v2.0 > 0023 line 25: 获得 +2 (ArgoFate) / 划掉 D4，并在阿尔戈英雄 (Argonaut) 的恩惠 (Boons) 部分失去埃菲吉尼亚 (Efigenia)"
           ],
           "D5": [
@@ -4378,10 +4394,10 @@
                 "C2 | 尘归尘土归土 (From the Ashes) v2.0 > 0014 line 21: 你只需要坚持你的道路，并对你的选择保持信心 / 标记 D8"
           ],
           "D9": [
-                "C2 | 蝴蝶寓言 (Parable Of The Butterfly) v2.0 > 0040 line 36: 获得+1 (船员 (Crew) 和+2 (阿尔戈号命运 (Argofate) / 标记 d9"
+                "C2 | 蝴蝶寓言 (Parable Of The Butterfly) v2.0 > 0040 line 36: 获得+1 (船员 (Crew) 和+2 (阿尔戈号命运 (Argofate) / 标记 D9"
           ],
           "D10": [
-                "C2 | 蝴蝶寓言 (Parable Of The Butterfly) v2.0 > 0041 line 37: 获得+1 (灾祸指示物 (Doomtoken) 和+2 难民 (Refugees) / 标记 d10"
+                "C2 | 蝴蝶寓言 (Parable Of The Butterfly) v2.0 > 0041 line 37: 获得+1 (灾祸指示物 (Doomtoken) 和+2 难民 (Refugees) / 标记 D10"
           ],
           "D11": [
                 "C1 | 回忆突破 > 监禁 (Imprisonment) > M022 line 42: 离开阿尔戈号 (Argo)，开辟一条新的道路 / 标记 D11"
@@ -4390,7 +4406,7 @@
                 "C2 | 回忆突破 > M025 > M025 line 14: 退出你的战斗生活，进行冥想并控制你的暴力冲动 / 标记D12"
           ],
           "E1": [
-                "疑似来源：实体线索卡/特殊事件卡标记（后文检查于 C1 | 战斗 > 赫尔墨斯追踪者战斗 line 46: 如果 E1 被标记且阿尔戈号知识 15+，前往内蕴奥德赛19：黑血密码筒）"
+                "C1 | 战斗 > 赫尔墨斯追踪者战斗-pursuer-battle line 46: 后文检查点：如果 E1 被标记且阿尔戈号知识 15+，前往内蕴奥德赛 19：黑血密码筒 / 真正来源为数据外实体线索卡或特殊事件卡，仓库内无法核验"
           ],
           "E2": [
                 "C1 | 冒险枢纽 05 - 不安的头颅 > 0024 line 30: 角誓者 (Hornsworn)：外交 (Diplomacy) -1 / 标记 E2"
@@ -4427,7 +4443,7 @@
                 "C1 | 冒险枢纽 03 - 隐匿于众目睽睽之下 > 0001 line 9: 你们帮助了皮里托斯 (Pirithous) / 标记 F1"
           ],
           "F2": [
-                "疑似来源：实体事件卡/灾祸卡标记（后文检查于 C1 | 冒险枢纽 01 - 宿命的谜题 > 0020 line 25: 如果 F2 被标记，那个灾难性夜晚的记忆仍然萦绕在船员心中）"
+                "C1 | 冒险枢纽 01 - 宿命的谜题 > 0020 line 25: 后文检查点：如果 F2 被标记，那个灾难性夜晚的记忆仍然萦绕在船员心中 / 真正来源为数据外实体事件卡或灾祸卡，仓库内无法核验"
           ],
           "F3": [
                 "C1 | 主线故事 - 迷宫真相 > 0024 line 24: 2: 撒谎，隐瞒邦联同盟(Symmachy)囚禁了刻希诺狄刻(Xenodice)的事实 / 标记 F3"
@@ -4440,7 +4456,7 @@
                 "C1 | 冒险枢纽 01 - 宿命的谜题 > 3—4 吞噬之渊的梦 | 梦境 (3—4 Dream of the Maw | Dream) > 3-4-3-4-dream-of-the-maw-dream line 3: 在你们的阿尔戈英雄 (Argonaut) 表上的恩惠 (Boons) 下方记下“不可能的逻辑 (Impossible Logic)” / 标记 F5"
           ],
           "F6": [
-                "C3 | 线索卡 - 致逝者 (To Those Long Dead) > 2A line 59: 在选择矩阵中标记你从故事 2A 中获得的所有 3 个代码 / 来源限定为 C3 线索卡 2A 面 / 本格 F6"
+                "C3 | 主线故事 - 冷酷太阳 > 0059 line 59: 标记你从故事 2A 中获得的所有 3 个代码 / 本格 F6＝剧情2A线索卡 CC1560「渗透远征队」：位于板块 42 的故事阶段，失去 1 个(图标)，替换随队的神谕者"
           ],
           "F10": [
                 "C3 | 冒险枢纽 06 - 父辈们的罪孽 > 0002 line 9: ” / 标记 F10"
@@ -4456,7 +4472,7 @@
                 "C1 | 冒险枢纽 03 - 隐匿于众目睽睽之下 > 0030 line 33: 获得 +1 进展指示物 (ProgressToken) 和 +1 灾祸指示物 (DoomToken) / 标记 G1"
           ],
           "G2": [
-                "疑似来源：实体遭遇卡/战斗结果卡标记（后文检查于 C1 | 主线故事 - 迷宫真相 > 0073 line 72: 如果标记了 G2，在内蕴奥德赛上放置 1 个进展指示物）"
+                "C1 | 主线故事 - 迷宫真相 > 0073 line 72: 后文检查点：如果标记了 G2，在内蕴奥德赛上放置 1 个进展指示物 / 真正来源为数据外实体遭遇卡或战斗结果卡，仓库内无法核验"
           ],
           "G3": [
                 "C1 | 主线故事 - 迷宫真相 > 0109 line 105: ” / 标记 G3，并参见 0118",
@@ -4587,7 +4603,7 @@
                 "C2 | 初始目标 (Intended Purpose) v2.0 > 0028 line 35: 强迫独眼巨人为自己而战 / 标记 J2"
           ],
           "J3": [
-                "C3 | 线索卡 - 致逝者 (To Those Long Dead) > 2A line 59: 在选择矩阵中标记你从故事 2A 中获得的所有 3 个代码 / 来源限定为 C3 线索卡 2A 面 / 本格 J3"
+                "C3 | 主线故事 - 冷酷太阳 > 0059 line 59: 标记你从故事 2A 中获得的所有 3 个代码 / 本格 J3＝剧情2A线索卡 CC1559「设计迷宫石方案」：位于板块 46 的故事阶段，获得 +1(图标)，改造塞壬壳坩埚"
           ],
           "J7": [
                 "C1 | 主线故事 - 迷宫真相 > 0021 line 21: 获得 +1 阿尔戈号命运(Argo Fate) / 标记 J7",
@@ -4598,7 +4614,7 @@
                 "C2 | 当陆地与海洋相遇 (When the Land Meets the Sea) v2.0 > 0049 line 45: 获得 +1 (ProgressToken) / 标记 J8"
           ],
           "J9": [
-                "C3 | 线索卡 - 致逝者 (To Those Long Dead) > 2A line 59: 在选择矩阵中标记你从故事 2A 中获得的所有 3 个代码 / 来源限定为 C3 线索卡 2A 面 / 本格 J9"
+                "C3 | 主线故事 - 冷酷太阳 > 0059 line 59: 标记你从故事 2A 中获得的所有 3 个代码 / 本格 J9＝剧情2A线索卡 CC1558「建成主灯塔」：位于板块 32 的故事阶段，失去 1 个(图标)，提前修好主灯塔"
           ],
           "J10": [
                 "C1 | 主线故事 - 迷宫真相 > 0038 line 38: 大地开始震动 / 标记 J10"
@@ -4617,7 +4633,7 @@
                 "C4 | 超越契约法则 (Beyond the Law of Bargains) > 0067 line 74: • 你拥有被盗云层信息 (Stolen Clouds Message) 卡 / • 标记 K2"
           ],
           "K3": [
-                "疑似来源：实体遭遇卡/C1事件标记（后文检查于 C2 | 初始目标 > 0004 line 11: 如果标记了 K3，请参阅 0016）"
+                "C2.5 | 枢纽 2：未来继承者 > 0063 line 81: 堡垒战斗结束后会见年轻的指挥官赫利卡昂，他感谢阿尔戈号的战士 / 标记 K3。回到航行阶段"
           ],
           "K4": [
                 "C1 | 主线故事 - 迷宫真相 > 0059 line 59: 你很快就在不被发现的情况下进入了船内 / 标记 K4",
@@ -4704,7 +4720,7 @@
                 "C2 | 初始目标 (Intended Purpose) v2.0 > 0051 line 57: 如果是这样的话，他们已经成功了，因为很多人，包括你们中的一些阿尔戈英雄，都想知道为什么面盗利姆 (Metonym) 杀死了其他受害者，却留下了斯巴达人活着 / 标记 M6"
           ],
           "M7": [
-                "C3 | 线索卡 - 致逝者 (To Those Long Dead) > 2A line 59: 在选择矩阵中标记你从故事 2A 中获得的所有 3 个代码 / 来源限定为 C3 线索卡 2A 面 / 本格 M7"
+                "C3 | 主线故事 - 冷酷太阳 > 0059 line 59: 标记你从故事 2A 中获得的所有 3 个代码 / 本格 M7＝剧情2A线索卡 CC1562「提供泰坦」：位于板块 48 的故事阶段，失去 1 个泰坦，为雄心号提供一头驯服的泰坦"
           ],
           "M9": [
                 "C3 | 主线故事 - 冷酷太阳 > 0078 line 78: 两个阿尔戈英雄 (Argonauts) 每人获得 +2 (危险 (Danger) / 标记 M9",
@@ -4726,7 +4742,7 @@
                 "C4 | 意外之财 (Windfall) > 0006 line 13: 在沙漠中开垦一片花园已经足够困难了，而园丁们还在为水而争吵 / 标记 N3"
           ],
           "N4": [
-                "C3 | 线索卡 - 致逝者 (To Those Long Dead) > 2A line 59: 在选择矩阵中标记你从故事 2A 中获得的所有 3 个代码 / 来源限定为 C3 线索卡 2A 面 / 本格 N4"
+                "C3 | 主线故事 - 冷酷太阳 > 0059 line 59: 标记你从故事 2A 中获得的所有 3 个代码 / 本格 N4＝剧情2A线索卡 CC1561「促成交易」：位于板块 37 的故事阶段，获得 +2(外交图标)，说服伊卡洛斯接受外部援助"
           ],
           "N5": [
                 "C1 | 主线故事 - 迷宫真相 > 0135 line 130: 如果标记了 B11，让拥有“米诺斯血统(Minoan Heritage)”的阿尔戈英雄(Argonaut)退役（如果他还活着） / 标记 N5"
@@ -4888,7 +4904,8 @@
                 "C3 | 冒险枢纽 07 - 步入成熟 > 0001 line 8: 这不是你想要发生的事情……但它奏效了，没有了执法者和水，大祭司们放弃了城邦，撤退到更深的山里，而剩下的太阳后裔们 (Sunheirs) 则更加……顺从 / 标记 R9"
           ],
           "R10": [
-                "C5 | 真相诉说者主线故事 (Truthsayer Main Story) > 8709 line 447: 你的追随者 (followers) 在等着你 / 圈出R10"
+                "C5 | 真相诉说者主线故事 (Truthsayer Main Story) > 8709 line 447: 你戴上那个水泡状的头盔，你的追随者在等着你 / 圈出R10",
+                "C5 | 回忆突破 (Mnemos Breakthroughs) > M028 line 173: 选项1 认可自己就是真相诉说者 → 将 R10 标记为 T；选项2 离开阿尔戈号 → 将 R10 标记为 L"
           ],
           "R11": [
                 "C3 | 回忆突破 > 回归者 (The Returned) > M026 line 20: 留在阿尔戈号 (Argo) 上 / 标记 R11"
@@ -4918,7 +4935,7 @@
                 "C3 | 冒险枢纽 07 - 步入成熟 > 0002 line 9: 到了晚上，异议者们都得到了处理，不管以何种方式，你被允许进入城邦——以及神殿的内殿 (Inner Hallow) / 标记 S9"
           ],
           "S10": [
-                "疑似来源：C4 回忆突破退役卡标记（后文检查于 C5 | 真相诉说者主线故事 > 8664 line 403: 如果S10到W10中任意一项被标记，见8665）"
+                "C5 | 回忆突破 (Mnemos Breakthroughs) > M023 line 169: 远离阿尔戈号（原文 Mark $10＝Mark S10，OCR 讹形被误译成「标记 10 美元」）/ 获得 +1(图标) 并退役您的阿尔戈英雄，然后激活新的阿尔戈英雄"
           ],
           "S11": [
                 "C4 | 回忆突破 (Mnemos Breakthroughs) > 千年一梦 (The Thousandth Night) > M027 line 28: 回到你的家乡，这样你就可以开始纠正你父母选择造成的损害 / 标记 S11"
@@ -4944,7 +4961,6 @@
                 "C4 | 超越契约法则 (Beyond the Law of Bargains) > α 巴比伦之围 (The Siege of Babylon) | 神祇 (Gods) > α line 1: 最小似然的阿尔戈英雄 (Argonaut) 获得大到不能倒 (Too Big to Fail) 回忆 (Mnemos) 卡 / 如果标记 T5，则参见 0001"
           ],
           "T6": [
-                "C1 | 特殊事件 > 教程总结——跳过教程 (TUTORIAL SUMMARY - SKIPPING THE TUTORIAL) > tutorial-summary-skipping-the-tutorial line 9: 注意，你们有 8 个梦行者 (Dreamwalker) 泰坦 (Titans) / 在时间线 (Timeline) 上标记 T0 到 T6 的方框",
                 "C4 | 无限增长花园 主线故事 (Gardens Of Infinite Growth Main Story) > 0016 line 16: 获得 +2 (阿尔戈号命运 (ArgoFate)) / 标记 T6",
                 "C4 | 无限增长花园 主线故事 (Gardens Of Infinite Growth Main Story) > 0017 line 17: 获得 +2 (阿尔戈号命运 (ArgoFate)) / 标记 T6",
                 "C4 | 无限增长花园 主线故事 (Gardens Of Infinite Growth Main Story) > 0018 line 18: 获得 +2 (阿尔戈号命运 (ArgoFate)) / 标记 T6"
@@ -4959,10 +4975,10 @@
                 "C4 | 三重诅咒之地 (A Land Thrice-Cursed) > 0013 line 20: ” / 标记 T9"
           ],
           "T10": [
-                "疑似来源：C4 回忆突破退役卡标记（后文检查于 C5 | 真相诉说者主线故事 > 8664 line 403: 如果S10到W10中任意一项被标记，见8665）"
+                "C5 | 回忆突破 (Mnemos Breakthroughs) > M022 line 169: 挂起你的剑、留下阿尔戈号，为新的腾出空间 / 马克T10（原文 Mark T10）。获得 +1(图标) 并退役您的阿尔戈英雄，然后激活新的阿尔戈英雄"
           ],
           "T11": [
-                "疑似来源：C4 回忆突破退役卡标记（后文检查于 C5 | 真相诉说者主线故事 > 8664 line 403: 如果T11或U11被标记，见8665）"
+                "C5 | 回忆突破 (Mnemos Breakthroughs) > M026 line 172: 你离开阿尔戈号，因为你是时候去寻找新的意义了 / 马克蒂！作为L（原文 Mark TI! as L＝Mark T11 as L）。获得 +1(图标) 并退役您的阿尔戈英雄，然后激活新的阿尔戈英雄"
           ],
           "T12": [
                 "C4 | 回忆突破 (Mnemos Breakthroughs) > 风起云涌 (Updraft) > M024 line 12: 离开阿尔戈号 (Argo)，重新与你的生活联系起来，建立新的联系 / 标记 T12"
@@ -4976,7 +4992,7 @@
                 "C4 | 超越契约法则 (Beyond the Law of Bargains) > 0013 line 20: 做一个未赐予 (Unbestowed) 标记 / 标记 U4"
           ],
           "U5": [
-                "疑似来源：实体冒险卡/线索卡标记（后文检查于 C5 | 真理的半衰期 > 3-4 line 3: 如果U5已标记，你记起了无听者的技巧，结果+2）"
+                "C1.5 | 枢纽 1：螺旋秘密 > 0034 line 17: 你带头把阿尔戈的训练与智慧分享给其他凡人，聋子们认真记下每一课 / 标记 U5。播撒（船员）。参见 0035"
           ],
           "U7": [
                 "C4 | 无限增长花园 主线故事 (Gardens Of Infinite Growth Main Story) > 0088 line 88: 丢弃谢赫拉莎德 (Scheherazade) 盟友卡牌 / 标记 U7",
@@ -4989,10 +5005,10 @@
                 "C4 | 无限增长花园 主线故事 (Gardens Of Infinite Growth Main Story) > 0090 line 90: 你希望她不会让你后悔这个决定…… / 标记 U9"
           ],
           "U10": [
-                "疑似来源：C4 回忆突破退役卡标记（后文检查于 C5 | 真相诉说者主线故事 > 8664 line 403: 如果S10到W10中任意一项被标记，见8665）"
+                "C5 | 回忆突破 (Mnemos Breakthroughs) > M024 line 170: 留下阿尔戈号，因为这里不再需要你了 / 马克U10（原文 Mark U10）。获得 +1(图标) 并退役您的阿尔戈英雄，然后激活新的阿尔戈英雄"
           ],
           "U11": [
-                "疑似来源：C4 回忆突破退役卡标记（后文检查于 C5 | 真相诉说者主线故事 > 8664 line 403: 如果T11或U11被标记，见8665）"
+                "C5 | 回忆突破 (Mnemos Breakthroughs) > M027 line 172: 选项2 离开阿尔戈号去寻找新的激情 / 标记 UI 1（原文 Mark UI 1＝Mark U11）。获得 +1(图标) 并退役您的阿尔戈英雄，然后激活新的阿尔戈英雄"
           ],
           "U12": [
                 "C4 | R&R 冒险 (R&R Adventures) > 23 > 23 line 5: 获得 +1 (阿尔戈号知识 (ArgoKnowledge)) 或免除一半阿尔戈号 (Argo) 的 (巴比伦债务 (BabelianDebt)) / 标记 U12"
@@ -5019,7 +5035,7 @@
                 "C4 | 无限增长花园 主线故事 (Gardens Of Infinite Growth Main Story) > 3345 line 252: 在永恒帝国 (Eternal Empire) 中，只剩下弯曲尖塔的杂草丛生的废墟和关于巴布洛斯及其贪婪的故事，尽管许多人渴望那些时代，那时至少有一些人可以享受财富的奢侈 / 标记 V7"
           ],
           "V10": [
-                "疑似来源：C4 回忆突破退役卡标记（后文检查于 C5 | 真相诉说者主线故事 > 8664 line 403: 如果S10到W10中任意一项被标记，见8665）"
+                "C5 | 回忆突破 (Mnemos Breakthroughs) > M025 line 170: 离开阿尔戈号，因为你在这里的时间已经结束了 / 马克V10（原文 Mark V10）。获得 +1(图标) 并退役您的阿尔戈英雄，然后激活新的阿尔戈英雄"
           ],
           "V12": [
                 "C4 | 回忆突破 (Mnemos Breakthroughs) > 大而不倒 (Too Big to Fail) > M021 line 20: 离开阿尔戈号 (Argo)，在这个世界上找到你真正的归宿，过上幸福的生活 / 标记 V12"
@@ -5053,7 +5069,7 @@
                 "C5 | 宁为玉碎，不为瓦全 (Death Before Dishonor) > 0073 line 80: 获得永恒的誓言 (Eternal Vow) [图标] 卡（秘密牌组 18，卡牌 280） / 若 AA11 标记为 L 且 W9 被标记，见 0076"
           ],
           "W10": [
-                "疑似来源：C4 回忆突破退役卡标记（后文检查于 C5 | 真相诉说者主线故事 > 8664 line 403: 如果S10到W10中任意一项被标记，见8665）"
+                "C5 | 回忆突破 (Mnemos Breakthroughs) > M021 line 171: 留下阿尔戈号去思考你在世界上的位置 / 马克W10（原文 Mark W10）。获得 +1(图标) 并退役您的阿尔戈英雄，然后激活新的阿尔戈英雄"
           ],
           "W12": [
                 "C4 | 回忆突破 (Mnemos Breakthroughs) > 负重之骡 (The Mule) > M026 line 24: 回到你果园所在的土地，帮助这片土地愈合 / 标记 W12"
@@ -5286,10 +5302,9 @@
                 "C5 | 真相诉说者主线故事 (Truthsayer Main Story) > 6121 line 324: 始徒 (Primordial) 彻底摧毁了船牢 (Shipgeol) 的码头及其上的每一个活物，然后开始撕裂涅墨西斯号 (Nemesis) / 如果尚未标记，标记CC3"
           ],
           "CC4": [
-                "C5 | 真相诉说者主线故事 (Truthsayer Main Story) > 1244 line 154: 安提凡忒斯 (Antiphantes) 准备好继续前行了 / 如果他这样做，圈出 CC4 矩阵代码 (Matrix Code) 并获得 1 个西西弗斯之泪 (Sisyphus Tear)、皮格马利翁之石 (Pygmalion Stone) 或记忆之回响 (Echo of Recollection)，并将他从阿尔戈英雄面板 (Argo...",
-                "C5 | 真相诉说者主线故事 (Truthsayer Main Story) > 4205 line 253: “看着我……” 伊阿宋 (Jason) 低声说道，垂下了头 / 如果安提凡忒斯 (Antiphantes) 与你们同在或 CC4 被圈出，",
-                "C5 | 真相诉说者主线故事 (Truthsayer Main Story) > 4206 line 254: 如果他被记下，将安提凡忒斯 (Antiphantes) 从阿尔戈英雄面板 (Argonaut Sheet) 上移除 / 如果 CC4 未被圈出，圈出它并获得 1 个西西弗斯之泪 (Sisyphus Tear)、皮格马利翁之石 (Pygmalion Stone) 或记忆之回响 (Echo of Recollection)",
-                "C5 | 真相诉说者主线故事 (Truthsayer Main Story) > 8708 line 446: 如果R10被标记为T，见8709 / 如果CC4被圈出，见8710"
+                "C5 | 真相诉说者主线故事 (Truthsayer Main Story) > 1244 line 154: 安提凡忒斯准备好继续前行了 / 如果他这样做，圈出 CC4 矩阵代码并获得 1 个西西弗斯之泪、皮格马利翁之石或记忆之回响",
+                "C5 | 真相诉说者主线故事 (Truthsayer Main Story) > 4206 line 254: 如果 CC4 未被圈出，圈出它并获得同样的奖励；若安提凡忒斯被记在面板上则将他移除",
+                "C5 | 内蕴奥德赛 (Inward Odyssey) > 92 line 165: 允许伊阿宋复仇杀死廷布赖俄斯则标记为 T；劝他把廷布赖俄斯留作囚犯则标记为 L（原文 Mark CC4 as T / as L）"
           ],
           "CC5": [
                 "C5 | 不惜一切代价 (Whatever the Cost) > 0037 line 44: 队长 (Party Leader) 获得1个回忆节点 (Mnemos node) 或者你在记忆之回响 (Echo of Recollection) 轨道上标记1格 / 标记CC5"
@@ -5311,7 +5326,7 @@
                 "C5 | 真理的半衰期 (Half-lives of Truths) > 0055 line 62: ” / 标记CC9"
           ],
           "CC10": [
-                "疑似来源：实体卡牌/事件标记（后文检查于 C5 | 真相诉说者主线故事 > 8099 line 365: 如果CC10被标记，见7776）"
+                "C5 | 内蕴奥德赛 (Inward Odyssey) > 101 line 167: 101 我的佩涅罗佩 (My Penelope) / 马克CC 10（原文 Mark CC 10）"
           ],
           "CC11": [
                 "C5 | 真相诉说者主线故事 (Truthsayer Main Story) > 0013 line 12: 然后，失去-1 [图标] 或获得+2 [图标] / 将 CC11 标记为 L",
@@ -5458,7 +5473,7 @@
                 "C1.5 | 枢纽 1：螺旋秘密 > 0041 line 19: 希望的火花。你背对生物，命令你的部队撤退 / 标记 P9"
           ],
           "F8": [
-                "C2.5 | 枢纽 1：过去的罪孽 > α line 50: 如果 F8 标记，请参见 0001。否则，参见0002"
+                "C2.5 | 枢纽 1：过去的罪孽 > α line 50: 进入神殿庭院清理被污染的神浆黏土碎片时，故事检查 F8 是否已标记并据此分流（本格只是既有战役记录的引用，C1–C5 正文中没有“标记 F8”的指令）"
           ],
           "U6": [
                 "C2.5 | 枢纽 1：过去的罪孽 > 0038 line 61: 清洁尼采政权留下的污点的过程中又迈出一步 / 标记 U6"
@@ -5468,6 +5483,12 @@
           ],
           "Z9": [
                 "C2.5 | 枢纽 1：过去的罪孽 > 0055 line 64: 同情有时会成为一种负担，但无情是凡人的终结 / 标记 Z9"
+          ],
+          "W11": [
+                "C5 | R&R 冒险 (R&R Adventures) > 5 line 157: 为最后学院收集珊瑚碎片，在整个大海中培育传播 / 将 W11 标记为 L（另一选项：让花园保持原样、远离凡人，则标记为 N）"
+          ],
+          "V11": [
+                "C5 | 回忆突破 (Mnemos Breakthroughs) > M027 line 172: 选项1 留在阿尔戈号上继续你的冒险 / 标记V11，但如果你的阿尔戈英雄死了，就把它划掉"
           ]
     };
 
@@ -5536,7 +5557,7 @@
       body.textContent = summary;
       popup.appendChild(body);
 
-      if (notes.length) {
+      if (allMatrixSourceTargets(notes).length) {
         const link = document.createElement("span");
         link.className = "summary-link";
         link.textContent = "点击跳转故事书来源 →";
@@ -5796,6 +5817,7 @@
     recordSyncChannel?.addEventListener("message", () => void syncRecordFromExternalUpdate({ retry: true }));
     window.setInterval(() => void syncRecordFromExternalUpdate(), 4000);
     window.addEventListener("focus", () => void syncRecordFromExternalUpdate());
+    window.addEventListener("online", () => void syncRecordFromExternalUpdate());
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) void syncRecordFromExternalUpdate();
     });

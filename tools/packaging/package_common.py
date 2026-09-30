@@ -103,7 +103,7 @@ def excluded(relative: Path) -> bool:
     leaf = parts[-1]
     if leaf in BLOCKED_LEAVES:
         return True
-    if leaf.startswith(("start-windows", "start-macos", "php_errors", "error_log")):
+    if leaf.startswith(("start-windows", "start-macos", "php_errors", "error_log", ".ato-update-")):
         return True
     if any(leaf.endswith(suffix) for suffix in BLOCKED_SUFFIXES):
         return True
@@ -192,6 +192,8 @@ def audit_export_tree(root: Path) -> None:
             raise RuntimeError(f"导出内容包含本地官中资源目录：{relative}")
         if parts[-1] in LOCAL_SCRATCH_LEAVES:
             raise RuntimeError(f"导出内容包含本地临时文件：{relative}")
+        if parts[-1].startswith('.ato-update-'):
+            raise RuntimeError(f"导出内容包含更新执行副本：{relative}")
         if path.is_file() and any(parts[-1].endswith(suffix) for suffix in PRIVATE_PACK_SUFFIXES):
             raise RuntimeError(f"导出内容包含私有资料包：{relative}")
 

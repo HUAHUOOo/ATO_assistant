@@ -1165,15 +1165,25 @@ Add these script tags after the main viewer script:
     return isPlainObject(record) ? record : {};
   }
 
-  async function readServerRecordState() {
+  async function readServerRecordState(target = null) {
+    if (typeof campaignSession !== "undefined") campaignSession?.assertCurrent?.();
     const response = await fetch(CAMPAIGN_STATE_URL, { cache: "no-store" });
     if (response.status === 401) return { available: false, state: null, error: "需要先登录，NAS 未同步。" };
     if (!response.ok) throw new Error(`NAS 读取失败：HTTP ${response.status}`);
     const payload = await response.json();
     if (!payload.ok) throw new Error(payload.error || "NAS 读取失败");
+    const accountId = payload.user?.id || "";
+    const expectedAccountId = target?.accountId
+      || (typeof currentCampaignAccountId === "function" ? currentCampaignAccountId() : "");
+    if (!accountId || (expectedAccountId && accountId !== expectedAccountId)) {
+      throw new Error("登录账号已切换或无法确认，请刷新 AIBP 后重试。");
+    }
     const campaign = isPlainObject(payload.campaign) ? payload.campaign : {};
     const sections = isPlainObject(campaign.sections) ? campaign.sections : {};
-    const userId = sections.dashboard?.activeProfileId || "default";
+    const userId = target?.userId || sections.dashboard?.activeProfileId || "default";
+    if (target && sections.dashboard?.profiles && !sections.dashboard.profiles[userId]) {
+      throw new Error("原战利品档案已不存在，未写入记录表。");
+    }
     const activeProfile = sections.dashboard?.profiles?.[userId] || null;
     const activeCycle = activeProfile?.activeCycleId || sections.dashboard?.activeCycleId || "";
     const recordSection = sections.record;
@@ -1184,12 +1194,13 @@ Add these script tags after the main viewer script:
       available: true,
       state: isPlainObject(state) ? state : null,
       userId,
+      accountId,
       activeCycle,
       revision: Math.max(0, Number(campaign.sectionRevisions?.record || 0)),
     };
   }
 
-  async function writeServerRecordState(record, userId, expectedRevision) {
+  async function writeServerRecordState(record, userId, expectedRevision, accountId) {
     const response = await fetch(RECORD_SECTION_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1198,6 +1209,7 @@ Add these script tags after the main viewer script:
         userId: userId || "default",
         state: record,
         expectedRevision,
+        expectedAccountId: accountId,
       }),
     });
     const payload = await response.json().catch(() => null);
@@ -1231,37 +1243,10 @@ Add these script tags after the main viewer script:
   }
 
   function mergeRecordStates(serverRecord, localRecord) {
-    if (!isPlainObject(serverRecord)) return normalizeRecordCrewCounters(isPlainObject(localRecord) ? { ...localRecord } : {});
-    if (!isPlainObject(localRecord)) return normalizeRecordCrewCounters({ ...serverRecord });
-
-    const merged = { ...localRecord, ...serverRecord };
-    [
-      "enemies",
-      "adventures",
-      "diplomacy",
-      "resources",
-      "map",
-      "matrix",
-      "maxUnlocked",
-      "pygmalion",
-      "rooting",
-    ].forEach((key) => {
-      merged[key] = {
-        ...(isPlainObject(localRecord[key]) ? localRecord[key] : {}),
-        ...(isPlainObject(serverRecord[key]) ? serverRecord[key] : {}),
-      };
-    });
-    merged.crewBoxes = isPlainObject(serverRecord.crewBoxes)
-      ? { ...serverRecord.crewBoxes }
-      : (isPlainObject(localRecord.crewBoxes) ? { ...localRecord.crewBoxes } : {});
-
-    ["godforms", "nymphCards", "godformUsedCards", "nymphUsedCards", "titans"].forEach((key) => {
-      const serverList = Array.isArray(serverRecord[key]) ? serverRecord[key] : [];
-      const localList = Array.isArray(localRecord[key]) ? localRecord[key] : [];
-      merged[key] = serverList.length ? serverList : localList;
-    });
-
-    return normalizeRecordCrewCounters(merged);
+    // An existing server record is authoritative, including empty lists and
+    // deleted fields. Old browser caches must not resurrect removed entries.
+    const source = isPlainObject(serverRecord) ? serverRecord : (isPlainObject(localRecord) ? localRecord : {});
+    return normalizeRecordCrewCounters(JSON.parse(JSON.stringify(source)));
   }
 
   function applyLootResultToRecord(record, result, activeCycleOverride = "") {
@@ -1313,56 +1298,38 @@ Add these script tags after the main viewer script:
   }
 
   async function addLootResultToRecord(result) {
-    const localRecord = readLocalRecordState();
-    let serverAvailable = false;
-    let serverRecord = null;
-    let serverUserId = "default";
-    let serverRevision = 0;
-    let serverActiveCycle = "";
-    let syncWarning = "";
-
-    try {
-      const server = await readServerRecordState();
-      serverAvailable = server.available;
-      serverRecord = server.state;
-      serverUserId = server.userId || serverUserId;
-      serverRevision = server.revision || serverRevision;
-      serverActiveCycle = server.activeCycle || serverActiveCycle;
-      if (server.error) syncWarning = server.error;
-    } catch (error) {
-      syncWarning = error.message || String(error);
+    if (!result) throw new Error("没有可添加的战利品结果。");
+    // Keep one operation identity across button retries. A lost success response
+    // must not make the same result add resources twice.
+    let operation = result.recordOperation || null;
+    let server = await readServerRecordState(operation);
+    if (!server.available) throw new Error(server.error || "连接不可用，战利品尚未入账，请恢复连接后重试。");
+    if (!operation) {
+      operation = result.recordOperation = {
+        id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        userId: server.userId,
+        accountId: server.accountId,
+        activeCycle: server.activeCycle,
+      };
     }
-
-    let resultWithRecord = applyLootResultToRecord(
-      serverRecord ? mergeRecordStates(serverRecord, localRecord) : localRecord,
-      result,
-      serverActiveCycle
-    );
-
-    let syncedToServer = false;
-    if (serverAvailable) {
-      try {
-        for (let attempt = 0; attempt < 3; attempt += 1) {
-          const writeResult = await writeServerRecordState(resultWithRecord.record, serverUserId, serverRevision);
-          if (!writeResult.conflict) {
-            syncedToServer = true;
-            RECORD_SYNC_CHANNEL?.postMessage({ revision: writeResult.revision });
-            break;
-          }
-          const latest = await readServerRecordState();
-          serverUserId = latest.userId || serverUserId;
-          serverRevision = latest.revision || serverRevision;
-          serverActiveCycle = latest.activeCycle || serverActiveCycle;
-          resultWithRecord = applyLootResultToRecord(latest.state || {}, result, serverActiveCycle);
-        }
-        if (!syncedToServer) syncWarning = "记录表持续被其他页面修改，请稍后重试。";
-      } catch (error) {
-        syncWarning = error.message || String(error);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const record = mergeRecordStates(server.state || {}, {});
+      const receipt = record.lootSettlements?.[operation.id];
+      if (receipt) return { record, ...receipt, syncedToServer: true };
+      const applied = applyLootResultToRecord(record, result, operation.activeCycle);
+      applied.record.lootSettlements = {
+        ...(isPlainObject(record.lootSettlements) ? record.lootSettlements : {}),
+        [operation.id]: { added: applied.added, skipped: applied.skipped, cycle: applied.cycle },
+      };
+      const saved = await writeServerRecordState(applied.record, operation.userId, server.revision, operation.accountId);
+      if (!saved.conflict) {
+        RECORD_SYNC_CHANNEL?.postMessage({ revision: saved.revision });
+        return { ...applied, syncedToServer: true };
       }
+      server = await readServerRecordState(operation);
+      if (!server.available) throw new Error(server.error || "读取不到原战利品档案，请恢复连接后重试。");
     }
-
-    localStorage.setItem(RECORD_STORAGE_KEY, JSON.stringify(resultWithRecord.record));
-    return { ...resultWithRecord, syncedToServer, syncWarning };
+    throw new Error("记录表持续被其他页面修改，本次尚未入账，请稍后重试。");
   }
 
   function renderLootResult(dialog, result) {
@@ -1654,18 +1621,18 @@ Add these script tags after the main viewer script:
           button.disabled = true;
           button.textContent = "写入中...";
           try {
-            const { added, skipped, cycle, syncedToServer, syncWarning } = await addLootResultToRecord(lastLootResult);
-            button.textContent = syncedToServer ? `已同步到 NAS (${cycle})` : `已添加到本机 (${cycle})`;
+            const { added, skipped, cycle } = await addLootResultToRecord(lastLootResult);
+            button.textContent = `已同步到 NAS (${cycle})`;
             window.alert([
               "已添加到阿尔戈号记录表：",
               added.join("\n"),
               skipped.length ? `\n未映射：${skipped.join(", ")}` : "",
-              syncedToServer ? "\n已同步到 NAS 存档。" : `\n已写入本机记录表，但 NAS 未同步：${syncWarning || "接口不可用"}`,
+              "\n已同步到 NAS 存档。",
             ].filter(Boolean).join("\n"));
           } catch (err) {
             button.disabled = false;
             button.textContent = "添加到记录表";
-            window.alert(`写入记录表失败：\n${err.message || err}`);
+            window.alert(`未确认入账：\n${err.message || err}\n\n当前战利品结果仍保留，可恢复连接后在本弹窗重试；同一结果重试不会重复加资源。`);
           }
         });
       }

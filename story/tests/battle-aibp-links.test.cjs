@@ -112,17 +112,12 @@ test("C3 no longer gets an envelope button", () => {
 test("envelope hint text, close behaviour and click wiring", () => {
   assert.match(
     appSource,
-    /ENVELOPE_AIBP_HINT\s*=\s*"[^"]*赫利俄斯[^"]*"/,
-    "hint text should tell the reader to search 赫利俄斯 in AIBP"
-  );
-  assert.match(
-    appSource,
-    /closest\("\[data-aibp-hint\]"\)[\s\S]{0,400}showEnvelopeAibpHint\(\)/,
+    /closest\("\[data-aibp-hint\]"\)[\s\S]{0,400}showEnvelopeAibpHint\(button\.dataset\.aibpHint\)/,
     "a click delegate should open the hint layer"
   );
 
   const harness = runEnvelopeHarness();
-  harness.api.showEnvelopeAibpHint();
+  harness.api.showEnvelopeAibpHint('helios');
   assert.equal(harness.layer.hidden, false, "hint layer should open");
   assert.match(harness.layer.textNode.textContent, /赫利俄斯/, "hint text should name 赫利俄斯");
   assert.match(harness.layer.textNode.textContent, /BOSS 搜索框/, "hint text should point at the BOSS search box");
@@ -133,6 +128,10 @@ test("envelope hint text, close behaviour and click wiring", () => {
     target: { closest: (selector) => (selector === ".aibp-hint-close" ? harness.layer.closeNode : null) },
   });
   assert.equal(harness.layer.hidden, true, "close button should hide the hint layer");
+  harness.api.showEnvelopeAibpHint('blackbeak');
+  assert.match(harness.layer.textNode.textContent, /Black Beak/);
+  harness.api.showEnvelopeAibpHint('titan-x-group');
+  assert.match(harness.layer.textNode.textContent, /万事皆休/);
 });
 
 function runEnvelopeHarness() {

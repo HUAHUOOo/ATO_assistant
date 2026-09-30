@@ -1,4 +1,6 @@
 (() => {
+  const REPO = "https://api.github.com/repos/banard2049-cpu/ATO_assistant";
+  const RAW = "https://raw.githubusercontent.com/banard2049-cpu/ATO_assistant";
   const API = "https://api.github.com/repos/banard2049-cpu/ATO_assistant/releases/latest";
   const RELEASES = "https://github.com/banard2049-cpu/ATO_assistant/releases";
   const CACHE = "ato-update-cache-v1";
@@ -68,13 +70,44 @@
   const status = document.querySelector("#updateStatus");
   const panel = document.querySelector("#updateNotice");
   if (!button || !status || !panel) return;
+  // 应用内一键更新的控件。任何一个缺失都不影响纯手动的更新提示：所有绑定和写入
+  // 都先判空，页面结构变了也只是少一个按钮，不会把整段脚本带崩。
+  const applyButton = document.querySelector("#applyUpdateButton");
+  const applyTarget = document.querySelector("#applyUpdateTarget");
+  const applyStatus = document.querySelector("#applyUpdateStatus");
+  const reloadButton = document.querySelector("#reloadUpdateButton");
+  const rollbackButton = document.querySelector("#rollbackUpdateButton");
+  const APPLY_API = "./api/app-update.php";
   const current = window.ATO_APP_VERSION || "local";
   document.querySelector("#appVersionLabel").textContent = `当前版本：${current}`;
   let busy = false;
   let shownTag = "";
+  let updating = false;
+  let reloadRequired = false;
+  // 能不能一键更新由服务端说了算（是不是便携版、安装目录是否可写、有没有登录）。
+  // 拿不到能力信息就只保留手动下载的说明，绝不显示一个按下去必然失败的按钮。
+  // 只探测一次是不够的：服务刚启动或临时没连上时结果会是「不支持」，那种情况下
+  // 每次检查更新都重新问一次，用户不用刷新页面才能看到按钮。
+  let support = { supported: false };
+  async function refreshSupport() {
+    support = await loadSupport();
+    if (rollbackButton) rollbackButton.hidden = !support.canRollback;
+    if (support.needsRecovery) setApplyStatus("上次更新未完成，请先还原上一版，再重新更新。", true);
+    return support;
+  }
+  void refreshSupport();
 
   function show(release, manual) {
     panel.hidden = true;
+    // 只有「服务端支持 + 确实有新版本」才亮出一键更新的按钮；否则用户点下去只会
+    // 收到一句拒绝，不如一开始就不出现。
+    void (support.supported ? Promise.resolve(support) : refreshSupport()).then((value) => {
+      const usable = !updating && !reloadRequired && !value.needsRecovery
+        && Boolean(value && value.supported) && isNewer(release.tag_name, current);
+      if (applyButton) applyButton.hidden = !usable;
+      if (applyTarget) applyTarget.textContent = release.tag_name;
+      if (rollbackButton) rollbackButton.hidden = !(value && value.canRollback);
+    });
     if (!parseVersion(current)) {
       status.textContent = `当前为本地开发版，最新正式版为 ${release.tag_name}。`;
       return;
@@ -138,7 +171,7 @@
     throw lastError || failure("network", "unknown");
   }
   async function check(manual = false) {
-    if (busy) return;
+    if (busy || updating || reloadRequired) return;
     const cached = read(CACHE);
     if (!manual && cached && Date.now() - cached.at >= 0 && Date.now() - cached.at < INTERVAL && validRelease(cached.release)) {
       show(cached.release, false);
@@ -155,7 +188,7 @@
       status.textContent = messageFor(error);
     } finally {
       busy = false;
-      button.disabled = false;
+      button.disabled = updating || reloadRequired;
     }
   }
   button.addEventListener("click", () => check(true));
@@ -165,6 +198,218 @@
     status.textContent = `已跳过 ${shownTag}，下一版本仍会提醒。`;
   });
   document.querySelector("#closeUpdateButton").addEventListener("click", () => { panel.hidden = true; });
+
+  function setApplyStatus(message, failed) {
+    if (!applyStatus) return;
+    applyStatus.textContent = message;
+    applyStatus.classList.toggle("update-error", Boolean(failed));
+  }
+  // 超时覆盖响应正文读取：网络只发回响应头后停住，也必须恢复按钮让用户重试。
+  async function request(url, options = {}, binary = false, timeout = 30000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      const data = binary && response.ok ? await response.arrayBuffer() : await readJson(response);
+      if (controller.signal.aborted) throw new Error("请求超时，请检查连接后重试。");
+      return { response, data };
+    } catch (error) {
+      if (controller.signal.aborted) throw new Error("请求超时，请检查连接后重试。");
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  async function loadSupport() {
+    try {
+      const { response, data } = await request(`${APPLY_API}?action=status`, {
+        credentials: "same-origin", cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) return { supported: false };
+      return data && typeof data === "object" ? data : { supported: false };
+    } catch {
+      return { supported: false };
+    }
+  }
+  // 落盘只能在服务端做（浏览器写不了安装目录），这里只负责发起和把错误原文显示出来。
+  async function readJson(response) {
+    try { return await response.json(); } catch { return null; }
+  }
+  async function postAction(action, body, planId = "") {
+    // Windows 不能覆盖本次请求正在执行的 PHP 脚本。先取得执行副本，
+    // 再通过副本提交或还原，原始更新器和规则文件都可以正常替换。
+    const endpoint = action === "commit" || action === "rollback"
+      ? (await postAction("prepare")).endpoint : APPLY_API;
+    let result;
+    try {
+      result = await request(`${endpoint}?action=${encodeURIComponent(action)}&plan=${encodeURIComponent(planId)}`, {
+        method: "POST", credentials: "same-origin", cache: "no-store",
+        headers: body === undefined
+          ? { Accept: "application/json" }
+          : { Accept: "application/json", "Content-Type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      }, false, action === "commit" || action === "rollback" ? 120000 : 30000);
+    } catch (error) {
+      throw new Error(`无法确认本地服务的操作结果：${error.message || "连接中断"}。请检查当前版本或还原入口后再操作。`);
+    }
+    const { response, data } = result;
+    if (!response.ok || !data || data.ok !== true) {
+      throw new Error((data && data.error) || `操作失败（HTTP ${response.status}）。`);
+    }
+    return data;
+  }
+  // 取文件这一步必须由浏览器做：便携包里那份 PHP 没有加载 openssl，自己连不上
+  // GitHub；而浏览器本来就在访问 api.github.com，也会走用户配好的代理或 VPN。
+  async function loadCompare(target) {
+    let result;
+    try {
+      result = await request(`${REPO}/compare/v${encodeURIComponent(current.replace(/^v/, ""))}...${encodeURIComponent(target)}`, {
+        credentials: "omit", cache: "no-store",
+        headers: { Accept: "application/vnd.github+json" },
+      });
+    } catch {
+      throw new Error("无法访问 api.github.com，请检查网络或代理后重试。");
+    }
+    const { response, data } = result;
+    const notice = rateLimitNotice(response.status, header(response, "x-ratelimit-remaining"), header(response, "x-ratelimit-reset"), Date.now());
+    if (notice) throw new Error(notice);
+    if (response.status === 404) {
+      throw new Error(`找不到当前版本对应的发布标签 v${current}，无法增量更新，请手动下载完整安装包。`);
+    }
+    if (!response.ok) throw new Error(`GitHub 返回 HTTP ${response.status}，暂时无法更新。`);
+    if (!data || typeof data !== "object") throw new Error("GitHub 返回的版本差异无法解析。");
+    if (data.status !== "ahead" && data.status !== "identical") {
+      throw new Error("当前版本与最新版不在同一条线上（可能改过程序文件），请下载完整安装包。");
+    }
+    if (!Array.isArray(data.files)) throw new Error("GitHub 返回的文件清单不完整，请稍后重试。");
+    return data.files;
+  }
+  function rawUrl(path, target) {
+    return `${RAW}/${encodeURIComponent(target)}/${path.split("/").map(encodeURIComponent).join("/")}`;
+  }
+  async function applyUpdate() {
+    if (updating || busy || reloadRequired || !shownTag) return;
+    const target = shownTag;
+    let planId = "";
+    let committing = false;
+    updating = true;
+    button.disabled = true;
+    if (applyButton) applyButton.disabled = true;
+    if (rollbackButton) rollbackButton.disabled = true;
+    if (reloadButton) reloadButton.hidden = true;
+    setApplyStatus("正在获取版本差异…");
+    try {
+      const files = await loadCompare(target);
+      // 服务端拿着这份差异再筛一遍：发布包里没有的路径会被剔除，真正要下载的
+      // 清单由它给出，客户端不自己决定写哪些文件。
+      const plan = await postAction("begin", {
+        current,
+        target,
+        files: files.map((file) => ({
+          filename: String(file.filename || ""),
+          status: String(file.status || ""),
+          sha: String(file.sha || ""),
+          previous_filename: String(file.previous_filename || ""),
+        })),
+      });
+      planId = plan.planId;
+      const total = plan.fileCount;
+      for (let index = 0; index < plan.downloads.length; index++) {
+        const entry = plan.downloads[index];
+        setApplyStatus(`正在下载 ${index + 1}/${total}：${entry.path}`);
+        let downloaded;
+        try {
+          downloaded = await request(rawUrl(entry.path, target), { cache: "no-store", credentials: "omit" }, true);
+        } catch {
+          throw new Error(`下载 ${entry.path} 失败：无法访问 raw.githubusercontent.com，请检查网络或代理。`);
+        }
+        if (!downloaded.response.ok) throw new Error(`下载 ${entry.path} 失败（HTTP ${downloaded.response.status}）。`);
+        const bytes = downloaded.data;
+        const { response: staged, data: stagedData } = await request(
+          `${APPLY_API}?action=stage&plan=${encodeURIComponent(planId)}&path=${encodeURIComponent(entry.path)}&sha=${entry.sha}`,
+          {
+            method: "POST", credentials: "same-origin", cache: "no-store",
+            headers: { "Content-Type": "application/octet-stream" },
+            body: bytes,
+          }
+        );
+        if (!staged.ok || !stagedData || stagedData.ok !== true) {
+          throw new Error((stagedData && stagedData.error) || `暂存 ${entry.path} 失败。`);
+        }
+      }
+      setApplyStatus(`已下载并校验 ${total} 个文件，正在替换程序文件…`);
+      committing = true;
+      const applied = await postAction("commit", undefined, planId);
+      reloadRequired = true;
+      const deleted = applied.deleted ? `，删除 ${applied.deleted} 个` : "";
+      setApplyStatus(`已更新到 ${applied.target}：写入 ${applied.applied} 个文件${deleted}。刷新页面即可生效。`);
+      status.textContent = `已更新到 ${applied.target}，请刷新页面。`;
+      if (applyButton) applyButton.hidden = true;
+      if (reloadButton) reloadButton.hidden = false;
+      if (rollbackButton) rollbackButton.hidden = false;
+    } catch (error) {
+      // 提交可能已落盘但响应丢失。保留恢复资料，并明确区分下载失败和提交结果未知。
+      if (!committing && planId) await postAction("cancel", undefined, planId).catch(() => {});
+      const latest = await refreshSupport();
+      if (committing && latest.version && latest.version.replace(/^v/, "") === target.replace(/^v/, "") && !latest.needsRecovery) {
+        reloadRequired = true;
+        setApplyStatus(`已确认安装版本为 ${latest.version}，请刷新页面。`);
+        if (applyButton) applyButton.hidden = true;
+        if (reloadButton) reloadButton.hidden = false;
+      } else {
+        setApplyStatus((error && error.message ? error.message : "更新失败。")
+          + (committing ? " 若已开始替换文件，请先还原上一版再重试。" : ""), true);
+      }
+    } finally {
+      updating = false;
+      button.disabled = reloadRequired;
+      if (applyButton) applyButton.disabled = reloadRequired || Boolean(support.needsRecovery);
+      if (rollbackButton) rollbackButton.disabled = false;
+    }
+  }
+  async function rollbackUpdate() {
+    if (updating) return;
+    updating = true;
+    button.disabled = true;
+    if (applyButton) applyButton.disabled = true;
+    if (rollbackButton) rollbackButton.disabled = true;
+    setApplyStatus("正在还原…");
+    let snapshot;
+    try {
+      snapshot = await refreshSupport();
+      if (!snapshot.canRollback || !snapshot.backupId) throw new Error("没有可用的备份，请刷新页面确认当前版本。");
+      const data = await postAction("rollback", { backupId: snapshot.backupId });
+      reloadRequired = true;
+      setApplyStatus(`已还原${data.from ? `到 ${data.from}` : ""}，刷新页面即可恢复。`);
+      status.textContent = `已还原${data.from ? `到 ${data.from}` : ""}，请刷新页面。`;
+      if (reloadButton) reloadButton.hidden = false;
+      if (applyButton) applyButton.hidden = true;
+      if (rollbackButton) rollbackButton.hidden = true;
+    } catch (error) {
+      const latest = await refreshSupport();
+      if (snapshot?.backupId && latest.backupId !== snapshot.backupId && !latest.needsRecovery
+          && latest.version === snapshot.rollbackVersion) {
+        reloadRequired = true;
+        setApplyStatus(`已确认还原到 ${latest.version}，请刷新页面。`);
+        status.textContent = `已还原到 ${latest.version}，请刷新页面。`;
+        if (reloadButton) reloadButton.hidden = false;
+        if (rollbackButton) rollbackButton.hidden = true;
+        if (applyButton) applyButton.hidden = true;
+      } else {
+        setApplyStatus(error && error.message ? error.message : "还原失败。", true);
+      }
+    } finally {
+      updating = false;
+      button.disabled = reloadRequired;
+      if (applyButton) applyButton.disabled = reloadRequired || Boolean(support.needsRecovery);
+      if (rollbackButton) rollbackButton.disabled = false;
+    }
+  }
+  if (applyButton) applyButton.addEventListener("click", () => { void applyUpdate(); });
+  if (reloadButton) reloadButton.addEventListener("click", () => { window.location.reload(); });
+  if (rollbackButton) rollbackButton.addEventListener("click", () => { void rollbackUpdate(); });
+
   void check();
   setInterval(() => { if (!document.hidden) void check(); }, INTERVAL);
 })();

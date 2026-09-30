@@ -935,7 +935,7 @@ test("every apostle profile has a size matching its board diagram", () => {
     HEKATON: 2, HERMESIAN_PURSUER: 2, HYPERTIME_ORACLE: 2, ICARIAN_HARPY: 2,
     SUN_DESCENDANT: 3, THE_BURDEN: 2, THE_NIETZSCJEAN: 2, MIDASCORE: 3,
     DEMIDJINN: 2, THE_BABELIAN_LUNACY: 2, DAHAKA: 2, DRAGON_OF_PHOBOS: 2,
-    MEDUKETOS: 3, UR_FLEECE: 3, TITAN_X: 1,
+    MEDUKETOS: 3, UR_FLEECE: 2, TITAN_X: 1,
   };
   Object.entries(expected).forEach(([name, size]) => {
     assert.strictEqual(BT.getApostleProfile(name, 1).size, size, name);

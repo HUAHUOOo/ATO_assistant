@@ -34,6 +34,8 @@ from packaging import package_common as pc  # noqa: E402
 # 本地私有产物：被 .gitignore 留在工作目录里，打包必须独立排除（CODE_REVIEW 07）。
 # 键名同时用作审计复核与负向验证的夹具清单。
 LOCAL_ONLY_FILES = {
+    "api/.ato-update-fixture.php": "temporary update executor",
+    "api/.ato-update-fixture.php.done": "finished update executor marker",
     "personal.atopack": "private asset pack",
     "personal.atopack.partial": "half-written private asset pack",
     "tmp/private-note.txt": "private scratch note",

@@ -101,6 +101,7 @@ error_log
 
 # 一次性排查草稿，不随源码发布
 /tmp/
+api/.ato-update-*
 
 # Local TTS credentials (copy from tools/xfyun-long-tts.config.example.json)
 /tools/xfyun-long-tts.config.json

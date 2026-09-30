@@ -203,7 +203,7 @@ assert(recordHarness.markAdventureFromSurvey("c4", "Normal", "alpha") === "alpha
 assert(recordHarness.markAdventureFromSurvey("c4", "Normal", "omega") === "omega", "Record URL handler ordinary Omega behavior regressed.");
 assert(recordHarness.markAdventureFromSurvey("c5", "Normal", "42") === "mid1", "Record URL handler ordinary middle-slot behavior regressed.");
 assert(recordSource.includes("consumeDashboardSurveyNote({ clearUrl: false })"), "Record URL action is cleared before NAS loading completes.");
-assert(/state = latest\.state;[\s\S]{0,200}consumeDashboardSurveyNote\(\)/.test(recordSource), "Record URL action is not reapplied after NAS state loads.");
+assert(/state = nextState;[\s\S]{0,240}consumeDashboardSurveyNote\(\)/.test(recordSource), "Record URL action is not reapplied after merging the NAS state.");
 assert(/首次修改时会创建记录表存档[\s\S]{0,120}requestedDashboardSurveyNote[\s\S]{0,60}queueServerSave/.test(recordSource), "A first-time record does not save the imported dashboard action.");
 
 console.log("C4/C5 story constants and record autofill regression tests passed.");

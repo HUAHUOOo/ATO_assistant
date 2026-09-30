@@ -2155,7 +2155,7 @@
       }
     }
   </style>
-  <link rel="stylesheet" href="./assets/update/update-check.css?v=1">
+  <link rel="stylesheet" href="./assets/update/update-check.css?v=2">
 </head>
 <body>
   <section id="authGate" class="auth-gate" hidden>
@@ -2335,13 +2335,19 @@
         <p id="updateVersions"></p>
         <h4>更新报告</h4>
         <pre id="updateReport" class="update-report"></pre>
-        <p>更新前请导出存档。下载对应平台的新版，并保留现有存档和资源包。</p>
+        <p>更新前请导出存档。便携版可以直接点「一键更新」，只会下载这次变动的程序文件，存档、资源包和内置 PHP 运行时都不会动；Android 请下载新的 APK。</p>
         <div class="update-actions">
+          <button id="applyUpdateButton" type="button" class="secondary" data-dashboard-readonly-allowed hidden>一键更新到 <span id="applyUpdateTarget"></span></button>
           <a id="updateGithubLink" rel="noopener noreferrer">前往 GitHub 更新</a>
           <button id="skipUpdateButton" type="button" class="secondary" data-dashboard-readonly-allowed>跳过此版本</button>
           <button id="closeUpdateButton" type="button" class="secondary" data-dashboard-readonly-allowed>稍后再说</button>
         </div>
       </div>
+      <div class="update-actions">
+        <button id="reloadUpdateButton" type="button" class="secondary" data-dashboard-readonly-allowed hidden>刷新页面生效</button>
+        <button id="rollbackUpdateButton" type="button" class="secondary" data-dashboard-readonly-allowed hidden>还原上一版</button>
+      </div>
+      <p id="applyUpdateStatus" class="update-status" role="status"></p>
     </section>
   </main>
 
@@ -3723,6 +3729,9 @@
     }
 
     function setCampaignSaveStatus(message, status = "saved") {
+      // Before the first read, the default profile is only a placeholder. Do
+      // not let edits bind to it when the server may select another profile.
+      if (elements.appShell) elements.appShell.inert = Boolean(sessionUser && !campaignSectionBaseline);
       if (!elements.campaignSaveStatus) return;
       if (sessionUser && !ownsDashboardWriteLease()) {
         message = "只读：其他主控制台正在编辑";
@@ -5503,16 +5512,20 @@
         clearCampaignReconnect();
         campaignSectionRevision = Math.max(0, Number(payload.revision || 0));
         campaignSectionExists = Boolean(payload.exists);
-        const flushQueuedSave = campaignSaveQueuedBeforeReady;
+        const localBaseline = cloneJson(campaignSectionBaseline || normalizeArchive(defaultArchive));
+        const flushQueuedSave = campaignSaveQueuedBeforeReady || !jsonEqual(archive, localBaseline);
         const initializeEmptySection = !payload.exists || !payload.state;
         campaignSaveQueuedBeforeReady = false;
-        if (payload.exists && payload.state) {
-          renderDashboardArchive(payload.state);
-          campaignSectionBaseline = cloneJson(archive);
-        } else {
-          renderDashboardArchive(defaultArchive);
-          campaignSectionBaseline = cloneJson(archive);
+        const remote = normalizeArchive(payload.state || defaultArchive);
+        let nextArchive = remote;
+        if (flushQueuedSave) {
+          const merged = mergeDashboardChanges(localBaseline, archive, remote);
+          if (!merged.conflicts.length || window.confirm(
+            `读取存档期间的修改与服务器存在冲突：\n${merged.conflicts.slice(0, 8).join("\n")}\n\n确定：保留本页冲突字段并合并保存\n取消：加载服务器版本`
+          )) nextArchive = merged.value;
         }
+        campaignSectionBaseline = cloneJson(remote);
+        renderDashboardArchive(nextArchive);
         if ((flushQueuedSave || initializeEmptySection) && ownsDashboardWriteLease()) queueCampaignSave();
         else setCampaignSaveStatus("已同步", "saved");
         // Load negotiation cards for explore reminders, then re-render flow.
@@ -6478,7 +6491,7 @@
         : savedRecord;
       return {
         available: true,
-        record: isPlainObject(profileRecord) ? profileRecord : null,
+        record: isPlainObject(profileRecord) ? profileRecord : {},
         revision: Math.max(0, Number(payload.revision || 0)),
       };
     }
@@ -6550,37 +6563,10 @@
     }
 
     function mergeArgoRecords(serverRecord, localRecord) {
-      if (!isPlainObject(serverRecord)) return normalizeRecordCrewCounters(isPlainObject(localRecord) ? { ...localRecord } : {});
-      if (!isPlainObject(localRecord)) return normalizeRecordCrewCounters({ ...serverRecord });
-
-      const merged = { ...localRecord, ...serverRecord };
-      [
-        "enemies",
-        "adventures",
-        "diplomacy",
-        "resources",
-        "map",
-        "matrix",
-        "maxUnlocked",
-        "pygmalion",
-        "rooting",
-      ].forEach((key) => {
-        merged[key] = {
-          ...(isPlainObject(localRecord[key]) ? localRecord[key] : {}),
-          ...(isPlainObject(serverRecord[key]) ? serverRecord[key] : {}),
-        };
-      });
-      merged.crewBoxes = isPlainObject(serverRecord.crewBoxes)
-        ? { ...serverRecord.crewBoxes }
-        : (isPlainObject(localRecord.crewBoxes) ? { ...localRecord.crewBoxes } : {});
-
-      ["godforms", "nymphCards", "godformUsedCards", "nymphUsedCards", "titans"].forEach((key) => {
-        const serverList = Array.isArray(serverRecord[key]) ? serverRecord[key] : [];
-        const localList = Array.isArray(localRecord[key]) ? localRecord[key] : [];
-        merged[key] = serverList.length ? serverList : localList;
-      });
-
-      return normalizeRecordCrewCounters(merged);
+      // An existing server record is authoritative, including empty lists and
+      // deleted fields. Old browser caches must not resurrect removed entries.
+      const source = isPlainObject(serverRecord) ? serverRecord : (isPlainObject(localRecord) ? localRecord : {});
+      return normalizeRecordCrewCounters(JSON.parse(JSON.stringify(source)));
     }
 
     async function syncAdventureActionToArgoRecord(action) {
@@ -8662,7 +8648,7 @@
     }
 
     async function saveImportedCampaignSection(section, sectionState, expectedRevision) {
-      if (sectionState == null) return null;
+      if (sectionState === undefined) return null;
       const response = await fetch(`${authUrl}?section=${encodeURIComponent(section)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -8781,6 +8767,7 @@
       reader.onload = async () => {
         try {
           const imported = JSON.parse(String(reader.result || "{}"));
+          const isFullBackup = imported.app === "ATO Campaign Save Package" && Number(imported.version) >= 3;
           const sections = imported.sections || imported.campaign?.sections || null;
           const dashboardImport = sections?.dashboard || imported.legacyDashboard || imported;
           const nextArchive = dashboardImport.profiles
@@ -8802,7 +8789,7 @@
           const currentRevisions = currentCampaign?.sectionRevisions || {};
           const saveTargets = backupSectionIds
             .map((section) => [section, section === "dashboard" ? archive : sections?.[section]])
-            .filter(([, sectionState]) => sectionState != null);
+            .filter(([, sectionState]) => sectionState !== undefined && (isFullBackup || sectionState !== null));
           const settled = await Promise.allSettled(
             saveTargets.map(([section, sectionState]) => saveImportedCampaignSection(
               section,
@@ -9055,7 +9042,7 @@
   </script>
   <script src="./assets/ato-terms.js?v=20260922-official-terms"></script>
   <script src="./assets/term-language.js?v=20260923-nocascade"></script>
-  <script src="./assets/update/app-version.js?v=2.0.5-rc.1"></script>
-  <script src="./assets/update/update-check.js?v=1"></script>
+  <script src="./assets/update/app-version.js?v=2.2.0"></script>
+  <script src="./assets/update/update-check.js?v=3"></script>
 </body>
 </html>
