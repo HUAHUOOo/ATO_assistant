@@ -489,6 +489,32 @@ button {
   border-left: 2px solid var(--accent);
 }
 
+.app .step-track-reminder.battle-tech {
+  border: 1px solid #a8b9dc;
+  border-left: 4px solid #355a9a;
+  background: #e0e9fa;
+}
+
+.app .step-track-reminder.structure-tech {
+  border: 1px solid #98c5b2;
+  border-left: 4px solid #216849;
+  background: #dcefe3;
+}
+
+.app .step-track-reminder:is(.battle-tech, .structure-tech) .step-track-desc {
+  color: var(--ink);
+}
+
+.app :is(.date-track-icon, .step-track-tag).battle-tech {
+  background: #355a9a;
+  color: #fff;
+}
+
+.app :is(.date-track-icon, .step-track-tag).structure-tech {
+  background: #216849;
+  color: #fff;
+}
+
 .date-track-list {
   max-height: 420px;
   gap: 0;
