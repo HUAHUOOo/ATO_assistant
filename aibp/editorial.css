@@ -24,6 +24,7 @@ body:not(.sidebar-collapsed) .sidebar-toggle { left: 212px; top: 24px; }
 .nav button { border: 0; border-bottom: 1px solid var(--line); padding: 12px 10px; }
 .nav button.active, .nav button:hover { background: var(--accent-soft); border-color: var(--line); box-shadow: inset 3px 0 0 var(--accent); }
 .boss-search-results button { border: 0; border-bottom: 1px solid var(--line); }
+.sidebar-boss-search label { color: var(--accent-strong); }
 .title-actions :is(.deck-order-toggle, .second-screen-mode-toggle), .map-faction-chip { border-radius: 0; background: transparent; color: var(--muted); border-color: var(--line); }
 .map-faction-chip { border: 0; padding-left: 0; }
 .cards-panel { width: 100%; max-width: 100%; border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--panel); box-shadow: none; }
