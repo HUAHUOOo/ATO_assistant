@@ -156,7 +156,7 @@ h1 {
 
 .control-panel {
   display: grid;
-  grid-template-columns: minmax(130px, 160px) minmax(120px, 150px) minmax(160px, 180px) minmax(0, 1fr);
+  grid-template-columns: minmax(130px, 160px) minmax(240px, 270px) minmax(160px, 180px) minmax(0, 1fr);
   gap: 12px;
   align-items: end;
   margin-bottom: 14px;
@@ -247,16 +247,16 @@ h1 {
   cursor: not-allowed;
 }
 
-.map-status .campaign-save-status[data-state="saving"] {
+.campaign-save-status[data-state="saving"] {
   color: var(--accent);
 }
 
-.map-status .campaign-save-status[data-state="offline"] {
+.campaign-save-status[data-state="offline"] {
   color: var(--danger);
   font-weight: 700;
 }
 
-.map-status .campaign-save-status[data-state="saved"] {
+.campaign-save-status[data-state="saved"] {
   color: #16794a;
 }
 
@@ -405,13 +405,6 @@ h1 {
   font-size: 12px;
 }
 
-.reveal-group input {
-  width: 82px;
-  min-height: 30px;
-  padding: 0 8px;
-  font-size: 12px;
-}
-
 .scout-count {
   min-height: 30px;
   display: inline-flex;
@@ -514,6 +507,32 @@ h1 {
 
 #searchInput {
   max-width: 150px;
+}
+
+.tile-lookup {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.tile-lookup-row {
+  display: grid;
+  grid-template-columns: minmax(0, 150px) max-content;
+  justify-content: start;
+  align-items: center;
+  gap: 6px;
+}
+
+.tile-lookup-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.tile-lookup-actions button {
+  min-height: 40px;
+  padding: 0 8px;
+  font-size: 12px;
 }
 
 .toggle-row {
@@ -1036,7 +1055,7 @@ button.danger {
   }
 
   .control-panel {
-    grid-template-columns: minmax(130px, 160px) minmax(120px, 150px) minmax(160px, 180px);
+    grid-template-columns: minmax(130px, 160px) minmax(240px, 270px) minmax(160px, 180px);
     gap: 8px;
     margin-bottom: 8px;
     padding: 10px;

@@ -22,8 +22,9 @@ h1 { font-size: clamp(28px, 3.5vw, 42px); line-height: 1.3; }
 .hero-skill-heading .skill-expand-toggle { grid-column: 2; grid-row: 1; }
 .hero-skill-heading .skill-preview { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; margin-left: 0; }
 .hero-column { container-type: inline-size; container-name: hero-card; }
-.hero-column { gap: 0; border: 1px solid var(--line); background: var(--panel); }
+.hero-column { gap: 0; border-block: 1px solid var(--line); background: var(--panel); }
 .hero-column > .panel { border: 0; border-bottom: 1px solid var(--line); }
+.hero-column > .panel:not(:has(> .panel-body)) > .hero-skill-heading { border-bottom: 0; }
 .hero-column > .hero-remove-wrap { padding: 12px; }
 .hero-column .identity-grid {
   display: grid;
@@ -70,6 +71,17 @@ textarea { background: var(--bg); }
 .skill-preview-item { background: var(--bg); border-color: var(--line); }
 .mnemos-card, .mnemos-item { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; }
 .mnemos-item.active { background: var(--accent-soft); border-color: var(--accent); }
+.track-bar { flex-wrap: wrap; align-items: stretch; }
+.track-cell, .track-node-cell { border-radius: 0; box-shadow: none; font-weight: 600; }
+.track-cell { justify-content: center; background: var(--panel); border-color: var(--line); color: var(--ink); }
+.track-cell.filled { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
+.track-cell.milestone { border-width: 1px; border-color: var(--gold); }
+.track-cell.milestone.filled, .track-cell.final-cell.filled { background: var(--accent-strong); border-color: var(--gold); color: #fff; }
+.track-cell.final-cell { background: var(--accent-soft); border-color: var(--gold); }
+.track-node-cell { display: flex; align-items: center; justify-content: center; align-self: stretch; background: var(--accent-soft); border-color: var(--accent); color: var(--accent-strong); }
+.track-node-cell.filled { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
+.track-cell:not(.filled):hover, .track-node-cell:not(.filled):hover { background: var(--accent-soft); border-color: var(--accent-strong); }
+.track-num, .track-cell.milestone .track-num { font-weight: 600; line-height: 1.4; }
 .hero-empty-slot, .empty-state { border-radius: 0; box-shadow: none; background: var(--panel); border-color: var(--line); }
 .picker-dialog, .argonaut-picker-card, .argonaut-picker-card img, .picker-note, .graveyard-card, .graveyard-entry { border-radius: 0; }
 .picker-head { background: var(--accent-soft); }

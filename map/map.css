@@ -1,0 +1,84 @@
+/* Map controls share the console and record pages' paper, rules and cycle palette. */
+:root { --shadow: none; }
+body { background: var(--bg); }
+h1, .note-card-header strong {
+  font-family: "Songti SC", "Noto Serif CJK SC", SimSun, Georgia, serif;
+  font-weight: 600;
+  color: var(--accent-strong);
+  letter-spacing: .05em;
+}
+.back-link {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: var(--accent-strong);
+  color: #fff;
+  font-weight: 600;
+}
+.back-link:hover { background: var(--accent); color: #fff; }
+.header-return-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.header-return-actions .back-link { margin-bottom: 0; }
+.return-without-save {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--accent-strong);
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+}
+.return-without-save:hover { background: var(--accent-soft); border-color: var(--accent); }
+button, input, select, textarea, .check-label, .second-screen-mode-toggle,
+.control-panel, .token-panel, .action-group, .scout-count, .zoom-row output,
+.edge-direction-control, .token-tool, .token-submenu, .tile-grid-viewport,
+.note-dialog, .note-card, .empty { border-radius: 0; }
+button { background: var(--accent-strong); font-weight: 600; }
+button:hover { background: var(--accent); }
+button.secondary { background: var(--panel); border-color: var(--line); color: var(--accent-strong); }
+button.secondary:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-strong); }
+:is(button, a, input, select, textarea, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+input, select, textarea { background: var(--panel); }
+textarea { background: var(--bg); }
+.cycle-tabs button { background: var(--panel); color: var(--accent-strong); box-shadow: inset 0 0 0 1px var(--line); }
+.cycle-tabs button:hover { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.cycle-tabs button.active { background: var(--accent-strong); color: #fff; box-shadow: none; }
+.control-panel { box-shadow: none; }
+.control-panel label, .toolbar-label { font-weight: 600; }
+.check-label, .action-group { background: var(--panel); }
+.zoom-row input { accent-color: var(--accent); }
+.check-label input[type="checkbox"] {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 3px;
+  border: 1px solid var(--accent);
+  border-radius: 0;
+  background: transparent;
+  background-clip: content-box;
+  cursor: pointer;
+}
+.check-label input[type="checkbox"]:checked { background-color: var(--accent); }
+.check-label input[type="checkbox"]:disabled { cursor: not-allowed; }
+.zoom-row output { background: var(--panel); font-weight: 600; }
+.map-status strong { color: var(--accent-strong); font-weight: 600; }
+.campaign-save-status[data-state="saved"] { color: var(--done); }
+.token-tool, .edge-direction-control, .edge-direction-control button, .scout-count,
+.map-actions .titan-x-track-space { background: var(--panel); }
+.token-tool:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-strong); }
+.token-tool.active { background: var(--accent-soft); border-color: var(--accent); box-shadow: inset 0 -2px var(--accent); }
+.token-tool span, .scout-count, .zoom-row output { font-weight: 600; }
+.edge-direction-control button.active, .map-actions .titan-x-track-space.active { background: var(--accent-strong); color: #fff; }
+.map-actions .titan-x-track-space { border-radius: 0; }
+.map-actions .titan-x-track-space.active { border-color: var(--accent-strong); }
+button.secondary.danger { color: var(--danger); }
+button.secondary.danger:hover { border-color: var(--danger); }
+.token-submenu, .note-card { box-shadow: none; }
+.icon-button { background: var(--panel); color: var(--accent-strong); }
+.icon-button:hover { background: var(--accent-soft); }
