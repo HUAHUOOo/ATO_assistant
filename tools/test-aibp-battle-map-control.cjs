@@ -254,4 +254,39 @@ assert.deepEqual(
   ]
 );
 
+activeApostle = "HELIOS";
+map = { version: 1, setupKey: "HELIOS:manual", terrain: [] };
+control.render();
+assert.equal(map.setupId, "old-haunt");
+assert.equal(map.terrain.length, 22);
+assert.equal(terrainLayer.children.length, 22);
+assert.equal(startLayer.children.length, 5);
+assert.deepEqual(
+  elements["[data-battle-map-card-list]"].children.map((button) => button.children[1].textContent),
+  ["Irem Tower", "Irem City"]
+);
+map.terrain = [];
+control.render();
+assert.equal(map.terrain.length, 0);
+elements["[data-battle-map-reset]"].dispatch("click");
+assert.equal(map.terrain.length, 22);
+
+activeApostle = "BLACKBEAK";
+map = { version: 1, setupKey: "BLACKBEAK:manual", terrain: [] };
+control.render();
+assert.equal(map.setupId, "blackbeak");
+assert.equal(map.terrain.length, 20);
+assert.equal(terrainLayer.children.length, 20);
+assert.equal(startLayer.children.length, 5);
+assert.equal(elements["[data-battle-map-setup-control]"].hidden, true);
+assert.deepEqual(
+  elements["[data-battle-map-card-list]"].children.map((button) => button.children[1].textContent),
+  ["Column", "Ambrosia Pool"]
+);
+map.terrain = [];
+control.render();
+assert.equal(map.terrain.length, 0);
+elements["[data-battle-map-reset]"].dispatch("click");
+assert.equal(map.terrain.length, 20);
+
 console.log("battle-map control tests passed");

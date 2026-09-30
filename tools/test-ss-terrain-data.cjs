@@ -38,6 +38,54 @@ assert.equal(terrain.getTiles("THE_BURDEN", "V", "burden-battle").length, 28);
 assert.equal(terrain.getTiles("THE_BURDEN", "I", "hardest-to-bear").length, 31);
 assert.equal(terrain.getTiles("SUN_DESCENDANT", "I").length, 19);
 
+assert.deepEqual(terrain.getTiles("BLACKBEAK", 1), terrain.getTiles("HERMESIAN_PURSUER", 1, "pursuer"));
+assert.deepEqual(terrain.getInitialPositions("BLACKBEAK", 1), terrain.getInitialPositions("HERMESIAN_PURSUER", 1, "pursuer"));
+assert.deepEqual(terrain.getApostleProfile("BLACKBEAK", 1), terrain.getApostleProfile("HERMESIAN_PURSUER", 1));
+assert.deepEqual(terrain.getSetupOptions("BLACKBEAK"), [{ id: "blackbeak", label: "Blackbeak" }]);
+const blackbeakMap = terrain.createBattleMap("BLACKBEAK", 1);
+assert.equal(blackbeakMap.setupKey, "BLACKBEAK:blackbeak");
+assert.equal(blackbeakMap.terrain.length, 20);
+assert.deepEqual(terrain.normalizeBattleMap(blackbeakMap, "BLACKBEAK", 1), blackbeakMap);
+assert.deepEqual(terrain.getTerrainCards(blackbeakMap, "terrain-cards").map(({ key }) => key), ["column", "ambrosia-pool"]);
+const migratedBlackbeakMap = terrain.normalizeBattleMap({
+  version: 1, setupKey: "BLACKBEAK:manual", startLevel: 1,
+  showStarts: false, showCoordinates: true, terrain: [],
+}, "BLACKBEAK", 1);
+assert.equal(migratedBlackbeakMap.terrain.length, 20);
+assert.equal(migratedBlackbeakMap.showStarts, false);
+assert.equal(migratedBlackbeakMap.showCoordinates, true);
+assert.equal(terrain.normalizeBattleMap({ ...blackbeakMap, terrain: [] }, "BLACKBEAK", 1).terrain.length, 0);
+assert.deepEqual(terrain.normalizeBattleMap({
+  ...blackbeakMap, setupKey: "BLACKBEAK:manual", terrain: [blackbeakMap.terrain[0]],
+}, "BLACKBEAK", 1).terrain, [blackbeakMap.terrain[0]]);
+
+// The two Envelope Y diagram backs together must match the complete TTS setup.
+const oldHauntReference = JSON.parse(fs.readFileSync(path.join(__dirname, "tts-converted.json"), "utf8")).oldHauntBattle;
+for (const level of [1, 4, 5, 10]) {
+  assert.deepEqual(terrain.getTiles("HELIOS", level).map(({ name, row, column, rotation, flipped }) => (
+    { name, row, column, rotation, flipped }
+  )), oldHauntReference);
+}
+const oldHauntStarts = terrain.getInitialPositions("HELIOS", 1);
+assert.deepEqual(oldHauntStarts.apostle, { row: 7.5, column: 10.5, width: 2, height: 2, rotation: 0, facing: "random" });
+assert.deepEqual(oldHauntStarts.titans.map(({ row, column }) => [row, column]), [[11, 9], [11, 12], [4, 9], [4, 12]]);
+const oldHauntMap = terrain.createBattleMap("HELIOS", 1);
+assert.equal(oldHauntMap.setupId, "old-haunt");
+assert.deepEqual(terrain.getTerrainCards(oldHauntMap, "terrain-cards").map(({ key }) => key), ["irem-tower", "irem-city"]);
+assert.deepEqual(terrain.normalizeBattleMap(oldHauntMap, "HELIOS", 1), oldHauntMap);
+const migratedOldHauntMap = terrain.normalizeBattleMap({
+  version: 1, setupKey: "HELIOS:manual", startLevel: 4,
+  showStarts: false, showCoordinates: true, terrain: [],
+}, "HELIOS", 4);
+assert.equal(migratedOldHauntMap.terrain.length, 22);
+assert.equal(migratedOldHauntMap.startLevel, 4);
+assert.equal(migratedOldHauntMap.showStarts, false);
+assert.equal(migratedOldHauntMap.showCoordinates, true);
+assert.equal(terrain.normalizeBattleMap({ ...oldHauntMap, terrain: [] }, "HELIOS", 1).terrain.length, 0);
+assert.deepEqual(terrain.normalizeBattleMap({
+  ...oldHauntMap, setupKey: "HELIOS:manual", terrain: [oldHauntMap.terrain[0]],
+}, "HELIOS", 1).terrain, [oldHauntMap.terrain[0]]);
+
 const hasPlacement = (apostle, level, name, row, column, setupId) => terrain
   .getTiles(apostle, level, setupId)
   .some((placement) => placement.name === name && placement.row === row && placement.column === column);

@@ -470,6 +470,13 @@ const BattleTerrain = (() => {
   const cloneTerrainGroup = (group) => terrain(group.name, group.tiles.map((placement) => ({ ...placement })));
 
   const setups = {
+    // Envelope Y: Pitiless Sun (setup 2) on the left, God Among Men (setup 3) on the right.
+    HELIOS: [
+      { id: "old-haunt", label: "Old Haunt", levels: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], terrains: [
+        terrain("Irem Tower", points([[13, 4], [13, 15], [12, 16], [11, 9], [11, 12], [10, 6], [9, 20], [8, 3], [8, 15], [7, 19], [6, 9], [5, 2], [5, 6], [5, 11], [4, 9], [4, 12], [2, 2], [2, 20], [1, 3], [1, 14]])),
+        terrain("Irem City", [tile(10, 4), tile(5, 16)]),
+      ] },
+    ],
     HEKATON: [
       { id: "hekaton-battle", label: "Hekaton Battle", levels: [1, 2, 3], terrains: [
         terrain("Column", [tile(13, 9), tile(13, 12), tile(12, 4), tile(12, 17), tile(10, 6), tile(9, 15), tile(8, 3), tile(8, 18), tile(7, 3), tile(7, 18), tile(6, 6), tile(5, 15), tile(3, 4), tile(3, 17), tile(2, 9), tile(2, 12)]),
@@ -745,7 +752,15 @@ const BattleTerrain = (() => {
     ],
   };
   setups.THE_NIETZSCHEAN = setups.THE_NIETZSCJEAN;
+  // Envelope Beta changes the Pursuer's attributes/traits; its standard layout still applies.
+  setups.BLACKBEAK = [{
+    ...setups.HERMESIAN_PURSUER[0],
+    id: "blackbeak",
+    label: "Blackbeak",
+    terrains: setups.HERMESIAN_PURSUER[0].terrains.map(cloneTerrainGroup),
+  }];
   const initialPositions = {
+    HELIOS: { apostle: { row: 7.5, column: 10.5, width: 2, height: 2, rotation: 0, facing: "random" }, titans: [[11, 9], [11, 12], [4, 9], [4, 12]] },
     HEKATON: { apostle: { row: 7.5, column: 10.5, width: 2, height: 2, rotation: 0, facing: "random" }, titans: [[5, 13], [6, 14], [9, 7], [10, 8]] },
     LABYRINTHAUROS: { apostle: { row: 7.5, column: 3.5, width: 2, height: 2, rotation: 90 }, titans: [[6, 9], [6, 12], [9, 9], [9, 12]] },
     HERMESIAN_PURSUER: { apostle: { row: 7.5, column: 10.5, width: 2, height: 2, rotation: 0, facing: "random" }, titans: [[5, 8], [5, 13], [10, 8], [10, 13]] },
@@ -770,6 +785,7 @@ const BattleTerrain = (() => {
     TITAN_X: { apostle: { row: 7, column: 10, width: 1, height: 1, rotation: 0, facing: "random" }, titans: [[9, 8], [10, 13], [4, 7], [5, 12]] },
   };
   initialPositions.THE_NIETZSCHEAN = initialPositions.THE_NIETZSCJEAN;
+  initialPositions.BLACKBEAK = initialPositions.HERMESIAN_PURSUER;
 
   const labyrinthaurosBattleInitialPositions = {
     startOptions: [
@@ -856,6 +872,7 @@ const BattleTerrain = (() => {
   //   alwaysLos 特质写明"忽略视线遮挡规则（即总是有视线）"。
   //   mazesense 迷宫感应：大迷宫板块不会遮挡该始徒对泰坦的视线。
   const apostleProfiles = {
+    HELIOS: { size: 2, speed: { 1: Infinity }, blindspot: true },
     LABYRINTHAUROS: { size: 2, speed: { 1: 6, 2: 6, 3: 7, 4: 7 }, blindspot: false, mazesense: true },
     ALPHA_TEMENOS: { size: 3, speed: { 1: 6 }, blindspot: false, mazesense: true },
     CHIMERA_METASTASIOS: { size: 3, speed: { 1: 5, 2: 5, 3: 5, 4: 5 }, blindspot: false },
@@ -882,6 +899,7 @@ const BattleTerrain = (() => {
     TITAN_X: { size: 1, speed: { 1: Infinity }, blindspot: true, alwaysLos: true },
   };
   apostleProfiles.THE_NIETZSCHEAN = apostleProfiles.THE_NIETZSCJEAN;
+  apostleProfiles.BLACKBEAK = apostleProfiles.HERMESIAN_PURSUER;
 
   function levelNumber(value) {
     const numeric = Number(value);
@@ -1021,6 +1039,17 @@ const BattleTerrain = (() => {
     const expectedKey = getSetupKey(apostle, level, setup?.id);
     if (!value || !Array.isArray(value.terrain)) {
       return createBattleMap(apostle, level);
+    }
+    // Upgrade empty placeholders saved before these hidden bosses had setups.
+    // A cleared, already configured map or a manually edited map remains intact.
+    const normalizedApostle = String(apostle || "").toUpperCase();
+    if (["HELIOS", "BLACKBEAK"].includes(normalizedApostle)
+      && value.setupKey === `${normalizedApostle}:manual` && value.terrain.length === 0) {
+      return {
+        ...createBattleMap(apostle, value.startLevel ?? level, setup?.id),
+        showStarts: value.showStarts !== false,
+        showCoordinates: value.showCoordinates === true,
+      };
     }
     const terrain = value.terrain.flatMap((placement, index) => {
       const definition = catalog[placement?.name];

@@ -385,9 +385,13 @@
     }
 
     .section.extra-section {
-      flex: 0 1 min(34vw, calc(var(--side-card-image-height) * 2.4));
+      flex: 0 1 auto;
       min-width: min(320px, 34vw);
-      max-width: min(34vw, calc(var(--side-card-image-height) * 2.4));
+    }
+
+    .extra-section > .image-wrap {
+      grid-template-columns: minmax(0, 1fr);
+      width: 100%;
     }
 
     .section-header {
@@ -1274,10 +1278,6 @@
 
       .nav {
         grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-      }
-
-      .viewer {
-        justify-content: flex-start;
       }
 
       .cards-panel {
@@ -2434,7 +2434,7 @@
   <script src="../map/map-tile-tags.js"></script>
   <script src="ps/CHIMERA_METASTASIOS/bp_status_map.js"></script>
   <!-- Token 名单写在本页脚本里（tokenFileNames），不再加载 ps/other/token/token_manifest.js。 -->
-  <script src="../ss/terrain-data.js?v=20260926-titan-x-group1"></script>
+  <script src="../ss/terrain-data.js?v=20260930-hidden-bosses1"></script>
   <script src="battle_los.js?v=20260819-hekaton4-labyrinthauros-start1"></script>
   <script src="battle_map_control.js?v=20260926-titan-x-group1"></script>
   <script src="b4d7e218.js?v=20260926-hidden-ready2"></script>
@@ -3900,7 +3900,7 @@
       }
     }
 
-    // 上一次进入的 Old Haunt 模式（C4），刷新后沿用。
+    // 记录当前模式，供旧版本兼容；默认 C4，手动数字等级由等级覆盖值保存。
     function storeHeliosMode(mode) {
       try { localStorage.setItem(heliosModeKey, mode); } catch { /* 隐私模式下忽略 */ }
     }
@@ -3908,9 +3908,9 @@
     function heliosMode() {
       const override = apostleLevelOverrides.HELIOS;
       if (override === "c4") return override;
-      let saved = null;
-      try { saved = localStorage.getItem(heliosModeKey); } catch { /* 忽略 */ }
-      return saved === "c4" ? saved : "normal";
+      // Numeric levels explicitly select the regular panel; the default is the C4 setup.
+      if (Number(override) >= 1 && Number(override) <= 10) return "normal";
+      return "c4";
     }
 
     function heliosUnlockKey(campaign) {
@@ -4047,14 +4047,18 @@
         apostleLevelSelect.options[0].textContent = "固定（沿用追踪者升级轨）";
         return;
       }
-      apostleLevelSelect.value = apostleLevelOverrides[currentApostle]
+      apostleLevelSelect.value = currentApostle === "HELIOS" && heliosMode() === "c4"
+        ? "c4"
+        : apostleLevelOverrides[currentApostle]
         && (currentApostle !== "HELIOS"
           || apostleLevelOverrides[currentApostle] === "c4"
           || Number(apostleLevelOverrides[currentApostle]) <= 10)
         ? String(apostleLevelOverrides[currentApostle])
         : "";
       const recordLevel = Number(recordApostleLevels[currentApostle]) || 0;
-      apostleLevelSelect.options[0].textContent = fixedAtOne
+      apostleLevelSelect.options[0].textContent = currentApostle === "HELIOS"
+        ? "默认 C4 · Old Haunt"
+        : fixedAtOne
         ? "固定等级 I"
         : recordLevel
           ? `跟随记录表（${levelRoman[recordLevel] || recordLevel}）`
@@ -7477,8 +7481,8 @@
           return;
         }
         // 赫利俄斯：清掉可能残留的模式，回到默认（Old Haunt）入口。
-        apostleLevelOverrides.HELIOS = "normal";
-        storeHeliosMode("normal");
+        apostleLevelOverrides.HELIOS = "c4";
+        storeHeliosMode("c4");
         saveApostleLevelOverrides();
         ensureHeliosModeOptions();
         renderApostle("HELIOS");
