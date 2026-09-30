@@ -915,6 +915,44 @@ def fixed_catalog_payload() -> dict[str, Any]:
         corrected_oracle_items.append(item)
     payload["items"] = corrected_oracle_items
 
+    # 超时光先知的特性卡印的是 V 级：工程里的 HYPERTIME_ORACLE_TR_IV_001.jpg 已改名
+    # HYPERTIME_ORACLE_TR_V_001.jpg，官中覆盖图与打包豁免名单同名跟进（见
+    # tests/aibp-panel-cards.test.cjs）。清单来自旧 APK，仍写着 IV，导出资料包会因为
+    # 那一面在工程目录里找不到文件而直接失败，所以在这里把整条条目挪到 V。
+    for item in payload["items"]:
+        if item.get("number") != "HYPERTIME_ORACLE_TR_IV_001":
+            continue
+        item["number"] = "HYPERTIME_ORACLE_TR_V_001"
+        item["name"] = "HYPERTIME ORACLE TR V 001"
+        item["id"] = make_id(
+            item["cycle"], "aibp", "HYPERTIME_ORACLE / Trait",
+            item["number"], item["name"],
+        )
+        item["faces"] = {"front": "aibp/ps/HYPERTIME_ORACLE/HYPERTIME_ORACLE_TR_V_001.jpg"}
+
+    # 尼采超人的 THE_NIETZSCJEAN_TRII_002 是清单里的笔误条目：它与 _TR_II_002 逐字节
+    # 相同，应用侧也从不按这个名字取图（traitFileName 永远拼出 `_TR_<等级>_<编号>`），
+    # 留着只会让资料包多带一张重复图，所以整条退场。
+    payload["items"] = [
+        item for item in payload["items"]
+        if item.get("number") != "THE_NIETZSCJEAN_TRII_002"
+    ]
+
+    # 乌尔-弗里斯有两张完整面板（大卡）：控制台与第二屏默认显示 _2 那张，原大卡在
+    # 放大图与切换按钮里取用（见 tests/aibp-panel-cards.test.cjs）。旧 APK 清单只收了
+    # 第一张，这里补上第二张，否则它不会进资料包。
+    payload["items"].append({
+        "id": make_id("c5", "aibp", "UR_FLEECE / 使徒面板", "UR_FLEECE_2", "乌尔-弗里斯 / Ur-Fleece使徒完整面板 2"),
+        "cycle": "c5",
+        "module": "AIBP",
+        "subgroup": "UR_FLEECE / 使徒面板",
+        "name": "乌尔-弗里斯 / Ur-Fleece使徒完整面板 2",
+        "number": "UR_FLEECE_2",
+        "sort_order": 50_019,
+        "faces": {"front": "aibp/ps/UR_FLEECE/UR_FLEECE_2.jpg"},
+        "capture_required": True,
+    })
+
     # 地图页的标记素材由项目目录维护。清单最初只收录了旧版 APK 中的
     # 20 个文件；地图实现后来更换了文件名并增加了 C4/C5 专用标记。
     # 以当前 map/app.js 使用的资源为准，避免导出资料包继续引用已删除的
@@ -1375,6 +1413,7 @@ def fixed_catalog_payload() -> dict[str, Any]:
     payload["source"]["catalog_version"] = (
         "ATO-Local-0.2.11+complete-import-assets-14-cycle-symbols"
         "+c45-trait-common-tr-002+c2-exploration-13642+remove-unused-c45-conditions"
+        "+hypertime-trait-v+ur-fleece-panel-2-remove-trii-002"
     )
     return payload
 
