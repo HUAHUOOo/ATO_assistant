@@ -38,6 +38,25 @@ textarea { background: var(--bg); }
 .panel-heading h2 { flex-shrink: 0; white-space: nowrap; }
 .panel-heading .status-line { text-align: right; }
 .panel-body { padding: 16px; }
+.identity-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  justify-content: flex-start;
+  align-items: flex-end;
+}
+.identity-grid > label {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  align-items: start;
+}
+.identity-grid .identity-mark-row { flex-basis: 100%; }
+.identity-grid :is(.number-field input, .number-field button, .oxygen-value-pair input) {
+  height: 32px;
+  min-height: 32px;
+  padding-block: 0;
+}
+.identity-grid .oxygen-value-pair input { font-size: 13px; }
 .titan-list-panel { background: var(--panel); padding: 14px 16px; }
 .titan-list-head { color: var(--accent-strong); font-size: 14px; }
 .titan-list-head strong, .summon-group-head strong { font-weight: 600; }
