@@ -995,6 +995,7 @@
           <button id="resetAllTriskelionButton" type="button" class="icon-button triskelion-reset" title="重置全部三幅节" aria-label="重置全部三幅节">
             <img src="assets/reset_triskelion_F4F4F4.png" alt="" data-reset-triskelion-icon>
           </button>
+          <button id="addHeroButton" type="button" class="add-hero-btn">+ 添加英雄</button>
           <button id="exportButton" type="button" class="secondary">导出</button>
           <button id="graveyardButton" type="button" class="secondary">墓园</button>
           <button id="importButton" type="button" class="secondary">导入</button>
@@ -1005,7 +1006,6 @@
     </header>
 
     <div class="hero-tabs hidden" id="heroTabs"></div>
-    <button id="addHeroButton" type="button" class="add-hero-btn">+ 添加英雄</button>
 
     <div class="heroes-grid" id="heroContent">
       <div class="hero-empty-slot" id="emptyState">
@@ -1672,11 +1672,11 @@
           : "";
       hero.triskelion = hero.triskelion || { fury: 0, fate: 0, danger: 0 };
       const skillPreviewHtml = SKILLS.map(skill => `<span class="skill-preview-item" title="${escHtml(skill.zh)} ${escHtml(skill.en)}"><img src="${escHtml(assetSrc(`skill_${skill.id}.png`))}" alt=""><span class="skill-preview-abbr">${escHtml(skill.abbr)}</span>${total[skill.id]}</span>`).join("");
-      const dragHandleHtml = `<button class="hero-drag-handle" type="button" data-hero-drag="${escHtml(hid)}" title="按住拖动，调换英雄位置（也可用方向键）" aria-label="拖动调整「${escHtml(heroDisplayName(hero))}」的位置">${HERO_DRAG_ICON}</button>`;
+      const resetTriskelionHtml = `<button class="icon-button triskelion-reset" type="button" data-reset-triskelion="${escHtml(hid)}" title="重置三幅节" aria-label="重置三幅节"><img src="${escHtml(assetSrc("reset_triskelion_F4F4F4.png"))}" alt=""></button>`;
 
       return `<div class="hero-column" data-hero-id="${escHtml(hid)}">
         <section class="panel">
-          <div class="panel-heading"><h2>${escHtml(heroDisplayName(hero))}</h2><div class="hero-heading-tools">${likelihoodHtml}${dragHandleHtml}</div></div>
+          <div class="panel-heading hero-title-drag" data-hero-drag="${escHtml(hid)}" tabindex="0" title="长按标题行拖动排序，也可用方向键" aria-label="调整「${escHtml(heroDisplayName(hero))}」的位置"><h2>${escHtml(heroDisplayName(hero))}</h2><div class="hero-heading-tools">${likelihoodHtml}${resetTriskelionHtml}</div></div>
           <div class="panel-body">
             <div class="identity-grid">
               <div class="portrait-box" data-portrait="${escHtml(hid)}">
@@ -1686,17 +1686,12 @@
                 <div class="triskelion-item"><img src="${escHtml(assetSrc("tri_rage.png"))}" alt="怒气"><div class="skill-number"><button data-tri="fury" data-hero="${escHtml(hid)}" data-delta="-1">−</button><span class="skill-value">${hero.triskelion.fury}</span><button data-tri="fury" data-hero="${escHtml(hid)}" data-delta="1">+</button></div></div>
                 <div class="triskelion-item"><img src="${escHtml(assetSrc("tri_fate.png"))}" alt="命运"><div class="skill-number"><button data-tri="fate" data-hero="${escHtml(hid)}" data-delta="-1">−</button><span class="skill-value">${hero.triskelion.fate}</span><button data-tri="fate" data-hero="${escHtml(hid)}" data-delta="1">+</button></div></div>
                 <div class="triskelion-item"><img src="${escHtml(assetSrc("tri_danger.png"))}" alt="危险"><div class="skill-number"><button data-tri="danger" data-hero="${escHtml(hid)}" data-delta="-1">−</button><span class="skill-value">${hero.triskelion.danger}</span><button data-tri="danger" data-hero="${escHtml(hid)}" data-delta="1">+</button></div></div>
-                <div class="triskelion-reset-wrap">
-                  <button class="icon-button triskelion-reset" type="button" data-reset-triskelion="${escHtml(hid)}" title="重置三幅节" aria-label="重置三幅节">
-                    <img src="${escHtml(assetSrc("reset_triskelion_F4F4F4.png"))}" alt="">
-                  </button>
-                </div>
               </div>
             </div>
           </div>
         </section>
         <section class="panel">
-          <div class="panel-heading">
+          <div class="panel-heading hero-skill-heading">
             <h2>技能</h2>
             <div class="skill-preview">${skillPreviewHtml}</div>
             <button class="secondary skill-expand-toggle" type="button" data-toggle-skills="${escHtml(hid)}">${hero.skillsExpanded ? "收起" : "展开"}</button>
@@ -1892,16 +1887,15 @@
         if (!handle) return;
         let pointerId = null;
         let dragging = false;
+        let holdTimer = null;
         let startX = 0;
         let startY = 0;
 
         function onMove(event) {
           if (pointerId === null || event.pointerId !== pointerId) return;
           if (!dragging) {
-            if (Math.hypot(event.clientX - startX, event.clientY - startY) < HERO_DRAG_THRESHOLD) return;
-            dragging = true;
-            column.classList.add("is-dragging");
-            container.classList.add("is-dragging");
+            if (Math.hypot(event.clientX - startX, event.clientY - startY) >= HERO_DRAG_THRESHOLD) finish(event, false);
+            return;
           }
           if (event.cancelable) event.preventDefault();
           const others = columnsInOrder().filter(other => other !== column);
@@ -1917,6 +1911,7 @@
         }
 
         function onKeyDown(event) {
+          if (event.target !== handle) return;
           const step = (event.key === "ArrowLeft" || event.key === "ArrowUp") ? -1
             : (event.key === "ArrowRight" || event.key === "ArrowDown") ? 1 : 0;
           if (!step) return;
@@ -1939,6 +1934,8 @@
           if (pointerId === null || (event && event.pointerId !== pointerId)) return;
           const id = pointerId;
           pointerId = null;
+          window.clearTimeout(holdTimer);
+          holdTimer = null;
           window.removeEventListener("pointermove", onMove);
           window.removeEventListener("pointerup", onUp);
           window.removeEventListener("pointercancel", onCancel);
@@ -1962,6 +1959,7 @@
 
         handle.addEventListener("pointerdown", (event) => {
           if (pointerId !== null) return;
+          if (event.target.closest("button, input, select, textarea, a")) return;
           if (event.pointerType === "mouse" && event.button !== 0) return; // 只认左键
           pointerId = event.pointerId;
           dragging = false;
@@ -1970,7 +1968,13 @@
           window.addEventListener("pointermove", onMove);
           window.addEventListener("pointerup", onUp);
           window.addEventListener("pointercancel", onCancel);
-          try { handle.setPointerCapture(event.pointerId); } catch {}
+          holdTimer = window.setTimeout(() => {
+            if (pointerId === null) return;
+            dragging = true;
+            column.classList.add("is-dragging");
+            container.classList.add("is-dragging");
+            try { handle.setPointerCapture(pointerId); } catch {}
+          }, 350);
         });
         handle.addEventListener("keydown", onKeyDown);
       });

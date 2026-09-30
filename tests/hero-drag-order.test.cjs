@@ -33,6 +33,71 @@ FUNCTIONS.forEach(name => {
 });
 const { heroLayoutIsHorizontal, heroDropIndex, moveHeroInOrder, reorderHeroesByIds } = sandbox;
 
+function titleDragHarness() {
+  const listeners = new Map();
+  const windowListeners = new Map();
+  const classes = new Set();
+  let timer = null;
+  const handle = {
+    addEventListener: (name, callback) => listeners.set(name, callback),
+    setPointerCapture() {},
+    hasPointerCapture: () => false,
+  };
+  const column = {
+    querySelector: () => handle,
+    classList: { add: value => classes.add(value), remove: value => classes.delete(value) },
+    dataset: { heroId: 'a' },
+  };
+  const container = {
+    querySelectorAll: () => [column],
+    classList: { add() {}, remove() {} },
+  };
+  const context = vm.createContext({
+    document: { getElementById: () => container },
+    window: {
+      addEventListener: (name, callback) => windowListeners.set(name, callback),
+      removeEventListener: name => windowListeners.delete(name),
+      setTimeout: callback => { timer = callback; return 1; },
+      clearTimeout: () => { timer = null; },
+    },
+    state: { heroes: [{ id: 'a' }] },
+    HERO_DRAG_THRESHOLD: 4,
+  });
+  vm.runInContext(extractFunction('setupHeroDragAndDrop'), context);
+  context.setupHeroDragAndDrop();
+  const down = (onButton = false) => listeners.get('pointerdown')({
+    pointerId: 1, pointerType: 'mouse', button: 0, clientX: 0, clientY: 0,
+    target: { closest: () => onButton ? {} : null },
+  });
+  return { down, classes, windowListeners, fireTimer: () => timer?.(), hasTimer: () => !!timer };
+}
+
+test('标题短按和提前移动不会开始拖动，长按才激活', () => {
+  const short = titleDragHarness();
+  short.down();
+  assert.equal(short.classes.has('is-dragging'), false);
+  short.windowListeners.get('pointerup')({ pointerId: 1 });
+  assert.equal(short.hasTimer(), false);
+  const moved = titleDragHarness();
+  moved.down();
+  moved.windowListeners.get('pointermove')({ pointerId: 1, clientX: 10, clientY: 0 });
+  assert.equal(moved.hasTimer(), false);
+  assert.equal(moved.classes.has('is-dragging'), false);
+  const held = titleDragHarness();
+  held.down();
+  held.fireTimer();
+  assert.equal(held.classes.has('is-dragging'), true);
+  held.windowListeners.get('pointerup')({ pointerId: 1 });
+  assert.equal(held.classes.has('is-dragging'), false);
+});
+
+test('重置等标题行按钮不会启动长按拖动', () => {
+  const harness = titleDragHarness();
+  harness.down(true);
+  assert.equal(harness.hasTimer(), false);
+  assert.equal(harness.windowListeners.size, 0);
+});
+
 // 合成布局：columns 列一排，列宽 width、列高 height、间距 gap。
 function layout(ids, { columns, width = 320, height = 700, gap = 14 }) {
   return ids.map((id, index) => {
