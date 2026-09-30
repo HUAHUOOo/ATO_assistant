@@ -1619,6 +1619,34 @@
       display: grid;
     }
 
+    /* 有两张完整面板的使徒（目前是乌尔-弗里斯）：普通状态下也能直接换大卡。 */
+    .panel-card-switch {
+      position: absolute;
+      right: 8px;
+      bottom: 8px;
+      z-index: 4;
+      display: none;
+      padding: 7px 10px;
+      border: 2px solid rgba(199, 173, 114, 0.72);
+      border-radius: 8px;
+      background: rgba(24, 24, 22, 0.92);
+      color: var(--gold);
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .panel-card-switch.show {
+      display: block;
+    }
+
+    .panel-card-switch:hover {
+      border-color: var(--gold);
+      background: #261a18;
+    }
+
     .panel-token-item.critical-mass-token {
       width: clamp(44px, 7.6%, 76px);
       cursor: pointer;
@@ -2419,6 +2447,9 @@
       <div class="image-zoom-actions" id="imageZoomFlipActions" aria-label="翻面">
         <button type="button" id="imageZoomFlipButton">反面</button>
       </div>
+      <div class="image-zoom-actions" id="imageZoomPanelActions" aria-label="大卡切换">
+        <button type="button" id="imageZoomPanelSwitch">原图</button>
+      </div>
       <div class="image-zoom-actions" id="imageZoomMoveActions" aria-label="移动卡牌"></div>
       <div class="image-zoom-actions" id="imageZoomTokenActions" aria-label="Token 数量">
         <div class="image-zoom-action-title" id="imageZoomTokenTitle">Token</div>
@@ -2667,6 +2698,46 @@
     let campaignMapFactionRefreshInFlight = false;
     const chimeraName = "CHIMERA_METASTASIOS";
     const criticalMassApostles = new Set([chimeraName, "CYCLONUS", "HEKATON", "HYPERTIME_ORACLE"]);
+    // 少数使徒印了两张完整面板（大卡）：乌尔-弗里斯原来只有 UR_FLEECE.jpg，后来又补了
+    // UR_FLEECE_2.jpg。数组第 1 项是控制台与第二屏默认显示的；点开面板时先给「原来的
+    // 大卡」（第 2 项），放大图里的按钮可以在两张之间来回切。
+    const apostlePanelCards = {
+      UR_FLEECE: [
+        { file: "UR_FLEECE_2.jpg", label: "大卡 2", alt: "UR_FLEECE 大卡 2" },
+        { file: "UR_FLEECE.jpg", label: "原大卡", alt: "UR_FLEECE 原大卡" }
+      ]
+    };
+
+    function apostlePanelCardList(name = currentApostle) {
+      return apostlePanelCards[name] || [];
+    }
+
+    // 没有候补大卡时沿用原来的 <敌人>.jpg。
+    function apostlePanelFile(name, index = 0) {
+      const cards = apostlePanelCardList(name);
+      if (!cards.length) return `${name}.jpg`;
+      return (cards[index] || cards[0]).file;
+    }
+
+    function apostlePanelSrc(name = currentApostle, index = 0) {
+      return `ps/${name}/${apostlePanelFile(name, index)}`;
+    }
+
+    // 「普通状态」显示哪张大卡：存在牌堆档案里，刷新后保持；放大图和它共用同一个选择。
+    function apostlePanelIndex(name = currentApostle) {
+      const cards = apostlePanelCardList(name);
+      if (cards.length < 2) return 0;
+      const stored = Number(piles?.[name]?.panelCardIndex);
+      return Number.isInteger(stored) && stored >= 0 && stored < cards.length ? stored : 0;
+    }
+
+    function setApostlePanelIndex(name, index) {
+      const cards = apostlePanelCardList(name);
+      if (cards.length < 2) return;
+      ensurePiles(name);
+      piles[name].panelCardIndex = ((index % cards.length) + cards.length) % cards.length;
+      savePiles();
+    }
     const criticalMassTokenFile = "CM.jpg";
     const criticalMassPosition = { x: 50.7, y: 51.2 };
     const hekatonCriticalMassPosition = { x: 51.1, y: 34 };
@@ -2838,6 +2909,8 @@
     const imageZoomBpActions = document.getElementById("imageZoomBpActions");
     const imageZoomFlipActions = document.getElementById("imageZoomFlipActions");
     const imageZoomFlipButton = document.getElementById("imageZoomFlipButton");
+    const imageZoomPanelActions = document.getElementById("imageZoomPanelActions");
+    const imageZoomPanelSwitch = document.getElementById("imageZoomPanelSwitch");
     const imageZoomMoveActions = document.getElementById("imageZoomMoveActions");
     const imageZoomTokenActions = document.getElementById("imageZoomTokenActions");
     const imageZoomTokenTitle = document.getElementById("imageZoomTokenTitle");
@@ -3052,7 +3125,7 @@
         panelSrc: currentApostle === "HELIOS"
           ? window.HeliosConfig.panelFor(heliosMode(), currentApostleLevel())
           : currentApostle === "BLACKBEAK" ? window.BlackbeakCardList.panel
-          : `ps/${currentApostle}/${currentApostle}.jpg`,
+          : apostlePanelSrc(currentApostle, apostlePanelIndex(currentApostle)),
         routineSrc: currentApostle === "HELIOS"
           ? window.HeliosConfig.common.routine
           : currentApostle === "BLACKBEAK" ? window.BlackbeakCardList.routine.src
@@ -3569,10 +3642,14 @@
           piles[name].traits = [];
         }
         piles[name].traits = piles[name].traits.map((card) => {
-          if (name === "HYPERTIME_ORACLE" && card?.type === "TR" && !card.scope && card.level === "O" && card.index === 1) {
-            return { ...card, level: "IV" };
+          // 超时光先知那张全幅特性卡实际印的是 V 级：老存档里的 O/1、IV/1 一并迁到 V/1。
+          if (name === "HYPERTIME_ORACLE" && card?.type === "TR" && !card.scope && card.index === 1
+            && (card.level === "O" || card.level === "IV")) {
+            return { ...card, level: "V" };
           }
-          if (card?.type === "TR" && !card.scope && card.level === "V" && card.index === 1) {
+          // 通用特性以前存成 V/1；超时光先知自己也有 V/1 的特性卡，这里不能把它一起吞掉。
+          if (name !== "HYPERTIME_ORACLE"
+            && card?.type === "TR" && !card.scope && card.level === "V" && card.index === 1) {
             return { ...card, level: "COMMON", scope: "common" };
           }
           return card;
@@ -5892,7 +5969,7 @@
 
     function isLargeTraitCard(apostle, card) {
       return (card.level === "O" && !isDahakaFearfulHospitality(apostle, card))
-        || (apostle === "HYPERTIME_ORACLE" && card.level === "IV")
+        || (apostle === "HYPERTIME_ORACLE" && card.level === "V")
         || (apostle === "ICARIAN_HARPY" && card.level === "X" && card.index === 2);
     }
 
@@ -6619,6 +6696,52 @@
       }
     }
 
+    // 面板大卡的放大图状态：cards 是这个使徒的全部大卡，index 是放大图里正在看的那张。
+    let panelZoomState = null;
+
+    function panelZoomCardsFor(name = currentApostle) {
+      const cards = apostlePanelCardList(name);
+      if (cards.length < 2) return [];
+      return cards.map((card, index) => ({
+        src: apostlePanelSrc(name, index),
+        label: card.label,
+        alt: card.alt || `${name} ${card.label}`
+      }));
+    }
+
+    function updatePanelZoomSwitch() {
+      imageZoomPanelActions.classList.toggle("show", Boolean(panelZoomState));
+      if (!panelZoomState) {
+        imageZoomPanelSwitch.textContent = "原图";
+        return;
+      }
+      const { cards, index } = panelZoomState;
+      imageZoomPanelSwitch.textContent = `切换为${cards[(index + 1) % cards.length].label}`;
+    }
+
+    function showPanelZoomCard(index) {
+      if (!panelZoomState) return;
+      const cards = panelZoomState.cards;
+      const next = ((index % cards.length) + cards.length) % cards.length;
+      panelZoomState = { cards, index: next };
+      imageZoomImg.src = window.HeliosAssets.resolve(cards[next].src);
+      imageZoomImg.alt = cards[next].alt;
+      updatePanelZoomSwitch();
+      // 放大图里的切换同时落到普通状态的面板上，关掉放大图看到的还是这一张。
+      setApostlePanelIndex(currentApostle, next);
+      applyPanelCardIndex();
+    }
+
+    // 点开使徒面板时先看「原来的大卡」（第 2 张），和面板上默认显示的那张对照着看。
+    function openPanelZoom() {
+      const cards = panelZoomCardsFor();
+      if (cards.length < 2) return false;
+      openImageZoom(cards[1].src, cards[1].alt, null, { panelSwitch: true });
+      panelZoomState = { cards, index: 1 };
+      updatePanelZoomSwitch();
+      return true;
+    }
+
     function setImageZoomFlipActions(context = null) {
       imageZoomFlipActions.classList.toggle("show", Boolean(context));
       imageZoomFlipButton.disabled = !context;
@@ -6696,6 +6819,11 @@
 
     function openImageZoom(src, alt = "放大图片", onClose = null, options = {}) {
       if (!src) return;
+      // 除面板切换本身以外，任何一次放大都不该留着上一张面板的切换状态。
+      if (options.panelSwitch !== true) {
+        panelZoomState = null;
+        updatePanelZoomSwitch();
+      }
       zoomCloseAction = typeof onClose === "function" ? onClose : null;
       imageZoomImg.parentElement.classList.toggle("rotated-card", options.rotation === -90);
       imageZoomImg.src = window.HeliosAssets.resolve(src);
@@ -6763,6 +6891,8 @@
       setImageZoomFlipActions(null);
       setImageZoomMoveActions(null);
       setImageZoomTokenActions(null);
+      panelZoomState = null;
+      updatePanelZoomSwitch();
       document.body.style.overflow = "";
       if (closeAction) {
         closeAction();
@@ -6779,6 +6909,8 @@
 
     function openZoomForImage(img) {
       if (!shouldZoomImage(img)) return;
+      // 面板上有两张完整大卡时走面板切换；面板上的 Token 图不算面板本身。
+      if (img.classList.contains("panel-image") && img.closest("#panelWrap") && openPanelZoom()) return;
       const isBpImage = Boolean(img.closest("#bpGrid, #bpDrawPreview"));
       const cardTokenType = zoomCardTokenTypeFromImage(img);
       openImageZoom(img.currentSrc || img.src, img.alt, null, {
@@ -6980,6 +7112,39 @@
       });
     }
 
+    // 「普通状态」的面板大卡切换：按钮叠在面板角上，点一下就换图，第二屏跟着变。
+    // 放大图里的切换走同一份选择，所以两边永远看的是同一张。
+    function updatePanelCardSwitchButton() {
+      const button = panelWrap.querySelector(".panel-card-switch");
+      if (!button) return;
+      const cards = apostlePanelCardList(currentApostle);
+      const show = cards.length > 1;
+      button.classList.toggle("show", show);
+      if (!show) return;
+      const current = apostlePanelIndex(currentApostle);
+      const next = cards[(current + 1) % cards.length];
+      button.textContent = `切到${next.label.replace(/\s+/g, "")}`;
+      button.title = `当前：${cards[current].label}；点击切换到${next.label}`;
+    }
+
+    function applyPanelCardIndex() {
+      const img = panelWrap.querySelector("img.panel-image");
+      if (img) {
+        img.src = window.HeliosAssets.resolve(apostlePanelSrc(currentApostle, apostlePanelIndex(currentApostle)));
+      } else {
+        renderPanelImage(`ps/${currentApostle}`, currentApostle);
+        return;
+      }
+      updatePanelCardSwitchButton();
+      scheduleSecondScreenSnapshot();
+    }
+
+    function switchPanelCard() {
+      if (apostlePanelCardList(currentApostle).length < 2) return;
+      setApostlePanelIndex(currentApostle, apostlePanelIndex(currentApostle) + 1);
+      applyPanelCardIndex();
+    }
+
     function renderPanelImage(base, name) {
       let panelSrc;
       if (name === "HELIOS") {
@@ -6987,7 +7152,7 @@
       } else if (name === "BLACKBEAK") {
         panelSrc = window.BlackbeakCardList.panel;
       } else {
-        panelSrc = `${base}/${name}.jpg`;
+        panelSrc = apostlePanelSrc(name, apostlePanelIndex(name));
       }
       const img = imageOrMessage(panelSrc, `${name} panel`, "panel-image");
       const frame = document.createElement("div");
@@ -7030,6 +7195,18 @@
         panelWrap.replaceChildren(frame);
         updateNietzscheStateUi();
       }
+
+      if (apostlePanelCardList(name).length > 1) {
+        const cardSwitch = document.createElement("button");
+        cardSwitch.type = "button";
+        cardSwitch.className = "panel-card-switch";
+        cardSwitch.addEventListener("click", (event) => {
+          event.stopPropagation();
+          switchPanelCard();
+        });
+        frame.appendChild(cardSwitch);
+      }
+      updatePanelCardSwitchButton();
 
       renderPanelTokens();
       renderNietzscheBreakLocks();
@@ -7573,6 +7750,11 @@
         sourceImg.dataset.face = nextFace;
         sourceImg.alt = sourceImg.alt.replace(/\s+(front|back)$/, "") + ` ${nextFace}`;
       }
+    });
+    imageZoomPanelActions.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (!panelZoomState) return;
+      showPanelZoomCard(panelZoomState.index + 1);
     });
     imageZoomBpActions.addEventListener("click", (event) => {
       event.stopPropagation();
