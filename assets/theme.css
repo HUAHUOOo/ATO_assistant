@@ -1,0 +1,17 @@
+.theme-controls { display: grid; gap: 12px; }
+.theme-controls label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; }
+.theme-controls select { width: 100%; min-height: 40px; padding: 0 10px; border: 1px solid var(--line); }
+.theme-custom-controls { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 12px; align-items: end; }
+.theme-custom-controls[hidden] { display: none; }
+.theme-controls input[type="color"] { width: 44px; height: 40px; padding: 3px; cursor: pointer; }
+.theme-rgb { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.theme-rgb input { width: 100%; min-width: 0; }
+.theme-note { color: var(--muted); font-size: 12px; line-height: 1.6; }
+body[data-theme-module="technology"] :is(.topbar, .tab, .tool-btn, .tool-check, .search, .cycle-select, .account-select, .tree-wrap) { background: var(--panel); }
+body[data-theme-module="technology"] :is(.tab.active, .tool-btn.active, .tool-btn.return-main) { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
+body[data-theme-module="technology"] .tool-btn.return-main:hover { background: var(--accent); }
+body[data-theme-dark] { background: var(--bg); }
+body[data-theme-dark] .story-view { background: var(--bg); }
+body[data-theme-dark] .story-card { background: var(--panel); border-color: var(--line); }
+body[data-theme-dark] .story-card-head { border-color: var(--line); }
+body[data-theme-dark] :is(.story-book-title, .story-section, .story-entry-id) { color: var(--accent); }
