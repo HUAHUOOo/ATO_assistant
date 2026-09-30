@@ -2275,6 +2275,7 @@
   <link rel="stylesheet" href="c45_specials.css?v=20260926-titan-group-layout1">
   <link rel="stylesheet" href="battle_map_control.css?v=20260819-c5-light1">
   <link rel="stylesheet" href="../cycle-theme.css">
+  <script src="../assets/theme.js?v=20261001" defer></script>
   <link rel="stylesheet" href="editorial.css?v=20261001">
 </head>
 <body>
@@ -2314,7 +2315,7 @@
         </div>
         <div class="title-actions">
           <label class="deck-order-toggle" title="切换 AI/BP 卡背信息的详细程度">
-            <input type="checkbox" id="viewDeckOrderToggle" checked>
+            <input type="checkbox" id="viewDeckOrderToggle">
             查看牌背顺序
           </label>
           <label class="second-screen-mode-toggle" title="勾选后第二屏显示决战版图，取消勾选后显示地图">
@@ -3191,7 +3192,7 @@
     let traitLoadToken = 0;
 
     if (viewDeckOrderToggle) {
-      viewDeckOrderToggle.checked = localStorage.getItem(deckOrderViewStorageKey) !== "0";
+      viewDeckOrderToggle.checked = localStorage.getItem(deckOrderViewStorageKey) === "1";
     }
 
     function migrateLegacyHealedPiles(state) {

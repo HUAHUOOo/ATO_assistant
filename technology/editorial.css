@@ -5,6 +5,9 @@ body { --accent-2: var(--accent-strong); --surface: var(--bg); background: var(-
 .page-heading .cycle-symbol { width: 40px; height: 44px; object-fit: contain; }
 .page-heading .campaign-save-status { display: inline-block; text-align: left; }
 .topbar { height: auto; min-height: 56px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin: 0 40px; padding: 12px 0 16px; border-top: 1px solid var(--line); background: var(--bg); position: static; }
+body[data-theme-module="technology"] .topbar { background: var(--bg); }
+body[data-theme-module="technology"] :is(.tab, .tool-check, .tree-wrap) { background: transparent; }
+body[data-theme-module="technology"] .tab.active { background: transparent; color: var(--accent-strong); border-color: var(--accent); }
 .tabs { display: flex; flex-wrap: wrap; gap: 8px 24px; }
 .tab { border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 8px 0; background: transparent; color: var(--muted); font-size: 15px; }
 .tab.active { background: transparent; color: var(--accent-strong); border-color: var(--accent); }

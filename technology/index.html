@@ -1131,9 +1131,11 @@ button.gear-group-name:hover {
 }
 </style>
 <link rel="stylesheet" href="../cycle-theme.css">
+<link rel="stylesheet" href="../assets/theme.css?v=20261001">
 <link rel="stylesheet" href="editorial.css?v=20261001">
+<script src="../assets/theme.js?v=20261001" defer></script>
 </head>
-<body>
+<body data-theme-module="technology">
 <div class="app">
   <main class="main">
     <header class="page-heading">
@@ -3954,6 +3956,7 @@ function renderCard(card, node) {
   </section>`;
 }
 function renderTabs() {
+  updateTechnologyTheme();
   const tabItems = [
     ...data.pages.map(page => ({ key: page.key, label: page.label })),
     { key: 'unlocked', label: '已解锁科技' },

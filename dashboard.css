@@ -1,5 +1,48 @@
 @import url("./cycle-theme.css");
 
+/* Story and doom dialogs live outside .app and need the same control styles. */
+.card-track-dialog,
+.card-track-item,
+.card-track-face,
+.card-track-empty,
+.card-track-knowledge,
+.card-track-progress-badge,
+.card-track-side-badge,
+.card-track-preview-badge,
+.card-track-dialog :is(button, input, select, textarea) { border-radius: 0; }
+.card-track-dialog, .card-track-face { box-shadow: none; }
+.card-track-dialog, .card-track-item { background: var(--panel); }
+.card-track-item { border-color: var(--line); }
+.card-track-head h2 {
+  font-family: "Songti SC", "Noto Serif CJK SC", SimSun, Georgia, serif;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  color: var(--accent-strong);
+}
+.card-track-title { color: var(--accent-strong); font-weight: 600; }
+.card-track-status, .card-track-counter-label, .card-track-knowledge-label,
+.card-track-meta, .card-track-dialog button { font-weight: 600; }
+.card-track-face, .card-track-empty { border-color: var(--line); background: var(--bg); }
+.card-track-knowledge { border-color: var(--line); background: var(--accent-soft); }
+.card-track-knowledge-value { font-family: Georgia, "Times New Roman", serif; font-weight: 400; }
+.card-track-side-badge { border-color: var(--line); background: var(--panel); color: var(--accent-strong); font-weight: 600; }
+.card-track-progress-badge, .card-track-preview-badge { border-color: var(--accent-strong); background: var(--accent-strong); color: #fff; font-weight: 600; }
+.card-track-dialog :is(input, select, textarea) { border-color: var(--line); background: var(--panel); color: var(--ink); font-weight: 500; }
+.card-track-close, .card-track-progress button, .card-track-counter button, .card-track-retreat {
+  border-color: var(--line);
+  background: var(--panel);
+  color: var(--accent-strong);
+}
+.card-track-close:hover, .card-track-progress button:hover, .card-track-counter button:hover, .card-track-retreat:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+.card-track-advance { border-color: var(--accent-strong); background: var(--accent-strong); color: #fff; }
+.card-track-advance:hover { border-color: var(--accent); background: var(--accent); }
+.card-track-dialog :is(button, input, select, textarea):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
 body {
   background: var(--bg);
   line-height: 1.6;
