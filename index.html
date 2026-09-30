@@ -2243,31 +2243,6 @@
       </section>
 
       <div class="stack">
-        <section class="panel theme-panel" aria-label="主题设置">
-          <div class="panel-head"><h2>主题</h2></div>
-          <div class="panel-body theme-controls">
-            <label for="themeModeSelect">界面配色
-              <select id="themeModeSelect" data-dashboard-readonly-allowed>
-                <option value="auto">自动（跟随当前循环）</option>
-                <option value="c1">固定循环 I</option>
-                <option value="c2">固定循环 II</option>
-                <option value="c3">固定循环 III</option>
-                <option value="c4">固定循环 IV</option>
-                <option value="c5">固定循环 V</option>
-                <option value="custom">自定义 RGB</option>
-              </select>
-            </label>
-            <div id="themeCustomControls" class="theme-custom-controls" hidden>
-              <label for="themeColorInput">颜色<input id="themeColorInput" type="color" value="#7f4b26" data-dashboard-readonly-allowed></label>
-              <div class="theme-rgb">
-                <label>R<input type="number" data-theme-rgb min="0" max="255" step="1" value="127" aria-label="R 红色" data-dashboard-readonly-allowed></label>
-                <label>G<input type="number" data-theme-rgb min="0" max="255" step="1" value="75" aria-label="G 绿色" data-dashboard-readonly-allowed></label>
-                <label>B<input type="number" data-theme-rgb min="0" max="255" step="1" value="38" aria-label="B 蓝色" data-dashboard-readonly-allowed></label>
-              </div>
-            </div>
-            <p class="theme-note">同步当前浏览器中的所有模块。自定义颜色会自动生成背景、边框和按钮配色。</p>
-          </div>
-        </section>
         <section class="panel date-track-panel">
           <div class="panel-head">
             <div>
@@ -2349,6 +2324,32 @@
           </div>
           <div class="panel-body">
             <div id="bgmControls" class="bgm-controls" data-term-ignore></div>
+          </div>
+        </section>
+
+        <section class="panel theme-panel" aria-label="主题设置">
+          <div class="panel-head"><h2>主题</h2></div>
+          <div class="panel-body theme-controls">
+            <label for="themeModeSelect">界面配色
+              <select id="themeModeSelect" data-dashboard-readonly-allowed>
+                <option value="auto">自动（跟随当前循环）</option>
+                <option value="c1">固定循环 I</option>
+                <option value="c2">固定循环 II</option>
+                <option value="c3">固定循环 III</option>
+                <option value="c4">固定循环 IV</option>
+                <option value="c5">固定循环 V</option>
+                <option value="custom">自定义 RGB</option>
+              </select>
+            </label>
+            <div id="themeCustomControls" class="theme-custom-controls" hidden>
+              <label for="themeColorInput">颜色<input id="themeColorInput" type="color" value="#7f4b26" data-dashboard-readonly-allowed></label>
+              <div class="theme-rgb">
+                <label>R<input type="number" data-theme-rgb min="0" max="255" step="1" value="127" aria-label="R 红色" data-dashboard-readonly-allowed></label>
+                <label>G<input type="number" data-theme-rgb min="0" max="255" step="1" value="75" aria-label="G 绿色" data-dashboard-readonly-allowed></label>
+                <label>B<input type="number" data-theme-rgb min="0" max="255" step="1" value="38" aria-label="B 蓝色" data-dashboard-readonly-allowed></label>
+              </div>
+            </div>
+            <p class="theme-note">同步当前浏览器中的所有模块。自定义颜色会自动生成背景、边框和按钮配色。</p>
           </div>
         </section>
 
