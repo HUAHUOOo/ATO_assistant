@@ -1888,14 +1888,31 @@
         let pointerId = null;
         let dragging = false;
         let holdTimer = null;
+        let pointerType = "";
         let startX = 0;
         let startY = 0;
+
+        function beginDrag() {
+          if (pointerId === null || dragging) return;
+          window.clearTimeout(holdTimer);
+          holdTimer = null;
+          dragging = true;
+          column.classList.add("is-dragging");
+          container.classList.add("is-dragging");
+          try { handle.setPointerCapture(pointerId); } catch {}
+        }
 
         function onMove(event) {
           if (pointerId === null || event.pointerId !== pointerId) return;
           if (!dragging) {
-            if (Math.hypot(event.clientX - startX, event.clientY - startY) >= HERO_DRAG_THRESHOLD) finish(event, false);
-            return;
+            const distance = Math.hypot(event.clientX - startX, event.clientY - startY);
+            if (pointerType === "mouse") {
+              if (distance < HERO_DRAG_THRESHOLD) return;
+              beginDrag();
+            } else {
+              if (distance >= 12) finish(event, false);
+              return;
+            }
           }
           if (event.cancelable) event.preventDefault();
           const others = columnsInOrder().filter(other => other !== column);
@@ -1962,19 +1979,14 @@
           if (event.target.closest("button, input, select, textarea, a")) return;
           if (event.pointerType === "mouse" && event.button !== 0) return; // 只认左键
           pointerId = event.pointerId;
+          pointerType = event.pointerType;
           dragging = false;
           startX = event.clientX;
           startY = event.clientY;
           window.addEventListener("pointermove", onMove);
           window.addEventListener("pointerup", onUp);
           window.addEventListener("pointercancel", onCancel);
-          holdTimer = window.setTimeout(() => {
-            if (pointerId === null) return;
-            dragging = true;
-            column.classList.add("is-dragging");
-            container.classList.add("is-dragging");
-            try { handle.setPointerCapture(pointerId); } catch {}
-          }, 350);
+          holdTimer = window.setTimeout(beginDrag, 350);
         });
         handle.addEventListener("keydown", onKeyDown);
       });

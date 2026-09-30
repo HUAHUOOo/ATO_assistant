@@ -65,8 +65,8 @@ function titleDragHarness() {
   });
   vm.runInContext(extractFunction('setupHeroDragAndDrop'), context);
   context.setupHeroDragAndDrop();
-  const down = (onButton = false) => listeners.get('pointerdown')({
-    pointerId: 1, pointerType: 'mouse', button: 0, clientX: 0, clientY: 0,
+  const down = (onButton = false, pointerType = 'touch') => listeners.get('pointerdown')({
+    pointerId: 1, pointerType, button: 0, clientX: 0, clientY: 0,
     target: { closest: () => onButton ? {} : null },
   });
   return { down, classes, windowListeners, fireTimer: () => timer?.(), hasTimer: () => !!timer };
@@ -80,7 +80,7 @@ test('标题短按和提前移动不会开始拖动，长按才激活', () => {
   assert.equal(short.hasTimer(), false);
   const moved = titleDragHarness();
   moved.down();
-  moved.windowListeners.get('pointermove')({ pointerId: 1, clientX: 10, clientY: 0 });
+  moved.windowListeners.get('pointermove')({ pointerId: 1, clientX: 20, clientY: 0 });
   assert.equal(moved.hasTimer(), false);
   assert.equal(moved.classes.has('is-dragging'), false);
   const held = titleDragHarness();
@@ -96,6 +96,16 @@ test('重置等标题行按钮不会启动长按拖动', () => {
   harness.down(true);
   assert.equal(harness.hasTimer(), false);
   assert.equal(harness.windowListeners.size, 0);
+});
+
+test('鼠标按下标题立即移动也能拖动，无需等待长按计时器', () => {
+  const harness = titleDragHarness();
+  harness.down(false, 'mouse');
+  harness.windowListeners.get('pointermove')({ pointerId: 1, clientX: 10, clientY: 0 });
+  assert.equal(harness.classes.has('is-dragging'), true);
+  assert.equal(harness.hasTimer(), false);
+  harness.windowListeners.get('pointerup')({ pointerId: 1 });
+  assert.equal(harness.classes.has('is-dragging'), false);
 });
 
 // 合成布局：columns 列一排，列宽 width、列高 height、间距 gap。
