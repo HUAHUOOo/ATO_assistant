@@ -2240,12 +2240,14 @@
   </style>
   <link rel="stylesheet" href="c45_specials.css?v=20260926-titan-group-layout1">
   <link rel="stylesheet" href="battle_map_control.css?v=20260819-c5-light1">
+  <link rel="stylesheet" href="../cycle-theme.css">
+  <link rel="stylesheet" href="editorial.css?v=20261001">
 </head>
 <body>
   <button type="button" class="sidebar-toggle" id="sidebarToggle" aria-label="折叠左侧边栏" title="展开/折叠左侧边栏">×</button>
   <div class="app">
     <aside>
-      <h1>使徒</h1>
+      <h1 id="aibpTitle">使徒</h1>
       <div class="sidebar-boss-search">
         <label for="bossSearchInput">搜索 BOSS</label>
         <form class="boss-search-form" id="bossSearchForm">
@@ -2623,6 +2625,8 @@
   </div>
 
   <script src="../assets/campaign-session.js?v=20260917"></script>
+  <script src="../assets/cycle-symbols.js?v=20260918"></script>
+  <script src="cycle-theme.js?v=20261001"></script>
   <script src="../assets/page-focus-router.js?v=20260813-no-screen-focus1"></script>
   <script src="../map/map-tile-tags.js"></script>
   <script src="ps/CHIMERA_METASTASIOS/bp_status_map.js"></script>
@@ -4107,6 +4111,7 @@
     function applyCampaignMapFactionState(campaign, user) {
       heliosAccountId = String(user?.id || "");
       const dashboardCycle = activeDashboardCycleFromCampaign(campaign);
+      window.AIBP_CYCLE_THEME?.setCycle(dashboardCycle?.cycleId);
       syncHeliosAccess(campaign, dashboardCycle);
       const mapState = dashboardMapFactions(dashboardCycle);
       campaignMapFactionState = {
