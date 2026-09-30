@@ -52,7 +52,7 @@ button { font-weight: 600; }
 .result-item:hover, .memory-jump:hover, .battle-shortcut:hover { background: var(--accent-soft); }
 .memory-remove { background: var(--panel); border: 1px solid var(--line); color: var(--accent-strong); }
 .memory-item { padding: 6px 0; align-items: center; }
-.reader { margin: 24px; padding: 28px clamp(20px, 3vw, 48px); border: 1px solid var(--line); background: var(--panel); }
+.reader { margin: 24px; padding: 28px clamp(20px, 3vw, 48px); border: 0; background: transparent; }
 .reader-head { gap: 16px; }
 .reader-actions { flex-wrap: wrap; align-items: center; overflow: visible; }
 .reader-actions > :is(button, select) { min-height: 34px; }
