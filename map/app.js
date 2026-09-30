@@ -137,6 +137,7 @@ const elements = {
   currentTileSelect: document.querySelector("#currentTileSelect"),
   campaignSaveStatus: document.querySelector("#campaignSaveStatus"),
   searchInput: document.querySelector("#searchInput"),
+  searchTileButton: document.querySelector("#searchTileButton"),
   mapZoomInput: document.querySelector("#mapZoomInput"),
   mapZoomValue: document.querySelector("#mapZoomValue"),
   showBackToggle: document.querySelector("#showBackToggle"),
@@ -160,10 +161,10 @@ const elements = {
   titanXTrackSpaces: document.querySelector("#titanXTrackSpaces"),
   titanXRetreatButton: document.querySelector("#titanXRetreatButton"),
   titanXTrackStatus: document.querySelector("#titanXTrackStatus"),
-  revealTileInput: document.querySelector("#revealTileInput"),
   revealTileButton: document.querySelector("#revealTileButton"),
   undoButton: document.querySelector("#undoButton"),
   saveReturnButton: document.querySelector("#saveReturnButton"),
+  headerSaveReturnButton: document.querySelector("#headerSaveReturnButton"),
   openTagEditorButton: document.querySelector("#openTagEditorButton"),
   tileGridViewport: document.querySelector(".tile-grid-viewport"),
   tileGrid: document.querySelector("#tileGrid"),
@@ -1167,6 +1168,7 @@ function renderCycleTabs() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = cycle.id === state.activeCycleId ? "active" : "";
+    button.setAttribute("aria-pressed", String(cycle.id === state.activeCycleId));
     button.textContent = cycle.label;
     button.addEventListener("click", () => {
       clearPendingAdversarySpawn();
@@ -1506,6 +1508,7 @@ function renderTileEdgeTokens(edgeTokens) {
 }
 
 function render() {
+  document.body.dataset.cycle = state.activeCycleId;
   renderCycleTabs();
   window.ATO_CYCLE_SYMBOLS?.prependTitleIcon(document.querySelector("#mapTitle"), state.activeCycleId, "../");
   renderTokenPalette();
@@ -1763,9 +1766,15 @@ function markCurrentExplored() {
   render();
 }
 
+function searchTilesById() {
+  state.query = elements.searchInput.value;
+  saveState();
+  renderTiles();
+}
+
 function revealTilePreviewById() {
   clearPendingAdversarySpawn();
-  const tileId = String(elements.revealTileInput?.value || "").trim().toUpperCase();
+  const tileId = String(elements.searchInput.value || "").trim().toUpperCase();
   if (!tileId) {
     window.alert("请输入要揭示的板块 ID。");
     return;
@@ -1783,7 +1792,8 @@ function revealTilePreviewById() {
   pushUndo();
   cycleState.previewRevealed ||= {};
   cycleState.previewRevealed[tile.id] = true;
-  if (elements.revealTileInput) elements.revealTileInput.value = "";
+  state.query = "";
+  elements.searchInput.value = "";
   saveState();
   render();
 }
@@ -2237,10 +2247,11 @@ function escapeHtml(value) {
 }
 
 elements.currentTileSelect.addEventListener("change", () => setCurrentTile(elements.currentTileSelect.value));
-elements.searchInput.addEventListener("input", () => {
-  state.query = elements.searchInput.value;
-  saveState();
-  renderTiles();
+elements.searchTileButton.addEventListener("click", searchTilesById);
+elements.searchInput.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  searchTilesById();
 });
 elements.mapZoomInput.addEventListener("input", () => {
   state.mapZoom = normalizeMapZoom(elements.mapZoomInput.value);
@@ -2298,15 +2309,9 @@ elements.titanXRetreatButton.addEventListener("click", () => {
   if (position != null) setTitanXTrackPosition(position + 1);
 });
 if (elements.revealTileButton) elements.revealTileButton.addEventListener("click", revealTilePreviewById);
-if (elements.revealTileInput) {
-  elements.revealTileInput.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    revealTilePreviewById();
-  });
-}
 elements.undoButton.addEventListener("click", undoLastChange);
 elements.saveReturnButton.addEventListener("click", saveAndReturnToDashboard);
+elements.headerSaveReturnButton.addEventListener("click", saveAndReturnToDashboard);
   if (elements.openTagEditorButton) {
     elements.openTagEditorButton.addEventListener("click", async () => {
       saveState();
