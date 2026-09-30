@@ -1,0 +1,78 @@
+/* Shared paper and cycle accents; printed tree coordinates stay in their canvas. */
+body { --accent-2: var(--accent-strong); --surface: var(--bg); background: var(--bg); line-height: 1.6; }
+.page-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 32px 40px 24px; }
+.page-heading h1 { display: flex; align-items: center; gap: 14px; margin: 0 0 8px; font: 600 40px/1.3 "Songti SC", "Noto Serif CJK SC", SimSun, Georgia, serif; letter-spacing: .06em; color: var(--accent-strong); }
+.page-heading .cycle-symbol { width: 40px; height: 44px; object-fit: contain; }
+.page-heading .campaign-save-status { display: inline-block; text-align: left; }
+.topbar { height: auto; min-height: 56px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin: 0 40px; padding: 12px 0 16px; border-top: 1px solid var(--line); background: var(--bg); position: static; }
+.tabs { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+.tab { border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 8px 0; background: transparent; color: var(--muted); font-size: 15px; }
+.tab.active { background: transparent; color: var(--accent-strong); border-color: var(--accent); }
+.tools { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 8px; }
+.tools .search { margin-left: auto; }
+body :is(.tool-btn, .search, .cycle-select, .account-select, .modal-btn, .gear-resource-btn) { border-radius: 0; background: var(--panel); color: var(--ink); border-color: var(--line); }
+.tool-btn.active, .tool-btn.return-main, .modal-btn.primary { background: var(--accent-strong); color: #fff; border-color: var(--accent-strong); }
+.tool-btn.return-main:hover, .modal-btn.primary:hover { background: var(--accent); color: #fff; }
+.page-heading .return-main { min-height: 38px; padding: 8px 16px; }
+.tool-check { border: 0; background: transparent; border-radius: 0; padding: 7px 4px; color: var(--muted); }
+.tool-check input, .gear-filter-option input { accent-color: var(--accent); }
+.badge, .tag, .category-pill, .gear-item-titan-label, .gear-cost-chip { border-radius: 0; }
+.badge { background: var(--accent-soft); color: var(--accent-strong); }
+.viewport { padding: 24px 40px 40px; }
+.tree-wrap { border: 0; box-shadow: none; background: transparent; }
+.unlocked-column { border: 0; border-top: 1px solid var(--line); border-radius: 0; padding: 14px 0 22px; background: transparent; }
+.unlocked-column > summary, .gear-group-name, .gear-resource-title, .card-name, .unlocked-modal-title { font-family: "Songti SC", SimSun, Georgia, serif; color: var(--accent-strong); }
+.unlocked-column > summary { font-size: 20px; padding-bottom: 14px; }
+.unlocked-item, .unlocked-thumb, .unlocked-thumb-img, .unlocked-thumb-rotated, .unlocked-thumb-missing { border-radius: 0; box-shadow: none; }
+.unlocked-thumb-missing, .card-image-missing { background: var(--panel); border-color: var(--line); }
+.unlocked-item:hover { color: var(--accent-strong); }
+.gear-page { height: auto; min-height: 0; width: min(1400px, 100%); }
+.gear-filter-bar { background: transparent; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 0 0 14px; gap: 12px 24px; }
+.gear-content { overflow: visible; }
+.gear-resource-sidebar { position: sticky; top: 20px; max-height: calc(100dvh - 40px); border-radius: 0; background: var(--panel); border-color: var(--line); padding: 18px; }
+.gear-resource-title { font-size: 20px; }
+.gear-resource-list { gap: 0; }
+.gear-resource-row { border-radius: 0; background: transparent; border-bottom: 1px solid var(--line); padding: 10px 0; }
+.gear-resource-value { color: var(--accent-strong); }
+.gear-group { border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; margin-bottom: 20px; }
+.gear-group-header { padding: 16px 0; }
+.gear-group-name, button.gear-group-name { font: 600 20px/1.4 "Songti SC", SimSun, Georgia, serif; color: var(--accent-strong); }
+button.gear-group-name:hover { color: var(--accent); }
+.gear-group-header:hover { background: var(--accent-soft); }
+.gear-items { padding: 0 0 16px; gap: 18px; }
+.gear-item { border: 0; border-bottom: 1px solid var(--line); background: var(--panel); border-radius: 0; padding: 14px; }
+.gear-item:hover { background: var(--panel); border-color: var(--accent); }
+.gear-card-thumb { border-radius: 0; background: var(--bg); border-color: var(--line); }
+.gear-card-thumb img { background: var(--panel); }
+.gear-card-thumb.empty .empty-tag { border-radius: 0; }
+.gear-resource-icon { background: transparent; border: 0; border-radius: 0; }
+.gear-craft-btn { border-radius: 0; background: var(--accent-soft); border-color: var(--line); color: var(--accent-strong); min-height: 34px; }
+.gear-craft-btn:hover:not(:disabled) { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
+.gear-cost-chip { background: var(--bg); }
+.unlocked-modal, .modal-card-img, .modal-card-crop, .modal-card-rotated, .card-preview, .card-preview-img, .card-preview-rotated, .card-image-missing, .preview-frame, .gear-image-modal-content img { border-radius: 0; box-shadow: none; }
+.unlocked-modal { background: var(--panel); border-color: var(--line); overflow: auto; }
+.unlocked-modal-panel, .unlocked-modal-image, .modal-tech-column, .preview-frame { background: var(--panel); border-color: var(--line); }
+.modal-tech-column { border: 0; border-top: 1px solid var(--line); border-radius: 0; }
+.modal-tech-item, .modal-card-list { border-radius: 0; }
+button.modal-tech-item:hover { box-shadow: none; }
+.modal-backdrop { background: rgb(36 33 29 / 45%); }
+:is(button, input, select, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 980px) {
+  .page-heading { padding: 24px 20px 18px; }
+  .topbar { margin: 0 20px; grid-template-columns: minmax(0, 1fr); padding: 10px 0 14px; }
+  .tabs { display: flex; gap: 4px 16px; }
+  .tools { display: flex; }
+  .tools .search { margin: 0; width: 100%; }
+  .viewport { padding: 20px; }
+  .gear-resource-sidebar { position: static; max-height: none; }
+}
+@media (max-width: 600px) {
+  .page-heading { flex-wrap: wrap; gap: 14px; }
+  .page-heading h1 { font-size: 32px; }
+  .page-heading .cycle-symbol { width: 32px; height: 36px; }
+  .page-heading .return-main { margin-left: auto; font-size: 13px; }
+  .tools .cycle-select { flex: 1; }
+  .unlocked-list, .unlocked-list.mixed { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .unlocked-list.big { grid-template-columns: minmax(0, 1fr); }
+  .unlocked-page { --unlocked-card-short-edge: 128px; }
+}
