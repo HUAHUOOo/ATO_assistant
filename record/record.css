@@ -88,6 +88,15 @@ textarea { background: var(--bg); }
 .summon-group { padding-top: 12px; border-top: 1px solid var(--line); }
 .summon-group-head { color: var(--accent-strong); }
 .matrix-head { background: var(--accent-soft); color: var(--accent-strong); }
+.matrix-wrap { border-radius: 0; background: var(--panel); }
+.matrix {
+  width: 100%;
+  min-width: 504px;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+.matrix button { border-radius: 0; background: var(--panel); }
+.matrix button:nth-child(12n) { border-right: 0; }
+.matrix button:nth-last-child(-n + 12) { border-bottom: 0; }
 .matrix button.marked, .matrix button.marked.circled { background: var(--accent-strong); }
 .matrix button.marked.crossed { background: var(--red); }
 .matrix-popup-menu, .matrix-summary-popup { border-radius: 0; }
