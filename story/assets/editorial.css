@@ -16,7 +16,7 @@ body[data-cycle], body {
   --cycle-sidebar-hover-line: var(--accent);
   --shadow: none;
 }
-body { line-height: 1.6; }
+body { line-height: 1.6; grid-template-columns: clamp(270px, 25vw, 420px) minmax(0, 1fr); }
 .sidebar { padding: 32px 20px; border-right: 1px solid var(--line); min-width: 0; }
 .brand { margin-bottom: 20px; gap: 8px; }
 .brand h1, .reader h2, .battle-subheading, .character-title {
@@ -36,6 +36,8 @@ body { line-height: 1.6; }
 .field span { font-size: 12px; font-weight: 600; }
 button, select, input, textarea, .reader button, .sidebar button { border-radius: 0; }
 .tts-select, .tts-config-btn, .tts-btn-close, .tts-status.collapsed .tts-status-actions button, .aibp-hint-close { border-radius: 0; }
+#ttsStatusToggle { background: var(--accent); color: #fff; border: 1px solid var(--accent); box-shadow: none; }
+#ttsStatusToggle:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
 select, input { background: var(--panel); color: var(--ink); border-color: var(--line); min-width: 0; }
 button { font-weight: 600; }
 .quick-row button, .memory-tools button, .tts-btn { background: var(--accent-strong); }
@@ -71,6 +73,7 @@ button { font-weight: 600; }
 
 @media (max-width: 1500px) { .reader-head { display: grid; grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 820px) {
+  body { grid-template-columns: minmax(0, 1fr); }
   .sidebar { padding: 24px 16px; border-right: 0; border-bottom: 1px solid var(--line); }
   .reader { margin: 16px; padding: 20px 16px; }
   .story-text { font-size: 16px; }
