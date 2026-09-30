@@ -1131,6 +1131,20 @@ def fixed_catalog_payload() -> dict[str, Any]:
         ))
     additions.extend((
         CatalogItem(
+            id=make_id("common", "AIBP", "通用 Trait", "CUSTOM_TRAIT_BLANK", "自定义特性卡底"),
+            cycle="common", module="AIBP", subgroup="通用 Trait",
+            name="自定义特性卡底", number="CUSTOM_TRAIT_BLANK", sort_order=50_098,
+            faces={"front": "aibp/ps/other/trait/custom_trait_blank.jpg"},
+            capture_required=0,
+        ),
+        CatalogItem(
+            id=make_id("common", "通用标记", "AIBP 标记", "CUSTOM_TOKEN_CM", "自定义 Token 底图"),
+            cycle="common", module="通用标记", subgroup="AIBP 标记",
+            name="自定义 Token 底图", number="CUSTOM_TOKEN_CM", sort_order=50_099,
+            faces={"front": "aibp/ps/other/custom-token-cm.png"},
+            capture_required=0,
+        ),
+        CatalogItem(
             id=make_id("common", "AIBP", "特殊卡", "SW", "单重损伤"),
             cycle="common", module="AIBP", subgroup="特殊卡",
             name="单重损伤 / Single Wound", number="SW", sort_order=50_100,
@@ -1413,7 +1427,7 @@ def fixed_catalog_payload() -> dict[str, Any]:
     payload["source"]["catalog_version"] = (
         "ATO-Local-0.2.11+complete-import-assets-14-cycle-symbols"
         "+c45-trait-common-tr-002+c2-exploration-13642+remove-unused-c45-conditions"
-        "+hypertime-trait-v+ur-fleece-panel-2-remove-trii-002"
+        "+hypertime-trait-v+ur-fleece-panel-2-remove-trii-002+custom-token-cm+custom-trait-blank"
     )
     return payload
 

@@ -202,9 +202,9 @@ class CoreTests(unittest.TestCase):
         empty = Database(self.root / "empty.sqlite3")
         result = ensure_fixed_catalog(empty)
         payload = fixed_catalog_payload()
-        # 2745 张固定素材（含 5 个循环图标）+ 19 首主控台 BGM
+        # 2747 项固定素材（含自定义 Token 和特性卡底）+ 19 首主控台 BGM
         # （登记为「无需拍摄」，见 test_bgm_resources）。
-        self.assertEqual(2764, result["items"])
+        self.assertEqual(2766, result["items"])
         self.assertEqual(19, result["aibp_enemies"])
         self.assertEqual({"c1", "c1.5", "c2", "c2.5", "c3", "c4", "c5"}, {book["id"] for book in payload["source"]["stories"]})
         self.assertNotIn("apk", payload["source"])
@@ -248,16 +248,18 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(45, len(terrain_cards))
         self.assertTrue(any(item["number"] == "CJ1475" for item in payload["items"]))
         fixed_paths = {path for item in payload["items"] for path in item["faces"].values()}
-        # 4280 张固定素材（含 5 个循环图标）+ 19 首主控台 BGM
+        # 4269 张固定素材（含自定义 Token 和特性卡底）+ 19 首主控台 BGM
         # （音频不进图片清单，随 bgmFiles 段分发）。
         bgm_paths = {path for path in fixed_paths if path.startswith("assets/bgm/")}
-        self.assertEqual(4267, len(fixed_paths - bgm_paths))
+        self.assertEqual(4269, len(fixed_paths - bgm_paths))
         self.assertEqual(19, len(bgm_paths))
-        self.assertEqual(4286, len(fixed_paths))
+        self.assertEqual(4288, len(fixed_paths))
         self.assertIn("map/images/c5-face-a.png", fixed_paths)
         self.assertIn("map/images/c5-face-b.png", fixed_paths)
         self.assertIn("aibp/ps/other/SW.jpg", fixed_paths)
         self.assertIn("aibp/ps/other/DW.jpg", fixed_paths)
+        self.assertIn("aibp/ps/other/custom-token-cm.png", fixed_paths)
+        self.assertIn("aibp/ps/other/trait/custom_trait_blank.jpg", fixed_paths)
         self.assertIn("aibp/ps/other/trait/COMMON_TR_001.jpg", fixed_paths)
         self.assertIn("aibp/ps/other/trait/COMMON_TR_002.jpg", fixed_paths)
         self.assertIn("assets/exploration-cards/c2/13642.png", fixed_paths)
@@ -282,9 +284,9 @@ class CoreTests(unittest.TestCase):
         )
         self.assertTrue(all(set(item["faces"]) == {"front", "back"} for item in oracle_ai_iii))
         aibp_tokens = [item for item in payload["items"] if item["subgroup"] == "AIBP 标记"]
-        self.assertEqual(17, len(aibp_tokens))
-        self.assertEqual(set(AIBP_TOKEN_LABELS.values()), {item["name"] for item in aibp_tokens})
-        self.assertEqual(17, len({item["id"] for item in aibp_tokens}))
+        self.assertEqual(18, len(aibp_tokens))
+        self.assertEqual(set(AIBP_TOKEN_LABELS.values()) | {"自定义 Token 底图"}, {item["name"] for item in aibp_tokens})
+        self.assertEqual(18, len({item["id"] for item in aibp_tokens}))
         self.assertTrue(any(item["number"] == "AT+" for item in aibp_tokens))
         self.assertTrue(any(item["number"] == "AT-" for item in aibp_tokens))
         map_tokens = [item for item in payload["items"] if item["subgroup"] == "地图标记"]
@@ -318,6 +320,69 @@ class CoreTests(unittest.TestCase):
         self.assertTrue(any(item["number"] == "246_Godform_Dionysus" for item in summon_cards))
         self.assertTrue(any(item["number"] == "259_Nymph_Aether_Nymph" for item in summon_cards))
         self.assertTrue(any(item["number"] == "305_Godform_Hermes_Exalted" for item in summon_cards))
+
+    def test_custom_trait_template_upgrades_existing_catalog_without_losing_images(self):
+        payload = fixed_catalog_payload()
+        template = next(item for item in payload["items"] if item["number"] == "CUSTOM_TRAIT_BLANK")
+        old_items = [CatalogItem(**item) for item in payload["items"] if item["id"] != template["id"]]
+        old_source = {**payload["source"], "catalog_version": payload["source"]["catalog_version"].removesuffix("+custom-trait-blank")}
+        apply_catalog(self.db, old_items, old_source)
+        existing = next(item for item in old_items if item.number == "COMMON_TR_001")
+        revision = store_image(self.db, self.library, self.image(), existing.id, "front", "photo.png", "image/png")
+
+        ensure_fixed_catalog(self.db)
+        added = self.db.one("SELECT * FROM catalog_items WHERE id=?", (template["id"],))
+        self.assertEqual(template["faces"], json.loads(added["faces_json"]))
+        self.assertEqual(0, added["capture_required"])
+        self.assertEqual(revision["id"], self.db.one(
+            "SELECT id FROM asset_revisions WHERE item_id=? AND is_current=1", (existing.id,))["id"])
+        ensure_fixed_catalog(self.db)
+        self.assertEqual(1, self.db.one("SELECT COUNT(*) n FROM catalog_items WHERE id=?", (template["id"],))["n"])
+
+    def test_custom_trait_template_exports_and_restores_at_its_runtime_path(self):
+        from tools.build_fan_pack import Reporter, build as build_fan_pack
+
+        payload = fixed_catalog_payload()
+        template = next(item for item in payload["items"] if item["number"] == "CUSTOM_TRAIT_BLANK")
+        item = CatalogItem(**template)
+        apply_catalog(self.db, [item], payload["source"])
+        source = self.image("custom_trait_blank.jpg")
+        expected_bytes = source.read_bytes()
+        target = item.faces["front"]
+        project = self.root / "project"
+        for child in ("map", "story", "technology"):
+            (project / child).mkdir(parents=True)
+        (project / target).parent.mkdir(parents=True)
+        shutil.copyfile(source, project / target)
+        store_image(self.db, self.library, source, item.id, "front", source.name, "image/jpeg")
+        (project / "index.html").write_text("ATO", encoding="utf-8")
+        library_pack = self.root / "library.atopack"
+        export_package(self.db, self.library, library_pack, {"include_stories": False})
+        project_pack = self.root / "project.atopack"
+        with patch("tools.build_fan_pack.fixed_catalog_payload", return_value={"source": payload["source"], "items": [template]}):
+            build_fan_pack(
+                ato_root=project, output=project_pack, library_path=None, cycles=[], modules=[],
+                complete_only=True, include_story_data=False, include_bgm=False, include_story_files=False,
+                official_story=False, official_scans=False, official_assets=False, skip_missing=False,
+                force=False, dry_run=False, compression_name="store", verify_mode="full", verify_sample=32,
+                reporter=Reporter(quiet=True),
+            )
+        for pack in (library_pack, project_pack):
+            with self.subTest(export=pack.name), zipfile.ZipFile(pack) as archive:
+                manifest = json.loads(archive.read("manifest.json"))
+                self.assertEqual([item.id], [asset["itemId"] for asset in manifest["assets"]])
+                self.assertEqual(target, manifest["assets"][0]["member"])
+                self.assertEqual(item.faces, manifest["items"][0]["faces"])
+                self.assertEqual(expected_bytes, archive.read(target))
+
+        friend_library = self.root / "friend"
+        for child in ("objects", "previews", "sources", "tmp", "exports", "backups"):
+            (friend_library / child).mkdir(parents=True, exist_ok=True)
+        friend = Database(friend_library / "library.sqlite3")
+        self.assertEqual(1, import_package(friend, friend_library, project_pack)["imported"])
+        (project / target).unlink()
+        self.assertEqual(1, apply_install(friend, friend_library, project, [])["installed"])
+        self.assertEqual(expected_bytes, (project / target).read_bytes())
 
     def test_full_pack_uses_current_format_and_project_overlay(self):
         apk = self.root / "source.apk"

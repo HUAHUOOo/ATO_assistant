@@ -801,6 +801,101 @@
       border-radius: 7px;
     }
 
+    .custom-trait-dialog {
+      width: min(850px, calc(100vw - 28px));
+    }
+
+    .custom-trait-editor {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(180px, 280px);
+      gap: 22px;
+      padding: 18px;
+      overflow: auto;
+    }
+
+    .custom-trait-fields {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .custom-trait-fields input,
+    .custom-trait-fields textarea {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 10px;
+      background: #0b0b0a;
+      color: var(--text);
+      font: inherit;
+    }
+
+    .custom-trait-fields textarea {
+      min-height: 220px;
+      resize: vertical;
+      line-height: 1.6;
+    }
+
+    .custom-trait-preview {
+      margin: 0;
+      align-self: start;
+      text-align: center;
+    }
+
+    .custom-trait-preview img {
+      display: block;
+      width: 100%;
+      border-radius: 8px;
+    }
+
+    .custom-trait-preview figcaption,
+    .custom-trait-hint {
+      margin-top: 8px;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--muted);
+    }
+
+    .custom-trait-choice {
+      display: grid;
+      gap: 7px;
+      cursor: pointer;
+    }
+
+    .trait-option .custom-trait-edit {
+      padding: 5px 8px;
+      font-size: 12px;
+    }
+
+    @media (max-width: 600px) {
+      .custom-trait-editor { grid-template-columns: minmax(0, 1fr); }
+      .custom-trait-preview { width: min(240px, 100%); justify-self: center; }
+    }
+
+    .custom-token-dialog {
+      width: min(460px, calc(100vw - 28px));
+    }
+
+    .custom-token-input-wrap {
+      display: grid;
+      gap: 10px;
+      padding: 18px 14px;
+    }
+
+    .custom-token-input-wrap textarea {
+      width: 100%;
+      min-height: 100px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #0b0b0a;
+      color: var(--text);
+      font: inherit;
+      resize: vertical;
+    }
+
     .scry-dialog {
       width: min(1080px, calc(100vw - 28px));
       max-height: min(820px, calc(100vh - 28px));
@@ -1593,6 +1688,23 @@
       line-height: 1;
     }
 
+    .panel-token-item.custom-token {
+      border-radius: 50%;
+      background: transparent url("ps/other/custom-token-cm.png?v=20260930-medium-rim1") center / contain no-repeat;
+    }
+
+    .panel-token-item.custom-token .panel-token-count {
+      right: -4px;
+      bottom: -3px;
+      min-width: 17px;
+      height: 17px;
+      padding: 0 4px;
+      border-color: rgba(240, 238, 229, 0.55);
+      background: #454542;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
     .critical-mass-slot {
       position: absolute;
       left: var(--critical-mass-left, 50.7%);
@@ -1768,6 +1880,12 @@
       background: #0b0b0a;
       box-shadow: 0 24px 86px rgba(0, 0, 0, 0.72);
       cursor: default;
+    }
+
+    .image-zoom-card-stage > img.custom-token {
+      width: min(360px, 70vw);
+      border-radius: 50%;
+      background: transparent url("ps/other/custom-token-cm.png?v=20260930-medium-rim1") center / contain no-repeat;
     }
 
     .image-zoom-card-stage.rotated-card {
@@ -2363,7 +2481,7 @@
     </main>
   </div>
 
-  <dialog class="trait-dialog" id="traitDialog">
+  <dialog class="trait-dialog" id="traitDialog" aria-labelledby="traitDialogTitle">
     <form method="dialog">
       <div class="trait-dialog-head">
         <div class="trait-dialog-title" id="traitDialogTitle">Trait 选择</div>
@@ -2371,8 +2489,35 @@
       </div>
       <div class="trait-dialog-grid" id="traitDialogGrid"></div>
       <div class="trait-dialog-actions">
+        <button type="button" id="traitCustomButton">自定义特性</button>
         <button type="button" id="traitClearButton">清空</button>
         <button type="button" id="traitSaveButton">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="trait-dialog custom-trait-dialog" id="customTraitDialog" aria-labelledby="customTraitDialogTitle">
+    <form id="customTraitForm">
+      <div class="trait-dialog-head">
+        <div class="trait-dialog-title" id="customTraitDialogTitle">自定义特性</div>
+        <button type="button" id="customTraitCloseButton">关闭</button>
+      </div>
+      <div class="custom-trait-editor">
+        <div class="custom-trait-fields">
+          <label for="customTraitName">特性名称</label>
+          <input id="customTraitName" maxlength="60" placeholder="输入特性名称" required>
+          <label for="customTraitContent">特性内容</label>
+          <textarea id="customTraitContent" maxlength="2000" placeholder="输入规则内容，可换行分段" required></textarea>
+          <div class="custom-trait-hint" id="customTraitHint" aria-live="polite">文字会自动换行并调整字号。保存后勾选特性，再点击 Trait 界面的“保存”。</div>
+        </div>
+        <figure class="custom-trait-preview">
+          <img id="customTraitPreview" alt="自定义特性卡预览">
+          <figcaption>卡面预览</figcaption>
+        </figure>
+      </div>
+      <div class="trait-dialog-actions">
+        <button type="button" id="customTraitCancelButton">取消</button>
+        <button type="submit" id="customTraitSaveButton">添加特性</button>
       </div>
     </form>
   </dialog>
@@ -2388,8 +2533,25 @@
       </div>
       <div class="trait-dialog-grid" id="tokenDialogGrid"></div>
       <div class="trait-dialog-actions">
+        <button type="button" id="tokenDialogCustomButton">自定义 Token</button>
         <button type="button" id="tokenClearButton">清空新增</button>
         <button type="button" id="tokenSaveButton">新增 Token 堆</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="trait-dialog custom-token-dialog" id="customTokenDialog">
+    <form method="dialog" id="customTokenForm">
+      <div class="trait-dialog-head">
+        <div class="trait-dialog-title">自定义 Token</div>
+        <button type="button" id="customTokenCloseButton">关闭</button>
+      </div>
+      <div class="custom-token-input-wrap">
+        <label for="customTokenText">Token 文字</label>
+        <textarea id="customTokenText" placeholder="输入要显示在 Token 上的文字" required autofocus></textarea>
+      </div>
+      <div class="trait-dialog-actions">
+        <button type="submit">添加 Token</button>
       </div>
     </form>
   </dialog>
@@ -2473,6 +2635,7 @@
   <script src="5158e31a.js?v=20260926-blackbeak-manual4"></script>
   <script src="7c2e9a40.js?v=20260926-group-trait1"></script>
   <script src="boss-search.js?v=20260926-titan-x-group2"></script>
+  <script src="custom_traits.js?v=20260930-custom-trait4-lisu-simhei"></script>
   <script>
     const apostles = [
       "HEKATON",
@@ -2548,7 +2711,6 @@
     // 404，所以这里不留任何扫描/探测回退：名单就是 ps/other/token/ 里实际存在的图片。
     // 以后往 token 文件夹里加图，把文件名补进这个数组即可（顺序不限）。
     const tokenFileNames = [
-      "Ambrosia .png",
       "AT+.png",
       "AT-.png",
       "CA.jpg",
@@ -2855,12 +3017,26 @@
     const newCampaignButton = document.getElementById("newCampaignButton");
     const traitButton = document.getElementById("traitButton");
     const tokenButton = document.getElementById("tokenButton");
+    const customTokenDialog = document.getElementById("customTokenDialog");
+    const customTokenForm = document.getElementById("customTokenForm");
+    const customTokenText = document.getElementById("customTokenText");
+    const customTokenCloseButton = document.getElementById("customTokenCloseButton");
     const traitDialog = document.getElementById("traitDialog");
     const traitDialogTitle = document.getElementById("traitDialogTitle");
     const traitDialogGrid = document.getElementById("traitDialogGrid");
     const traitCloseButton = document.getElementById("traitCloseButton");
     const traitClearButton = document.getElementById("traitClearButton");
     const traitSaveButton = document.getElementById("traitSaveButton");
+    const traitCustomButton = document.getElementById("traitCustomButton");
+    const customTraitDialog = document.getElementById("customTraitDialog");
+    const customTraitForm = document.getElementById("customTraitForm");
+    const customTraitName = document.getElementById("customTraitName");
+    const customTraitContent = document.getElementById("customTraitContent");
+    const customTraitPreview = document.getElementById("customTraitPreview");
+    const customTraitHint = document.getElementById("customTraitHint");
+    const customTraitSaveButton = document.getElementById("customTraitSaveButton");
+    let customTraitEditingId = "";
+    let customTraitEditorApostle = "";
     const tokenDialog = document.getElementById("tokenDialog");
     const tokenDialogTitle = document.getElementById("tokenDialogTitle");
     const tokenDialogGrid = document.getElementById("tokenDialogGrid");
@@ -2868,6 +3044,7 @@
     const tokenCloseButton = document.getElementById("tokenCloseButton");
     const tokenClearButton = document.getElementById("tokenClearButton");
     const tokenSaveButton = document.getElementById("tokenSaveButton");
+    const tokenDialogCustomButton = document.getElementById("tokenDialogCustomButton");
     const drawAiButton = document.getElementById("drawAiButton");
     const scryAiButton = document.getElementById("scryAiButton");
     const undoAiButton = document.getElementById("undoAiButton");
@@ -3106,7 +3283,9 @@
       const damageSummary = currentBpDamageSummary();
       const renderedExtraCards = Array.from(extraGrid.querySelectorAll("img"))
         .filter((image) => image.complete && image.naturalWidth > 0)
-        .map((image) => ({
+        .map((image) => image.dataset.customTraitId
+          ? publicTraitSnapshot(currentApostle, state.traits.find((card) => card.scope === "custom" && card.id === image.dataset.customTraitId))
+          : ({
           src: image.getAttribute("src") || "",
           label: image.alt || "Trait / 特殊卡",
           large: image.classList.contains("panel-image"),
@@ -3134,11 +3313,7 @@
           ? window.HeliosConfig.common.signature
           : currentApostle === "BLACKBEAK" ? window.BlackbeakCardList.signature.src
           : `ps/${currentApostle}/${currentApostle}_SIGNATURE_X_001.jpg`,
-        traits: (state.traits || []).map((card) => ({
-          src: traitCardSrc(currentApostle, card),
-          label: traitCardLabel(card),
-          large: isLargeTraitCard(currentApostle, card),
-        })),
+        traits: (state.traits || []).map((card) => publicTraitSnapshot(currentApostle, card)),
         extraCards: renderedExtraCards,
         aiPending: publicCardSnapshot(state.AI.pending),
         bpPending: publicCardSnapshot(state.BP.pending),
@@ -3171,6 +3346,7 @@
               : token;
           return {
             file: token.file,
+            ...(token.text ? { text: token.text, src: customTokenSrc(token.text) } : {}),
             count: token.count || 1,
             x: Number(position.x ?? 50),
             y: Number(position.y ?? 50),
@@ -3525,6 +3701,7 @@
         feint: initialTitanFeintPile(),
         chimeraPhase: "",
         traits: [],
+        customTraits: [],
         tokens: [],
         battleMap: null,
         levelBonusState: { promotions: 0 },
@@ -3641,6 +3818,7 @@
         if (!Array.isArray(piles[name].traits)) {
           piles[name].traits = [];
         }
+        if (!Array.isArray(piles[name].customTraits)) piles[name].customTraits = [];
         piles[name].traits = piles[name].traits.map((card) => {
           // 超时光先知那张全幅特性卡实际印的是 V 级：老存档里的 O/1、IV/1 一并迁到 V/1。
           if (name === "HYPERTIME_ORACLE" && card?.type === "TR" && !card.scope && card.index === 1
@@ -3663,7 +3841,8 @@
               : card?.type === "TR" && (card.level === "I" || card.level === "X") && card.index === 1
               ? { ...card, level: "II" }
               : card;
-            const key = `${migrated?.type || "TR"}-${migrated?.level}-${migrated?.index}-${migrated?.ext || "jpg"}`;
+            const key = migrated?.scope === "custom" ? `custom-${migrated.id}`
+              : `${migrated?.type || "TR"}-${migrated?.level}-${migrated?.index}-${migrated?.ext || "jpg"}`;
             if (!migratedKeys.has(key)) {
               migratedKeys.add(key);
               migratedTraits.push(migrated);
@@ -5933,6 +6112,7 @@
     }
 
     function traitCardLabel(card) {
+      if (card.scope === "custom") return `自定义特性 · ${card.name}`;
       if (currentApostle === nietzscheName && !card?.scope && card?.level === "O" && Number(card.index) === 2) {
         return "TR O 2 · 人人为我";
       }
@@ -5951,9 +6131,22 @@
     }
 
     function traitCardSrc(name, card) {
+      if (card.scope === "custom") return window.CustomTraits.src(card);
       if (card.scope === "common") return commonTraitSrc(card.index, card.ext);
       if (cycleTraitDefinition(card)) return cycleTraitSrc(card);
       return traitSrc(name, card.level, card.index, card.ext);
+    }
+
+    function publicTraitSnapshot(name, card) {
+      // Transfer editable text with a small fallback image, rather than copying
+      // the same paper image into every card in a second-screen snapshot.
+      const custom = card.scope === "custom";
+      return {
+        src: custom ? window.CustomTraits.src(card, false) : traitCardSrc(name, card),
+        label: traitCardLabel(card),
+        large: isLargeTraitCard(name, card),
+        ...(custom ? { customTrait: { name: card.name, content: card.content } } : {})
+      };
     }
 
     function traitKey(level, index, ext = "jpg", scope = "") {
@@ -5968,6 +6161,9 @@
     }
 
     function isLargeTraitCard(apostle, card) {
+      if (card.scope === "custom") return false;
+      // 人人为我虽归在 O 类特性中，仍使用普通尺寸卡。
+      if (apostle === "THE_NIETZSCJEAN" && !card.scope && card.level === "O" && Number(card.index) === 2) return false;
       return (card.level === "O" && !isDahakaFearfulHospitality(apostle, card))
         || (apostle === "HYPERTIME_ORACLE" && card.level === "V")
         || (apostle === "ICARIAN_HARPY" && card.level === "X" && card.index === 2);
@@ -5997,6 +6193,11 @@
       loading.className = "missing";
       loading.textContent = "正在试探加载 TR 图片……";
       traitDialogGrid.appendChild(loading);
+
+      piles[name].customTraits.forEach((card) => {
+        const checked = piles[name].traits.some((selectedCard) => selectedCard.scope === "custom" && selectedCard.id === card.id);
+        appendCustomTraitCandidate(card, checked);
+      });
 
       // Load shared cards before the large per-boss image probe queue.
       availableCycleTraitCards(name).forEach((card) => {
@@ -6115,16 +6316,21 @@
     function saveTraitSelection() {
       ensurePiles(currentApostle);
       piles[currentApostle].traits = Array.from(traitDialogGrid.querySelectorAll("input[type='checkbox']:checked"))
-        .map((input) => ({
+        .map((input) => input.dataset.customTraitId
+          ? piles[currentApostle].customTraits.find((card) => card.id === input.dataset.customTraitId)
+          : ({
           type: "TR",
           level: input.dataset.level,
           index: Number(input.dataset.index),
           ext: input.dataset.ext || "jpg",
           scope: input.dataset.scope || ""
         }))
+        .filter(Boolean)
+        .map((card) => ({ ...card }))
         .sort((a, b) => {
           const scopeOrder = String(a.scope || "").localeCompare(String(b.scope || ""));
           if (scopeOrder) return scopeOrder;
+          if (a.scope === "custom") return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
           return traitLevels.indexOf(a.level) - traitLevels.indexOf(b.level) || a.index - b.index || String(a.ext).localeCompare(String(b.ext));
         });
       savePiles();
@@ -6136,6 +6342,89 @@
       traitDialogGrid.querySelectorAll("input[type='checkbox']").forEach((input) => {
         input.checked = false;
       });
+    }
+
+    function appendCustomTraitCandidate(card, checked = true) {
+      const option = document.createElement("div");
+      option.className = "trait-option custom-trait-option";
+      option.dataset.customTraitId = card.id;
+      const choice = document.createElement("label");
+      choice.className = "custom-trait-choice";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.dataset.customTraitId = card.id;
+      checkbox.checked = checked;
+      checkbox.setAttribute("aria-label", `选择自定义特性：${card.name}`);
+      const img = document.createElement("img");
+      img.src = window.CustomTraits.src(card);
+      img.alt = traitCardLabel(card);
+      const caption = document.createElement("span");
+      caption.textContent = traitCardLabel(card);
+      choice.append(checkbox, img, caption);
+      const edit = document.createElement("button");
+      edit.type = "button";
+      edit.className = "custom-trait-edit";
+      edit.textContent = "编辑特性";
+      edit.setAttribute("aria-label", `编辑自定义特性：${card.name}`);
+      edit.addEventListener("click", () => openCustomTraitDialog(card.id));
+      option.append(choice, edit);
+      traitDialogGrid.prepend(option);
+      return option;
+    }
+
+    function openCustomTraitDialog(id = "") {
+      ensurePiles(currentApostle);
+      customTraitEditorApostle = currentApostle;
+      const card = piles[currentApostle].customTraits.find((item) => item.id === id);
+      customTraitEditingId = card?.id || "";
+      customTraitName.value = card?.name || "";
+      customTraitContent.value = card?.content || "";
+      customTraitSaveButton.textContent = card ? "保存修改" : "添加特性";
+      document.getElementById("customTraitDialogTitle").textContent = card ? "编辑自定义特性" : "自定义特性";
+      updateCustomTraitPreview();
+      customTraitDialog.showModal();
+      customTraitName.focus();
+    }
+
+    function updateCustomTraitPreview() {
+      const card = { name: customTraitName.value.trim(), content: customTraitContent.value.trim() };
+      const layout = window.CustomTraits.layout(card);
+      customTraitName.setCustomValidity(!layout.title.fits ? "名称过长，请缩短特性名称" : "");
+      customTraitContent.setCustomValidity(!layout.body.fits ? "内容或分段过多，卡面放不下，请缩短内容或减少空行" : "");
+      customTraitPreview.src = window.CustomTraits.src(card);
+      customTraitPreview.alt = `${card.name || "自定义特性"} · 卡面预览`;
+      customTraitHint.textContent = layout.title.fits && layout.body.fits
+        ? customTraitEditingId
+          ? "文字会自动换行并调整字号。保存修改后，已展示的卡片会同步更新。"
+          : "文字会自动换行并调整字号。添加后已自动勾选，再点击 Trait 界面的“保存”。"
+        : "内容或分段过多，卡面放不下，请缩短文字或减少空行。";
+    }
+
+    function saveCustomTrait(event) {
+      event.preventDefault();
+      updateCustomTraitPreview();
+      if (!customTraitName.value.trim()) customTraitName.setCustomValidity("请输入特性名称");
+      if (!customTraitContent.value.trim()) customTraitContent.setCustomValidity("请输入特性内容");
+      if (!customTraitForm.reportValidity()) return;
+      if (customTraitEditorApostle !== currentApostle) return;
+      ensurePiles(currentApostle);
+      const state = piles[currentApostle];
+      const id = customTraitEditingId || `custom-trait-${window.crypto?.randomUUID?.()
+        || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`}`;
+      const card = { type: "TR", scope: "custom", id,
+        name: customTraitName.value.trim(), content: customTraitContent.value.trim() };
+      const index = state.customTraits.findIndex((item) => item.id === id);
+      if (index < 0) state.customTraits.push(card);
+      else state.customTraits[index] = card;
+      state.traits = state.traits.map((item) => item.scope === "custom" && item.id === id ? { ...card } : item);
+      const oldOption = Array.from(traitDialogGrid.querySelectorAll(".custom-trait-option"))
+        .find((option) => option.dataset.customTraitId === id);
+      const checked = oldOption ? oldOption.querySelector("input").checked : true;
+      const option = appendCustomTraitCandidate(card, checked);
+      if (oldOption) oldOption.replaceWith(option);
+      savePiles();
+      renderExtraCards();
+      customTraitDialog.close();
     }
 
     function reorderExtraGridForLargeCards() {
@@ -6181,6 +6470,7 @@
     }
 
     function enableOptionalCardBack(img, frontSrc, card = null) {
+      if (frontSrc.startsWith("data:")) return;
       const backSrc = cardBackImageSrc(card, frontSrc);
       if (backSrc === frontSrc) return;
       const probe = new Image();
@@ -6223,6 +6513,7 @@
         piles[currentApostle].traits.forEach((card) => {
           const src = traitCardSrc(currentApostle, card);
           const img = imageOrMessage(src, traitCardLabel(card), isLargeTraitCard(currentApostle, card) ? "panel-image" : "");
+          if (card.scope === "custom") img.dataset.customTraitId = card.id;
           img.addEventListener("load", () => {
             enableOptionalCardBack(img, src);
             scheduleSecondScreenSnapshot();
@@ -6256,6 +6547,7 @@
         const alt = traitCardLabel(card);
         const src = traitCardSrc(currentApostle, card);
         const img = imageOrMessage(src, alt, imageClass);
+        if (card.scope === "custom") img.dataset.customTraitId = card.id;
         img.addEventListener("load", () => {
           enableOptionalCardBack(img, src);
           scheduleSecondScreenSnapshot();
@@ -6477,6 +6769,70 @@
       return `${tokenBasePath}/${file}`;
     }
 
+    function customTokenSrc(text) {
+      // 文字按纯文本转义，避免用户输入成为 SVG 标签或属性。
+      const escapeText = (value) => value.replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;"
+      })[char]);
+      const paragraphs = String(text).split(/\r?\n/);
+      const length = Array.from(String(text)).length;
+      const columns = Math.max(2, Math.ceil(Math.sqrt(length * 1.2)));
+      const lines = [];
+      paragraphs.forEach((paragraph) => {
+        const chars = Array.from(paragraph);
+        if (!chars.length) lines.push("");
+        for (let index = 0; index < chars.length; index += columns) {
+          lines.push(chars.slice(index, index + columns).join(""));
+        }
+      });
+      const textRadius = Math.max(...lines.map((line, index) => Math.hypot(
+        Array.from(line).length / 2,
+        Math.abs(index - (lines.length - 1) / 2) * 1.2 + 0.5
+      )));
+      const fontSize = Math.min(52, 58 / textRadius);
+      const lineHeight = fontSize * 1.2;
+      const startY = 80 - (lines.length - 1) * lineHeight / 2;
+      const content = lines.map((line, index) =>
+        `<text x="80" y="${startY + index * lineHeight}">${escapeText(line)}</text>`
+      ).join("");
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160"><g fill="#171717" font-family="LiSu, STLiti, 隶书, serif" font-size="${fontSize}" font-weight="400" text-anchor="middle" dominant-baseline="central">${content}</g></svg>`;
+      return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    }
+
+    function addCustomPanelToken(text) {
+      const value = String(text || "").trim();
+      if (!value) return null;
+      ensurePiles(currentApostle);
+      const tokens = piles[currentApostle].tokens;
+      const item = {
+        id: createTokenStackId(), file: "", text: value, count: 1,
+        x: 8 + (tokens.length % 5) * 8,
+        y: 8 + Math.floor(tokens.length / 5) * 8
+      };
+      tokens.push(item);
+      return item;
+    }
+
+    function openCustomTokenDialog() {
+      customTokenText.value = "";
+      customTokenText.setCustomValidity("");
+      customTokenDialog.showModal();
+      customTokenText.focus();
+    }
+
+    function saveCustomToken(event) {
+      event.preventDefault();
+      if (!customTokenText.value.trim()) {
+        customTokenText.setCustomValidity("请输入 Token 文字");
+        customTokenText.reportValidity();
+        return;
+      }
+      addCustomPanelToken(customTokenText.value);
+      savePiles();
+      renderPanelTokens();
+      customTokenDialog.close();
+    }
+
     function createTokenStackId() {
       tokenStackSequence += 1;
       return `token-${Date.now().toString(36)}-${tokenStackSequence.toString(36)}`;
@@ -6662,7 +7018,7 @@
 
       const item = piles[context.apostle]?.tokens?.find((entry) => entry.id === context.tokenId);
       const count = Number(item?.count) || 0;
-      imageZoomTokenTitle.textContent = `${context.file} x${count}`;
+      imageZoomTokenTitle.textContent = `${item?.text || context.file} x${count}`;
       imageZoomTokenActions.querySelector("[data-token-zoom-action='minus']").disabled = count <= 0;
       imageZoomTokenActions.querySelector("[data-token-zoom-action='clear']").disabled = count <= 0;
     }
@@ -6828,6 +7184,9 @@
       imageZoomImg.parentElement.classList.toggle("rotated-card", options.rotation === -90);
       imageZoomImg.src = window.HeliosAssets.resolve(src);
       imageZoomImg.alt = alt || "放大图片";
+      const tokenContext = options.tokenContext;
+      const customToken = tokenContext && piles[tokenContext.apostle]?.tokens?.find((item) => item.id === tokenContext.tokenId)?.text;
+      imageZoomImg.classList.toggle("custom-token", Boolean(customToken));
       const noticeItems = Array.isArray(options.noticeImages) ? options.noticeImages : [];
       const sideNotices = options.noticeLayout === "sides" && noticeItems.length > 0;
       imageZoomNotice.replaceChildren(...noticeItems.map((item) => {
@@ -6961,6 +7320,7 @@
       piles[currentApostle].tokens.forEach((item) => {
         const tokenItem = document.createElement("div");
         tokenItem.className = "panel-token-item";
+        tokenItem.classList.toggle("custom-token", Boolean(item.text));
         const isCriticalMass = item.criticalMass === true || item.chimeraCriticalMass === true;
         const panelCounterKind = c45PanelCounterKind();
         const isC45PanelCounter = panelCounterKind === "midascorePain"
@@ -7003,11 +7363,11 @@
           ? `${panelCounterLabel}通用标记 ×${item.count}${(Number(item.count) || 0) >= threshold ? "，立即处理" : "，点击增加"}`
           : isCriticalMass
             ? `临界质量通用标记 ×${item.count}${(Number(item.count) || 0) >= threshold ? "，立即处理" : ""}`
-            : `${item.file} ×${item.count}${isPerHitTokenStack(item) ? "（每命中）" : ""}，拖动可调整位置`;
+            : `${item.text || item.file} ×${item.count}${isPerHitTokenStack(item) ? "（每命中）" : ""}，拖动可调整位置`;
 
         const img = document.createElement("img");
-        img.src = tokenSrc(item.file);
-        img.alt = item.file;
+        img.src = item.text ? customTokenSrc(item.text) : tokenSrc(item.file);
+        img.alt = item.text || item.file;
 
         tokenItem.appendChild(img);
         if ((Number(item.count) || 0) > 1) {
@@ -7889,9 +8249,30 @@
       event.preventDefault();
     }, { passive: false });
     tokenButton.addEventListener("click", openTokenDialog);
+    tokenDialogCustomButton.addEventListener("click", () => {
+      tokenDialog.close();
+      openCustomTokenDialog();
+    });
+    customTokenForm.addEventListener("submit", saveCustomToken);
+    customTokenCloseButton.addEventListener("click", () => customTokenDialog.close());
+    customTokenText.addEventListener("input", () => customTokenText.setCustomValidity(""));
     traitCloseButton.addEventListener("click", () => traitDialog.close());
     traitClearButton.addEventListener("click", clearTraitSelection);
     traitSaveButton.addEventListener("click", saveTraitSelection);
+    traitCustomButton.addEventListener("click", () => openCustomTraitDialog());
+    customTraitForm.addEventListener("submit", saveCustomTrait);
+    document.getElementById("customTraitCloseButton").addEventListener("click", () => customTraitDialog.close());
+    document.getElementById("customTraitCancelButton").addEventListener("click", () => customTraitDialog.close());
+    customTraitName.addEventListener("input", updateCustomTraitPreview);
+    customTraitContent.addEventListener("input", updateCustomTraitPreview);
+    window.CustomTraits.ready.then(() => {
+      if (piles[currentApostle]?.traits.some((card) => card.scope === "custom")) renderExtraCards();
+      traitDialogGrid.querySelectorAll(".custom-trait-option").forEach((option) => {
+        const card = piles[currentApostle]?.customTraits.find((item) => item.id === option.dataset.customTraitId);
+        if (card) option.querySelector("img").src = window.CustomTraits.src(card);
+      });
+      if (customTraitDialog.open) updateCustomTraitPreview();
+    });
     tokenCloseButton.addEventListener("click", () => tokenDialog.close());
     tokenClearButton.addEventListener("click", clearTokenSelection);
     tokenSaveButton.addEventListener("click", saveTokenSelection);

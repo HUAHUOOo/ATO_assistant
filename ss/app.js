@@ -479,7 +479,8 @@ function renderImageList(target, cards, emptyText) {
   }
   visibleCards.forEach((card) => {
     const image = document.createElement("img");
-    image.src = aibpImageUrl(card.src);
+    image.src = card.customTrait && window.CustomTraits
+      ? window.CustomTraits.src(card.customTrait) : aibpImageUrl(card.src);
     image.alt = card.label || "卡牌";
     image.title = card.label || "";
     target.appendChild(image);
@@ -489,7 +490,7 @@ function renderImageList(target, cards, emptyText) {
 function renderBossTokens(tokens) {
   elements.bossTokens.replaceChildren();
   (tokens || []).forEach((token) => {
-    if (!token.file) return;
+    if (!token.file && !token.text) return;
     const hasCountBadge = Number(token.count || 1) > 1;
     const x = Number(token.x ?? 50);
     const y = Number(token.y ?? 50);
@@ -499,11 +500,13 @@ function renderBossTokens(tokens) {
     const maxY = hasCountBadge ? 93.2 : 94.7;
     const stack = document.createElement("div");
     stack.className = "boss-token";
+    stack.classList.toggle("custom-token", Boolean(token.text));
+    stack.title = token.text || token.file;
     stack.style.left = `${Math.max(minX, Math.min(maxX, Number.isFinite(x) ? x : 50))}%`;
     stack.style.top = `${Math.max(minY, Math.min(maxY, Number.isFinite(y) ? y : 50))}%`;
     const image = document.createElement("img");
-    image.src = aibpImageUrl(`ps/other/token/${token.file}`);
-    image.alt = token.file;
+    image.src = token.text ? token.src : aibpImageUrl(`ps/other/token/${token.file}`);
+    image.alt = token.text || token.file;
     stack.appendChild(image);
     if (hasCountBadge) {
       const count = document.createElement("b");
@@ -783,6 +786,10 @@ window.addEventListener("message", (event) => {
 window.addEventListener("resize", () => {
   if (activeMode === "aibp") applyBattleLayout();
   if (activeMode === "story") fitStoryTextToViewport();
+});
+
+window.CustomTraits?.ready.then(() => {
+  if (activeMode === "aibp") applyBattleLayout();
 });
 
 checkConnection();

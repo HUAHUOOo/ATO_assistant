@@ -520,6 +520,25 @@ h1 {
   opacity: 0.62;
 }
 
+.boss-token.custom-token {
+  border-radius: 50%;
+  background: transparent url("../aibp/ps/other/custom-token-cm.png?v=20260930-medium-rim1") center / contain no-repeat;
+}
+
+.boss-token.custom-token img {
+  opacity: 1;
+}
+
+.boss-token.custom-token b {
+  right: -10%;
+  bottom: -7.5%;
+  min-width: 42.5%;
+  height: 42.5%;
+  border-color: rgba(240, 238, 229, .55);
+  background: #454542;
+  font-weight: 700;
+}
+
 .boss-token b {
   position: absolute;
   right: -16.667%;

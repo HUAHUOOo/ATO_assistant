@@ -11,6 +11,7 @@
 !/tools/packaging/android/app/src/main/res/drawable-nodpi/app_icon.jpg
 *.jpeg
 *.webp
+*.psd
 *.gif
 *.bmp
 *.tif
@@ -87,6 +88,7 @@
 /logs/
 /log/
 /export/
+/output/
 php_errors.log
 error_log
 *.backup
