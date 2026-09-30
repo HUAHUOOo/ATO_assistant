@@ -2069,14 +2069,35 @@
       font-weight: 900;
     }
 
-    .image-zoom-actions {
-      display: none;
+    .image-zoom-action-stack {
+      display: grid;
       grid-column: 2;
       grid-row: 2;
       width: 128px;
-      gap: 8px;
+      gap: 16px;
+      max-height: 86vh;
+      overflow: auto;
       align-self: center;
       justify-self: start;
+      cursor: default;
+    }
+
+    .image-zoom-action-stack:has(.image-zoom-actions.show) {
+      padding: 2px;
+    }
+
+    .image-zoom-action-stack:not(:has(.image-zoom-actions.show)) {
+      display: none;
+    }
+
+    .image-zoom-action-stack .image-zoom-action-title {
+      color: #ddd5c8;
+    }
+
+    .image-zoom-actions {
+      display: none;
+      width: 100%;
+      gap: 8px;
       cursor: default;
     }
 
@@ -2174,12 +2195,25 @@
         width: clamp(48px, 15vw, 72px);
       }
 
-      .image-zoom-actions {
+      .image-zoom-overlay.show {
+        overflow: auto;
+        align-items: start;
+      }
+
+      .image-zoom-content {
+        max-height: none;
+      }
+
+      .image-zoom-action-stack {
         grid-column: 1;
         grid-row: auto;
         width: min(96vw, 360px);
-        grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+        max-height: none;
         justify-self: center;
+      }
+
+      .image-zoom-actions {
+        grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
       }
 
       .image-zoom-notice {
@@ -2600,6 +2634,7 @@
       </div>
       <div class="image-zoom-notice" id="imageZoomNotice"></div>
       <div id="imageZoomCombinedNotice" hidden role="status"></div>
+      <div class="image-zoom-action-stack">
       <div class="image-zoom-actions" id="imageZoomBpActions" aria-label="BP 处置">
         <button type="button" data-bp-zoom-action="discard">弃置</button>
         <button type="button" data-bp-zoom-action="defeat">击败</button>
@@ -2620,6 +2655,7 @@
         <button type="button" data-token-zoom-action="plus">+1</button>
         <button type="button" data-token-zoom-action="minus">-1</button>
         <button type="button" data-token-zoom-action="clear">清空</button>
+      </div>
       </div>
     </div>
   </div>
