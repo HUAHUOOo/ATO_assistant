@@ -1462,6 +1462,8 @@
       }
     }
   </style>
+  <link rel="stylesheet" href="../cycle-theme.css">
+  <link rel="stylesheet" href="./record.css">
 </head>
 <body>
   <main class="app">
@@ -3326,6 +3328,7 @@
     }
 
     function renderAll() {
+      document.body.dataset.cycle = state.cycle;
       renderCycleOptions();
       window.ATO_CYCLE_SYMBOLS?.prependTitleIcon(document.querySelector("#recordTitle"), state.cycle, "../");
       document.querySelectorAll("[data-bind]").forEach((input) => {
