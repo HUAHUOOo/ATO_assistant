@@ -48,10 +48,10 @@ body :is(.tool-btn, .search, .cycle-select, .account-select, .modal-btn, .gear-r
 button.gear-group-name:hover { color: var(--accent); }
 .gear-group-header:hover { background: var(--accent-soft); }
 .gear-items { padding: 0 0 16px; gap: 18px; }
-.gear-item { border: 0; border-bottom: 1px solid var(--line); background: var(--panel); border-radius: 0; padding: 14px; }
-.gear-item:hover { background: var(--panel); border-color: var(--accent); }
-.gear-card-thumb { border-radius: 0; background: var(--bg); border-color: var(--line); }
-.gear-card-thumb img { background: var(--panel); }
+.gear-item { border: 0; border-bottom: 1px solid var(--line); background: transparent; border-radius: 0; padding: 14px; }
+.gear-item:hover { background: transparent; border-color: var(--accent); }
+.gear-card-thumb { border-radius: 0; background: transparent; border-color: var(--line); }
+.gear-card-thumb img { background: transparent; }
 .gear-card-thumb.empty .empty-tag { border-radius: 0; }
 .gear-resource-icon { background: transparent; border: 0; border-radius: 0; }
 .gear-craft-btn { border-radius: 0; background: var(--accent-soft); border-color: var(--line); color: var(--accent-strong); min-height: 34px; }
