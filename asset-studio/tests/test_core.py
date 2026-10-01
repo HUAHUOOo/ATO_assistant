@@ -198,13 +198,34 @@ class CoreTests(unittest.TestCase):
         self.assertEqual([], self.db.all("SELECT face FROM skipped_faces WHERE item_id=?", (retired.id,)))
         self.assertEqual(len(payload["items"]), self.db.one("SELECT COUNT(*) n FROM catalog_items")["n"])
 
+    def test_fixed_catalog_retires_captured_tree_backgrounds_on_cached_catalog(self):
+        payload = fixed_catalog_payload()
+        retired = [CatalogItem(
+            id=f"old-tech-tree-{cycle}", cycle=f"c{cycle}", module="科技树总览",
+            subgroup="科技树页面", name=f"循环 {cycle} 科技树总览",
+            number=f"C{cycle}", sort_order=55000 + cycle,
+            faces={"front": f"technology/images/tech_tree_pages/cycle{cycle}_tree_v24.png"},
+        ) for cycle in range(1, 6)]
+        apply_catalog(self.db, [CatalogItem(**item) for item in payload["items"]] + retired, payload["source"])
+        for item in retired:
+            store_image(self.db, self.library, self.image(), item.id, "front", "photo.png", "image/png")
+        ensure_fixed_catalog(self.db)
+        ensure_fixed_catalog(self.db)
+        self.assertEqual([], self.db.all("SELECT id FROM catalog_items WHERE module='科技树总览'"))
+        self.assertEqual([], self.db.all("SELECT id FROM asset_revisions WHERE item_id LIKE 'old-tech-tree-%'"))
+        self.assertEqual(len(payload["items"]), self.db.one("SELECT COUNT(*) n FROM catalog_items")["n"])
+        targets = {path for row in self.db.all("SELECT faces_json FROM catalog_items")
+                   for path in json.loads(row["faces_json"]).values()}
+        self.assertFalse(any(path.startswith("technology/images/tech_tree_pages/") for path in targets))
+        self.assertTrue(any(path.startswith("technology/images/titans/") for path in targets))
+
     def test_fixed_catalog_initializes_without_apk(self):
         empty = Database(self.root / "empty.sqlite3")
         result = ensure_fixed_catalog(empty)
         payload = fixed_catalog_payload()
-        # 2747 项固定素材（含自定义 Token 和特性卡底）+ 19 首主控台 BGM
+        # 2742 项固定素材（含自定义 Token 和特性卡底，不含旧科技树底图）+ 19 首主控台 BGM
         # （登记为「无需拍摄」，见 test_bgm_resources）。
-        self.assertEqual(2766, result["items"])
+        self.assertEqual(2761, result["items"])
         self.assertEqual(19, result["aibp_enemies"])
         self.assertEqual({"c1", "c1.5", "c2", "c2.5", "c3", "c4", "c5"}, {book["id"] for book in payload["source"]["stories"]})
         self.assertNotIn("apk", payload["source"])
@@ -236,7 +257,7 @@ class CoreTests(unittest.TestCase):
         )
         self.assertEqual(46, len([item for item in payload["items"] if item["module"] == "故事书配图"]))
         self.assertEqual(33, len([item for item in payload["items"] if item["module"] == "故事书补充页"]))
-        self.assertEqual(5, len([item for item in payload["items"] if item["module"] == "科技树总览"]))
+        self.assertFalse(any(item["module"] == "科技树总览" for item in payload["items"]))
         self.assertEqual(17, len([item for item in payload["items"] if item["module"] == "泰坦职业配图"]))
         self.assertEqual(2, len([item for item in payload["items"] if item["module"] == "地图模块图标"]))
         battle_board_items = [item for item in payload["items"] if item["module"] == "决战版图"]
@@ -248,12 +269,13 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(45, len(terrain_cards))
         self.assertTrue(any(item["number"] == "CJ1475" for item in payload["items"]))
         fixed_paths = {path for item in payload["items"] for path in item["faces"].values()}
-        # 4269 张固定素材（含自定义 Token 和特性卡底）+ 19 首主控台 BGM
+        # 4264 张固定素材（含自定义 Token 和特性卡底，不含旧科技树底图）+ 19 首主控台 BGM
         # （音频不进图片清单，随 bgmFiles 段分发）。
         bgm_paths = {path for path in fixed_paths if path.startswith("assets/bgm/")}
-        self.assertEqual(4269, len(fixed_paths - bgm_paths))
+        self.assertEqual(4264, len(fixed_paths - bgm_paths))
         self.assertEqual(19, len(bgm_paths))
-        self.assertEqual(4288, len(fixed_paths))
+        self.assertEqual(4283, len(fixed_paths))
+        self.assertFalse(any(path.startswith("technology/images/tech_tree_pages/") for path in fixed_paths))
         self.assertIn("map/images/c5-face-a.png", fixed_paths)
         self.assertIn("map/images/c5-face-b.png", fixed_paths)
         self.assertIn("aibp/ps/other/SW.jpg", fixed_paths)
@@ -325,7 +347,7 @@ class CoreTests(unittest.TestCase):
         payload = fixed_catalog_payload()
         template = next(item for item in payload["items"] if item["number"] == "CUSTOM_TRAIT_BLANK")
         old_items = [CatalogItem(**item) for item in payload["items"] if item["id"] != template["id"]]
-        old_source = {**payload["source"], "catalog_version": payload["source"]["catalog_version"].removesuffix("+custom-trait-blank")}
+        old_source = {**payload["source"], "catalog_version": payload["source"]["catalog_version"].split("+custom-trait-blank")[0]}
         apply_catalog(self.db, old_items, old_source)
         existing = next(item for item in old_items if item.number == "COMMON_TR_001")
         revision = store_image(self.db, self.library, self.image(), existing.id, "front", "photo.png", "image/png")

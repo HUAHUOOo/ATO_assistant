@@ -1,0 +1,53 @@
+/* Live technology modules; the diagram has no printed background. */
+html { scrollbar-gutter: stable; }
+.tech-explorer { width: 100%; margin: 0 auto; }
+.viewport.tech-tree-view { flex: 1 0 auto; padding: 8px 40px 24px; overflow: visible; background: var(--bg); }
+.tech-board-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 0 0 12px; }
+.tech-progress { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--muted); font-size: 12px; }
+.tech-progress strong { color: var(--accent-strong); font-weight: 700; }
+.tech-board-controls { display: flex; align-items: center; gap: 5px; }
+.tech-board-controls button { min-width: 32px; height: 30px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }
+.tech-board-controls button:hover { border-color: var(--accent); color: var(--accent); }
+.tech-zoom-value { min-width: 42px; text-align: center; font-size: 11px; color: var(--muted); }
+.tech-board { --bg: var(--panel); position: relative; width: 100%; height: max(320px, calc(100dvh - 220px)); overflow: auto; scrollbar-gutter: stable; border: 1px solid var(--line); background: var(--panel); cursor: grab; }
+.tech-board.is-dragging { cursor: grabbing; user-select: none; }
+.tech-board-size { position: relative; overflow: clip; }
+body[data-theme-module="technology"] .tree-wrap.tech-canvas { position: absolute; top: 0; left: 0; margin: 0; max-width: none; border: 0; box-shadow: none; background: transparent; transform-origin: top left; container-type: normal; }
+.tech-sheet-divider { position: absolute; left: 28px; width: calc(100% - 56px); height: 1px; background: var(--line); pointer-events: none; }
+.tech-lane { position: absolute; left: 28px; height: 16px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .14em; pointer-events: none; }
+.tech-links { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+.tech-link { fill: none; stroke: color-mix(in srgb, var(--muted) 55%, var(--bg)); stroke-width: 1; stroke-linecap: round; stroke-linejoin: round; opacity: 1; }
+.tech-link.met { stroke: color-mix(in srgb, var(--accent) 60%, var(--bg)); }
+.tech-link.optional { stroke-dasharray: 5 5; }
+.tech-link.connected { stroke: var(--accent-strong); }
+.tech-link.filtered { stroke: color-mix(in srgb, var(--muted) 10%, var(--bg)); }
+.tech-link.tech-link-arrows { stroke: none; }
+.tech-arrow { fill: color-mix(in srgb, var(--muted) 55%, var(--bg)); }
+.tech-arrow.met { fill: color-mix(in srgb, var(--accent) 60%, var(--bg)); }
+.tech-arrow.selected { fill: var(--accent-strong); }
+.tech-arrow.filtered { fill: color-mix(in srgb, var(--muted) 10%, var(--bg)); }
+.tech-module { position: absolute; padding: 0; border: 0; background: transparent; color: var(--ink); transition: opacity .16s; scroll-margin-top: 64px; }
+.tech-module.unlocked .node { border-color: var(--accent); background: var(--accent-soft); }
+.tech-module.unlockable .node { border-color: var(--gold, #a0843d); }
+.tech-module.active .node { outline: 1px solid var(--accent); outline-offset: 2px; }
+.tech-module.filtered { opacity: .16; pointer-events: none; }
+.tech-module.newly-discovered { animation: tech-discover .45s ease-out; }
+.tech-canvas .node { position: static; display: flex; align-items: center; justify-content: center; width: 100%; height: var(--node-height); min-height: 0; margin: 0; padding: 3px 4px; border: 1px solid var(--muted); border-radius: 0; background: var(--panel); box-shadow: none; text-align: center; color: var(--ink); cursor: pointer; }
+.tech-canvas .node:hover { color: var(--accent-strong); border-color: var(--accent); }
+.tech-module.undiscovered .node { border-style: dashed; color: var(--muted); cursor: default; }
+.tech-module.undiscovered .node-label { font-weight: 400; }
+.tech-canvas .node-label { display: block; width: 100%; font: 600 10.5px/1.12 "Songti SC", "Noto Serif CJK SC", SimSun, Georgia, serif; overflow-wrap: anywhere; }
+.tech-module.core .node-label { font-weight: 750; }
+.tech-unlock-action { position: absolute; right: -5px; top: -5px; width: 14px; height: 14px; padding: 0; border: 1px solid var(--gold, #a0843d); border-radius: 0; background: var(--panel); font: 700 11px/12px system-ui, sans-serif; color: var(--accent-strong); cursor: pointer; }
+.tech-unlock-action:hover { background: var(--accent-soft); }
+.tech-condition { display: flex; align-items: flex-start; gap: 4px; margin: 0; padding-top: 3px; background: transparent; color: var(--muted); font: 8.5px/10px system-ui, sans-serif; cursor: pointer; }
+.tech-condition input { flex: 0 0 auto; width: 9px; height: 9px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.tech-condition span { display: block; min-width: 0; overflow-wrap: anywhere; }
+.tech-discovery-message { margin: 10px 0 0; color: var(--muted); font-size: 12px; }
+.tech-discovery-message:empty { display: none; }
+.tech-discovery-message.has-discovery { color: var(--accent-strong); }
+.tech-unknown-note { color: var(--muted); font-size: 12px; padding: 8px 0; }
+@keyframes tech-discover { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
+@media (prefers-reduced-motion: reduce) { .tech-module.newly-discovered { animation: none; } }
+@media (max-width: 980px) { .viewport.tech-tree-view { padding: 8px 20px 24px; } }
+@media (max-width: 600px) { .tech-board-toolbar { align-items: flex-start; } .tech-module { scroll-margin-top: 110px; } }

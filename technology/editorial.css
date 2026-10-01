@@ -15,6 +15,12 @@ body[data-theme-module="technology"] .tab.active { background: transparent; colo
 .tools { display: flex; flex: 0 0 auto; flex-wrap: nowrap; justify-content: flex-start; width: auto; margin-left: auto; gap: 6px; font-size: 12px; }
 .tools > * { flex-shrink: 0; }
 .tools :is(.tool-btn, .cycle-select, .search) { padding: 7px 8px; }
+.tools :is(.tool-btn, .cycle-select, .account-select, .search, #cycleBadge) { height: 36px; }
+.tools #cycleBadge { justify-content: center; padding: 7px 8px; border: 1px solid transparent; font: inherit; font-weight: 700; cursor: pointer; }
+.tools #cycleBadge:hover { background: var(--accent-strong); color: #fff; }
+#cycleMenu { position: fixed; inset: auto; margin: 0; width: 140px; padding: 4px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+#cycleMenu button { display: block; width: 100%; padding: 9px 12px; border: 0; border-radius: 0; background: transparent; color: inherit; text-align: left; font: inherit; cursor: pointer; }
+#cycleMenu button:hover, #cycleMenu button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-strong); }
 .tools .tool-check { font-size: 12px; padding: 7px 0; }
 .tools .search { margin: 0; width: 120px; }
 .tools #count { white-space: nowrap; }
@@ -42,15 +48,16 @@ body :is(.tool-btn, .search, .cycle-select, .account-select, .modal-btn, .gear-r
 .gear-resource-list { gap: 0; }
 .gear-resource-row { border-radius: 0; background: transparent; border-bottom: 1px solid var(--line); padding: 10px 0; }
 .gear-resource-value { color: var(--accent-strong); }
-.gear-group { border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; margin-bottom: 20px; }
-.gear-group-header { padding: 16px 0; }
+.gear-group { border: 0; border-radius: 0; background: transparent; margin-bottom: 20px; }
+.gear-group-header { padding: 12px 14px; border-left: 3px solid var(--accent); border-bottom: 1px solid var(--line); background: var(--accent-soft); margin-bottom: 18px; }
+.gear-group-label { flex-shrink: 0; padding-right: 10px; border-right: 1px solid var(--line); color: var(--accent); font-size: 12px; font-weight: 700; }
 .gear-group-name, button.gear-group-name { font: 600 20px/1.4 "Songti SC", SimSun, Georgia, serif; color: var(--accent-strong); }
 button.gear-group-name:hover { color: var(--accent); }
 .gear-group-header:hover { background: var(--accent-soft); }
 .gear-items { padding: 0 0 16px; gap: 18px; }
-.gear-item { border: 0; border-bottom: 1px solid var(--line); background: transparent; border-radius: 0; padding: 14px; }
-.gear-item:hover { background: transparent; border-color: var(--accent); }
-.gear-card-thumb { border-radius: 0; background: transparent; border-color: var(--line); }
+.gear-item { border: 0; background: transparent; border-radius: 0; padding: 14px; }
+.gear-item:hover { background: transparent; }
+.gear-card-thumb { border: 0; border-radius: 0; background: transparent; }
 .gear-card-thumb img { background: transparent; }
 .gear-card-thumb.empty .empty-tag { border-radius: 0; }
 .gear-resource-icon { background: transparent; border: 0; border-radius: 0; }
