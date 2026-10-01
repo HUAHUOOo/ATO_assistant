@@ -140,191 +140,6 @@ body {
   overflow: auto;
   padding: 18px;
 }
-.tree-wrap {
-  position: relative;
-  width: min(1400px, 100%);
-  margin: 0 auto;
-  background: #fff;
-  border: 1px solid var(--line);
-  box-shadow: 0 10px 30px rgba(27, 36, 44, .08);
-  container-type: inline-size;
-}
-/* 「不显示底图」：藏掉印刷图，节点名与条件文字改由页面文字绘制。 */
-.tree-wrap.no-image .tree-img { display: none; }
-.tree-wrap.no-image .node { background: #fff; }
-.tree-wrap.no-image .cond-box {
-  background-color: #fff;
-  box-shadow: inset 0 0 0 1px #6b7480;
-}
-.tree-wrap.no-image .cond-box:hover {
-  background-color: rgba(216, 163, 25, .22);
-  box-shadow: inset 0 0 0 1px var(--accent-2);
-}
-.cond-text {
-  position: absolute;
-  display: none;
-  align-items: center;
-  padding-left: 2px;
-  color: var(--ink);
-  font-size: 10px;                 /* 老浏览器回退值 */
-  font-size: 0.72cqw;
-  font-weight: 700;
-  line-height: 1.04;
-  overflow: hidden;
-  pointer-events: none;
-  white-space: normal;
-  word-break: break-word;
-}
-.tree-wrap.no-image .cond-text { display: flex; }
-.tree-wrap.zh-conditions .cond-text { display: flex; }
-.tree-wrap.zh-conditions .cond-mask { display: block; }
-.tree-wrap.no-image .cond-text.prereq-locked { visibility: hidden; }
-.tree-wrap.zh-conditions .cond-text.prereq-locked { visibility: hidden; }
-.tree-wrap.zh-conditions .cond-box {
-  z-index: 2;
-  border: 1px solid #1d2328;
-  background-color: #fff;
-  box-sizing: border-box;
-}
-.tree-wrap.zh-conditions .cond-text { z-index: 1; }
-.tree-wrap.zh-conditions .cond-box:hover { background-color: rgba(216, 163, 25, .22); }
-.tree-wrap.no-image .cond-text.is-placeholder { color: var(--muted); font-weight: 600; font-style: italic; }
-.tree-img {
-  display: block;
-  width: 100%;
-  height: auto;
-  user-select: none;
-}
-.node {
-  position: absolute;
-  border: 2px solid transparent;
-  background: transparent;
-  border-radius: 0;
-  cursor: pointer;
-  min-width: 14px;
-  min-height: 14px;
-  transition: border-color .12s ease, background .12s ease, box-shadow .12s ease, opacity .12s ease;
-}
-.node-label {
-  display: none;
-  pointer-events: none;
-}
-.tree-wrap.zh-labels .node {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2px 5px;
-  background: #fff;
-  color: var(--ink);
-  overflow: hidden;
-  text-align: center;
-  box-shadow: inset 0 0 0 1px #111;
-}
-.tree-wrap.zh-labels .node-label {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  width: 100%;
-  overflow: hidden;
-  font-family: "Noto Serif SC", "Songti SC", "Microsoft YaHei", serif;
-  font-size: 12px;
-  font-weight: 850;
-  line-height: 1.08;
-  letter-spacing: .02em;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, .62);
-}
-.tree-wrap.zh-labels .node.unlocked {
-  background: #fff;
-  box-shadow: inset 0 0 0 1px #111, 0 0 0 1px rgba(30, 138, 85, .18);
-}
-.tree-wrap.zh-labels .node.unlockable {
-  background: #fff;
-  box-shadow: inset 0 0 0 1px #111, 0 0 0 1px rgba(216, 163, 25, .2);
-}
-.node::after {
-  display: none;
-}
-.node:hover {
-  background: rgba(29, 35, 40, .04);
-}
-.node.unlocked {
-  border-color: #1e8a55;
-  background: rgba(30, 138, 85, .08);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .72), 0 0 0 1px rgba(30, 138, 85, .18);
-}
-.node.unlockable {
-  border-color: #d8a319;
-  background: rgba(216, 163, 25, .08);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .72), 0 0 0 1px rgba(216, 163, 25, .2);
-}
-.node.unlocked:hover,
-.node.unlocked.active {
-  background: rgba(30, 138, 85, .14);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .8), 0 0 0 3px rgba(30, 138, 85, .2);
-}
-.node.unlockable:hover,
-.node.unlockable.active {
-  background: rgba(216, 163, 25, .16);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .8), 0 0 0 3px rgba(216, 163, 25, .24);
-}
-.node.active:not(.unlocked):not(.unlockable) {
-  background: rgba(29, 35, 40, .05);
-}
-.tree-wrap.zh-labels .node:hover,
-.tree-wrap.zh-labels .node.active:not(.unlocked):not(.unlockable) {
-  background: #fff;
-}
-.tree-wrap.zh-labels .node.unlocked:hover,
-.tree-wrap.zh-labels .node.unlocked.active {
-  background: #fff;
-  box-shadow: inset 0 0 0 1px #111, 0 0 0 3px rgba(30, 138, 85, .2);
-}
-.tree-wrap.zh-labels .node.unlockable:hover,
-.tree-wrap.zh-labels .node.unlockable.active {
-  background: #fff;
-  box-shadow: inset 0 0 0 1px #111, 0 0 0 3px rgba(216, 163, 25, .24);
-}
-/* 「不显示未知科技」：未知（名字会被遮的）节点用白底盖住底图上的名字，连框线都不画——位置只留空白。 */
-.tree-wrap.hide-unknown .node.unknown,
-.tree-wrap.hide-unknown .node.unknown:hover,
-.tree-wrap.hide-unknown .node.unknown.active {
-  background: #fff;
-  border-color: transparent;
-  box-shadow: none;
-}
-.tree-wrap.hide-unknown .node.unknown .node-label { display: none; }
-/* 被遮挡的节点没有名字可看，搜索时不必再淡出（保留 filtered 的不可点击）。 */
-.tree-wrap.hide-unknown .node.unknown.filtered { opacity: 1; }
-/* 前置科技没解锁时，用白块盖住节点框下方那条条件文字（复选框本身留在上面可点）。 */
-.cond-mask {
-  position: absolute;
-  display: none;
-  background: #fff;
-  pointer-events: none;
-}
-.cond-mask.prereq-locked { display: block; }
-/* 完全遮挡的节点：下方条件方格也隐藏（名字那一格由上面的 .unknown 规则留白）。 */
-.cond-box.prereq-locked { display: none; }
-/* 印在节点框下方的解锁条件复选框：点击切换，勾选后在格子里画对勾。 */
-.cond-box {
-  position: absolute;
-  appearance: none;
-  -webkit-appearance: none;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent center / contain no-repeat;
-  cursor: pointer;
-}
-.cond-box:hover {
-  background-color: rgba(216, 163, 25, .22);
-  box-shadow: inset 0 0 0 1px var(--accent-2);
-}
-.cond-box:checked {
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M16 52 L40 76 L86 24' fill='none' stroke='%231d2328' stroke-width='15' stroke-linecap='round' stroke-linejoin='round'/></svg>");
-}
-.cond-box:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 1px; }
-.node.filtered { opacity: .16; pointer-events: none; }
 .badge {
   display: inline-flex;
   align-items: center;
@@ -1132,6 +947,7 @@ button.gear-group-name:hover {
 <link rel="stylesheet" href="../cycle-theme.css">
 <link rel="stylesheet" href="../assets/theme.css?v=20261001">
 <link rel="stylesheet" href="editorial.css?v=20261001-cycle-menu">
+<link rel="stylesheet" href="tech-tree.css?v=20261001-white-canvas">
 <script src="../assets/theme.js?v=20261001" defer></script>
 </head>
 <body data-theme-module="technology">
@@ -1153,13 +969,9 @@ button.gear-group-name:hover {
         <div id="cycleMenu" popover aria-label="选择当前循环"></div>
         <input id="search" class="search" placeholder="搜索科技" autocomplete="off">
         <button class="tool-btn" id="clearUnlocked" type="button">重置进度</button>
-        <label class="tool-check" id="hideUnknownLabel" title="勾选后只显示已解锁与可解锁科技的名字，其余节点用白色遮挡">
+        <label class="tool-check" id="hideUnknownLabel" title="满足前置需求后发现新节点；孤立科技满足下方全部条件后显示名称">
           <input id="hideUnknownToggle" type="checkbox" checked>
-          不显示未知科技
-        </label>
-        <label class="tool-check" id="hideImageLabel" title="勾选后隐藏印刷底图，节点名与解锁条件文字改为页面文字显示（多格节点的每个方格都要勾）">
-          <input id="hideImageToggle" type="checkbox">
-          不显示底图
+          逐步发现科技
         </label>
         <span id="count"></span>
       </div>
@@ -1186,6 +998,7 @@ button.gear-group-name:hover {
   <script src="../assets/page-focus-router.js?v=20260813-no-screen-focus1"></script>
   <script src="../assets/campaign-session.js?v=20260917"></script>
   <script src="../assets/cycle-symbols.js?v=20260918"></script>
+<script src="tech-tree.js?v=20261001-untitled-tree"></script>
 <script>
 const TECH_DICTIONARY_URL = 'tech_card_dictionary.min.json';
 const GEAR_PRODUCTION_URL = 'ato_gear_production.json';
@@ -1905,6 +1718,7 @@ function gearItemHtml(entry, gear) {
 
 function renderGearProductionPage() {
   currentTab = 'gear-production';
+  mainView.classList.remove('tech-tree-view');
   renderCycleButton();
   gearCraftPlans = new Map();
   requestGearRecordState();
@@ -2049,59 +1863,49 @@ function applyGearSearch() {
 
 const PAGE_METADATA = [
   {
-    "key": "cycle1",
-    "label": "循环 I",
-    "pdf": "ATO_C1_TechTree_1.2.pdf",
-    "image": "images/tech_tree_pages/cycle1_tree_v24.png",
-    "width": 1190.5511474609375,
-    "height": 841.8897705078125,
-    "split_y": 425.1977844238281
+    key: 'cycle1', label: '循环 I', width: 1190.5511474609375, height: 841.8897705078125, split_y: 425.1977844238281,
+    node_align_y: { cycle1_30: 'cycle1_22', cycle1_29: 'cycle1_51' },
   },
   {
-    "key": "cycle2",
-    "label": "循环 II",
-    "pdf": "ATO_C2_TechTree.pdf",
-    "image": "images/tech_tree_pages/cycle2_tree_v24.png",
-    "width": 1190.5511474609375,
-    "height": 841.8897705078125,
-    "split_y": 413.8587646484375
+    key: 'cycle2', label: '循环 II', width: 1190.5511474609375, height: 841.8897705078125, split_y: 413.8587646484375,
+    node_align_y: {
+      cycle2_64: 'cycle2_27', cycle2_27: 'cycle2_64',
+      cycle2_29: 'cycle2_30', cycle2_14: 'cycle2_43',
+      cycle2_11: 'cycle2_31', cycle2_17: 'cycle2_54',
+    },
+    node_widths: { cycle2_27: 80 },
+    edge_ports: {
+      'cycle2_64>cycle2_63': { source: 'left', target: 'top' },
+      'cycle2_40>cycle2_23': { source: 'bottom', target: 'left' },
+    },
   },
   {
-    "key": "cycle3",
-    "label": "循环 III",
-    "pdf": "ATO_C3_TechTree.pdf",
-    "image": "images/tech_tree_pages/cycle3_tree_v24.png",
-    "width": 1190.5511474609375,
-    "height": 841.8897705078125,
-    "split_y": 411.0247802734375
+    key: 'cycle3', label: '循环 III', width: 1190.5511474609375, height: 841.8897705078125, split_y: 411.0247802734375,
+    node_align_y: { cycle3_57: 'cycle3_20', cycle3_58: 'cycle3_22' },
   },
   {
-    "key": "cycle4",
-    "label": "循环 IV",
-    "pdf": "ATO_C4_TechTree.pdf",
-    "image": "images/tech_tree_pages/cycle4_tree_v24.png",
-    "width": 1190.5511474609375,
-    "height": 841.8897705078125,
-    "split_y": 411.0247802734375
+    key: 'cycle4', label: '循环 IV', width: 1190.5511474609375, height: 841.8897705078125, split_y: 411.0247802734375,
+    node_align_y: {
+      cycle4_da2185: 'cycle4_da2193', cycle4_da2211: 'cycle4_da2205',
+      cycle4_da2203: 'cycle4_da2220', cycle4_da2200: 'cycle4_da2204',
+    },
+    edge_ports: {
+      'cycle4_da2175>cycle4_da2192': { target: 'top' },
+      'cycle4_da2167>cycle4_da2192': { target: 'top' },
+      'cycle4_da2192>cycle4_da2170': { source: 'right' },
+      'cycle4_da2192>cycle4_da2176': { source: 'right' },
+    },
   },
   {
-    "key": "cycle5",
-    "label": "循环 V",
-    "pdf": "ATO_C5_TechTree.pdf",
-    "image": "images/tech_tree_pages/cycle5_tree_v24.png",
-    "width": 1190.5511474609375,
-    "height": 841.8897705078125,
-    "split_y": 411.0247802734375
-  }
+    key: 'cycle5', label: '循环 V', width: 1190.5511474609375, height: 841.8897705078125, split_y: 411.0247802734375,
+    node_align_y: { cycle5_ea2778: 'cycle5_ea2777' },
+    edge_channels: {
+      'cycle5_ea2729>cycle5_ea2735': { above: 'cycle5_ea2734', below: 'cycle5_ea2747' },
+    },
+  },
 ];
 
-// 印刷版科技树里，部分节点的方框正下方印着空白方格——解锁条件复选框：
-// 左边缘与节点框左边对齐、上边缘从节点框底边开始往下堆叠，宽约 13.5 页px，
-// 高度随条件文字行数变化（13.5~28 页px）。多数节点只有 1 格，少数节点（如循环I「和平」）
-// 有 2~3 格，对应印在方格右侧的多行解锁条件。
-// 这里记录从底图检测出的每个节点及其全部方格 [相对框底的纵向偏移, 高度]（页面像素）：
-// 对 tech_tree_pages/*_tree_v24.png 取亮度 >246 的封闭白区，保留宽 9.5~18、高 9.5~46 页px、
-// 左边缘与节点框左边对齐、且从框底首尾相接堆叠的那些。重新导出底图后可用同一判据重新生成。
+// 保留原版条件条数，沿用存档中的条件键；坐标不再参与绘图。
 const PRINTED_CONDITION_BOXES = {
   cycle1: {
     'cycle1_0': [[0.0, 13.5]],
@@ -2203,7 +2007,6 @@ const PRINTED_CONDITION_BOXES = {
     'cycle5_ea2790': [[-0.1, 14.0]],
   },
 };
-const PRINTED_CONDITION_BOX_WIDTH = 13.5;
 // 底图上印着、但词典里没有的解锁条件文字（逐字读自 tech_tree_pages/*.png）。
 // 读取方式：把已知条件文字在图上裁成字形样本训练分类器，再用它认这些行，最后用官方汉化模板校对。
 const PRINTED_CONDITION_TEXT = {
@@ -2716,8 +2519,9 @@ let currentTab = null;
 let selectedNodeId = null;
 let treeLanguage = 'en';
 let hideUnknownTech = true;
+// Legacy preference kept only for compatibility with existing campaign saves.
 let hideTreeImage = false;
-const UNKNOWN_TECH_TITLE = '未知科技';
+let treeViewState = null;
 
 const tabs = document.getElementById('tabs');
 const mainView = document.getElementById('mainView');
@@ -2729,7 +2533,6 @@ const languageToggle = document.getElementById('languageToggle');
 const cycleBadge = document.getElementById('cycleBadge');
 const clearUnlocked = document.getElementById('clearUnlocked');
 const hideUnknownToggle = document.getElementById('hideUnknownToggle');
-const hideImageToggle = document.getElementById('hideImageToggle');
 const campaignSaveStatus = document.getElementById('campaignSaveStatus');
 const unlockedModal = document.getElementById('unlockedModal');
 const unlockedModalImage = document.getElementById('unlockedModalImage');
@@ -2886,13 +2689,15 @@ function areRequirementsMet(node) {
   const orReady = (node?.requires_any_groups || []).every(group => group.some(isRequirementUnlocked));
   return andReady && orReady;
 }
-// 前置没解锁的节点：连它框下方那行条件文字也一并遮住（「不显示未知科技」打开时生效；
-// 已解锁的节点不遮，因为技术已经拿到手了）。复选框本身保留，仍然可以点。
-function isConditionTextHidden(pageKey, node) {
-  if (!hideUnknownTech) return false;
-  if (!hasPrintedConditionBox(pageKey, node)) return false;
-  if (isUnlockedNode(pageKey, node)) return false;
-  return !areRequirementsMet(node);
+function isDiscoveredNode(pageKey, node) {
+  return isUnlockedNode(pageKey, node) || (areRequirementsMet(node) && !isConditionDiscoveryPending(pageKey, node));
+}
+// Roots reached through printed conditions keep a usable condition row, but
+// their technology name is revealed only when every condition is satisfied.
+function isConditionDiscoveryPending(pageKey, node) {
+  return !(node?.requires?.length || node?.requires_any_groups?.length)
+    && hasPrintedConditionBox(pageKey, node)
+    && !isUnlockedNode(pageKey, node) && !isConditionSatisfied(pageKey, node);
 }
 // 印刷在节点框下方的条件方格（见 PRINTED_CONDITION_BOXES）：每一格都要勾上，
 // 只要有一格没勾，这个节点就不算满足条件（即不算「可解锁」）。
@@ -2951,34 +2756,12 @@ function conditionToggleLabel(pageKey, node, index = null) {
   const head = `解锁条件第 ${(index ?? 0) + 1}/${cells.length} 格`;
   return caption ? `${head}：${caption}` : head;
 }
-function applyNodeState(el, pageKey, node) {
-  const unlockedNow = isUnlockedNode(pageKey, node);
-  const unlockableNow = !unlockedNow && isUnlockableNode(pageKey, node);
-  const unknownNow = !unlockedNow && !unlockableNow;
-  el.classList.toggle('unlocked', unlockedNow);
-  el.classList.toggle('unlockable', unlockableNow);
-  el.classList.toggle('unknown', unknownNow);
-  // 完全遮挡（前置没解锁、条件文字也被遮）的节点：下方方格也隐藏，只留空白
-  el.classList.toggle('prereq-locked', isConditionTextHidden(pageKey, node));
-  el.title = hideUnknownTech && unknownNow ? UNKNOWN_TECH_TITLE : displayTechName(node);
-}
 function syncHideUnknownToggle() {
   const toggle = document.getElementById('hideUnknownToggle');
   if (toggle) {
     toggle.checked = hideUnknownTech;
     toggle.setAttribute('aria-checked', hideUnknownTech ? 'true' : 'false');
   }
-  if (hideImageToggle) {
-    hideImageToggle.checked = hideTreeImage;
-    hideImageToggle.setAttribute('aria-checked', hideTreeImage ? 'true' : 'false');
-  }
-  const treeWrap = document.getElementById('treeWrap');
-  if (!treeWrap) return;
-  treeWrap.classList.toggle('hide-unknown', hideUnknownTech);
-  treeWrap.classList.toggle('no-image', hideTreeImage);
-  // zh-labels 的含义是「节点名由页面绘制」：中文模式，或者底图被隐藏时都要打开。
-  treeWrap.classList.toggle('zh-labels', treeLanguage === 'zh' || hideTreeImage);
-  treeWrap.classList.toggle('zh-conditions', treeLanguage === 'zh');
 }
 function isUnimportantNode(pageKey, node) { return unimportant.has(nodeKey(pageKey, node)); }
 function isNegotiationNode(pageKey, node) {
@@ -3035,15 +2818,22 @@ function displayTechRefName(ref) {
   if (record) return displayTechName(record.node);
   return ref;
 }
-function renderTechRefList(items, emptyText, statusForItem = null) {
+function renderTechRefList(items, emptyText, statusForItem = null, showUndiscoveredNames = false) {
   if (!items?.length) return `<div class="modal-tech-empty">${esc(emptyText)}</div>`;
-  return `<div class="modal-tech-list">${items.map(item => {
+  let undiscovered = 0;
+  const entries = items.map(item => {
     const status = statusForItem ? statusForItem(item) : '';
     const record = nodeRecordByName(techKey(item));
+    const discovered = record && isDiscoveredNode(record.page.key, record.node);
+    if ((record && isConditionDiscoveryPending(record.page.key, record.node)) || (!showUndiscoveredNames && hideUnknownTech && !discovered)) {
+      undiscovered++;
+      return '';
+    }
     const label = esc(record ? displayTechName(record.node) : item);
-    if (!record) return `<span class="modal-tech-item ${esc(status)}">${label}</span>`;
+    if (!record || (hideUnknownTech && !discovered)) return `<span class="modal-tech-item ${esc(status)}">${label}</span>`;
     return `<button class="modal-tech-item ${esc(status)}" type="button" data-page="${esc(record.page.key)}" data-node="${esc(record.node.id)}">${label}</button>`;
-  }).join('')}</div>`;
+  }).join('');
+  return `<div class="modal-tech-list">${entries}</div>${undiscovered ? `<div class="tech-unknown-note">${undiscovered} 项科技尚未发现，满足前置需求后显示。</div>` : ''}`;
 }
 function renderRequirementAnyGroups(groups) {
   if (!groups?.length) return '';
@@ -3077,8 +2867,8 @@ function renderConditionToggle(pageKey, node) {
     `;
   }).join('');
   const hint = cells.length > 1
-    ? `这个节点下方印了 ${cells.length} 个方格，全部勾上才算满足解锁条件（未勾满仍可手动解锁）。`
-    : '未勾选时该节点不算可解锁（仍可手动解锁）。方格就是科技树上节点框正下方的那个。';
+    ? `全部 ${cells.length} 项条件勾选后即可解锁。也可以在详情中手动解锁。`
+    : '勾选条件后即可解锁。也可以在详情中手动解锁。';
   return `${rows}<div class="modal-condition-hint">${hint}</div>`;
 }
 function renderRequirementUnlockColumns(pageKey, node) {
@@ -3090,7 +2880,7 @@ function renderRequirementUnlockColumns(pageKey, node) {
     requirementAnyGroups.length ? '无必须需求' : '无前置需求',
     item => isRequirementUnlocked(item) ? 'met' : 'missing'
   );
-  const unlockList = renderTechRefList(unlocks, '无直接解锁');
+  const unlockList = renderTechRefList(unlocks, '无直接解锁', null, true);
   return `
     <section class="modal-tech-column">
       <h3>需求</h3>
@@ -3100,7 +2890,7 @@ function renderRequirementUnlockColumns(pageKey, node) {
       ${renderConditionToggle(pageKey, node)}
     </section>
     <section class="modal-tech-column">
-      <h3>解锁</h3>
+      <h3>能解锁的科技</h3>
       ${unlockList}
       ${renderConditionNotes(node?.xlsm_special_leads_to)}
     </section>
@@ -3165,7 +2955,7 @@ const TECH_STATE_FIELD_LABELS = {
   unimportant: '不重要的科技',
   conditions: '条件勾选',
   treeLanguage: '界面语言',
-  hideUnknownTech: '不显示未知科技',
+  hideUnknownTech: '逐步发现科技',
   hideTreeImage: '不显示底图',
 };
 // 数组在这里表达的是「集合」：两张页面各自按自己的插入顺序存下同一批已解锁科技
@@ -3754,12 +3544,15 @@ function attachUnlockedItemHandlers(root) {
   });
 }
 function navigateToNode(pageKey, nodeId) {
+  const target = pageByKey(pageKey)?.nodes.find(node => node.id === nodeId);
+  if (!target || isConditionDiscoveryPending(pageKey, target) || (hideUnknownTech && !isDiscoveredNode(pageKey, target))) return;
   closeUnlockedModal();
   viewPage = pageKey;
   currentTab = viewPage;
   selectedNodeId = nodeId;
   renderTabs();
   renderTree();
+  focusTreeNode(nodeId);
   const page = pageByKey(viewPage);
   const node = page?.nodes.find(item => item.id === selectedNodeId);
   if (node) showNodeModal(node);
@@ -3784,9 +3577,12 @@ function showUnlockedModal(pageKey, nodeId) {
 }
 function showNodeModal(node) {
   const page = pageByKey(viewPage);
+  if (!page || isConditionDiscoveryPending(page.key, node) || (hideUnknownTech && !isDiscoveredNode(page.key, node))) return;
   const cards = node.card_indexes.map(i => data.cards[i]).filter(Boolean);
   selectedNodeId = node.id;
   document.querySelectorAll('.node').forEach(el => el.classList.toggle('active', el.dataset.nodeId === node.id));
+  document.querySelectorAll('.tech-module').forEach(el => el.classList.toggle('active', el.dataset.nodeId === node.id));
+  updateTreeLinkHighlights();
   activeUnlockedRecord = { page, node, card: cards[0] || null };
   activeModalMode = 'tree';
   unlockedModalTitle.textContent = displayTechName(node);
@@ -3837,6 +3633,7 @@ function toggleUnimportantForActive() {
 }
 function renderUnlockedPage() {
   currentTab = 'unlocked';
+  mainView.classList.remove('tech-tree-view');
   document.querySelector('.app').classList.add('unlocked-mode');
   renderCycleButton();
   const records = unlockedRecords();
@@ -3877,40 +3674,15 @@ function toggleCondition(pageKey, nodeId, cellIndex, checked) {
   else conditionTicked.delete(key);
   saveAccounts();
   refreshUnlockState();
-  if (activeModalMode === 'tree' && activeUnlockedRecord?.node?.id === node.id) showNodeModal(node);
+  if (activeModalMode === 'tree' && activeUnlockedRecord?.node?.id === node.id) {
+    if (isConditionDiscoveryPending(page.key, node)) closeUnlockedModal();
+    else showNodeModal(node);
+  }
 }
 function refreshUnlockState() {
-  document.querySelectorAll('.node').forEach(el => {
-    const page = pageByKey(el.dataset.pageKey);
-    const node = page?.nodes.find(item => item.id === el.dataset.nodeId);
-    if (page && node) applyNodeState(el, page.key, node);
-  });
-  document.querySelectorAll('.cond-box').forEach(el => {
-    const page = pageByKey(el.dataset.pageKey);
-    const node = page?.nodes.find(item => item.id === el.dataset.nodeId);
-    if (!page || !node) return;
-    const index = Number(el.dataset.cellIndex) || 0;
-    el.checked = isConditionCellTicked(page.key, node, index);
-    el.classList.toggle('prereq-locked', isConditionTextHidden(page.key, node));
-    el.title = conditionCellTitle(page.key, node, index);
-  });
-  document.querySelectorAll('.cond-mask').forEach(el => {
-    const page = pageByKey(el.dataset.pageKey);
-    const node = page?.nodes.find(item => item.id === el.dataset.nodeId);
-    el.classList.toggle('prereq-locked', Boolean(page && node && isConditionTextHidden(page.key, node)));
-  });
-  document.querySelectorAll('.cond-text').forEach(el => {
-    const page = pageByKey(el.dataset.pageKey);
-    const node = page?.nodes.find(item => item.id === el.dataset.nodeId);
-    if (!page || !node) return;
-    const index = Number(el.dataset.cellIndex) || 0;
-    el.classList.toggle('prereq-locked', isConditionTextHidden(page.key, node));
-    el.classList.toggle('is-placeholder', !conditionCellCaption(page.key, node, index));
-    el.textContent = conditionCellDisplayText(page.key, node, index);
-    el.style.fontSize = conditionTextFontCqw(el.textContent) + 'cqw';
-  });
-  applySearch();
   if (currentTab === 'unlocked') renderUnlockedPage();
+  else if (currentTab === 'gear-production') renderGearProductionPage();
+  else renderTree({ preserveViewport: true, announce: true });
 }
 function cardPreview(card, side = 'front') {
   const imageFile = side === 'back' ? card.back_image_file : card.face_image_file;
@@ -3997,36 +3769,115 @@ function renderCycleButton() {
   cycleBadge.setAttribute('aria-label', cycleBadge.title);
   document.getElementById('cycleMenu').innerHTML = data.pages.map(item => `<button type="button" data-cycle="${esc(item.key)}" aria-pressed="${item.key === currentCycle}">${esc(item.label)}</button>`).join('');
 }
-function renderTree() {
+function treeNodeStatus(pageKey, node) {
+  if (isUnlockedNode(pageKey, node)) return { className: 'unlocked', label: '已解锁', dot: 'unlocked' };
+  if (isUnlockableNode(pageKey, node)) return { className: 'unlockable', label: '可解锁', dot: 'ready' };
+  if (areRequirementsMet(node)) return { className: 'pending', label: '待满足条件', dot: 'pending' };
+  return { className: 'locked', label: '前置未完成', dot: 'pending' };
+}
+function treeTextUnits(text) {
+  return [...String(text)].reduce((sum, char) => sum + (char.charCodeAt(0) > 255 ? 1 : /[A-Z]/.test(char) ? .65 : /\s/.test(char) ? .3 : .53), 0);
+}
+function treeTextRows(text, fontSize, width) {
+  const tokens = String(text).match(/[A-Za-z0-9'’.-]+|\s+|./gu) || [];
+  let rows = 1, used = 0;
+  for (const token of tokens) {
+    let pixels = treeTextUnits(token) * fontSize;
+    if (/^\s+$/.test(token) && used === 0) continue;
+    if (used + pixels > width) {
+      if (used > 0) rows++;
+      used = 0;
+      if (/^\s+$/.test(token)) continue;
+      while (pixels > width) { rows++; pixels -= width; }
+    }
+    used += pixels;
+  }
+  return rows;
+}
+function treeModuleSize(pageKey, node) {
+  const box = node.tree_box || node;
+  const width = Math.max(64, Math.min(104, Number(box.w || 113.386) * .9));
+  const titleRows = treeTextRows(displayTechName(node), 10.5, width - 8);
+  const height = Math.max(34, Math.min(Math.max(34, Number(box.h || 49.606)), titleRows * 12 + 12));
+  const conditionHeights = [];
+  for (let index = 0; index < (conditionCells(pageKey, node)?.length || 0); index++) {
+    const text = conditionCellDisplayText(pageKey, node, index);
+    conditionHeights.push(treeTextRows(text, 8.5, width - 15) * 10 + 3);
+  }
+  return { width, height, conditionHeights, totalHeight: height + conditionHeights.reduce((sum, value) => sum + value, 0) };
+}
+function treeModuleHtml(page, node, position, newlyDiscovered) {
+  const status = treeNodeStatus(page.key, node);
+  const core = isCoreNode(node);
+  const pendingDiscovery = isConditionDiscoveryPending(page.key, node);
+  const name = pendingDiscovery ? (treeLanguage === 'zh' ? '未发现科技' : 'Undiscovered') : displayTechName(node);
+  const conditions = (conditionCells(page.key, node) || []).map((_, index) => `
+    <label class="tech-condition" style="height:${position.conditionHeights[index]}px" title="${esc(conditionCellDisplayText(page.key, node, index))}">
+      <input type="checkbox" class="tech-condition-input" data-page-key="${esc(page.key)}" data-node-id="${esc(node.id)}" data-cell-index="${index}" data-focus="cond:${esc(node.id)}:${index}" aria-label="${esc(name)} ${esc(conditionCellDisplayText(page.key, node, index))}"${isConditionCellTicked(page.key, node, index) ? ' checked' : ''}>
+      <span>${esc(conditionCellDisplayText(page.key, node, index))}</span>
+    </label>`).join('');
+  const action = status.className === 'unlockable'
+    ? `<button class="tech-unlock-action" type="button" data-unlock-node="${esc(node.id)}" data-focus="unlock:${esc(node.id)}" aria-label="解锁 ${esc(displayTechName(node))}" title="解锁 ${esc(displayTechName(node))}">＋</button>` : '';
+  return `<article class="tech-module ${status.className}${pendingDiscovery ? ' undiscovered' : ''}${core ? ' core' : ''}${selectedNodeId === node.id ? ' active' : ''}${newlyDiscovered ? ' newly-discovered' : ''}" data-node-id="${esc(node.id)}" style="left:${position.x}px;top:${position.y}px;width:${position.width}px;height:${position.totalHeight}px;--node-height:${position.height}px">
+    <button class="node" type="button" data-node-id="${esc(node.id)}" data-page-key="${esc(page.key)}" data-name="${pendingDiscovery ? '' : esc(`${node.name || ''} ${node.name_zh || ''}`.toLowerCase())}" data-focus="node:${esc(node.id)}" aria-label="${esc(name)}，${status.label}" title="${esc(name)} · ${status.label}${core ? ' · 核心科技' : ''}"${pendingDiscovery ? ' disabled' : ''}><span class="node-label">${esc(name)}</span></button>
+    ${action}
+    ${conditions}
+  </article>`;
+}
+function renderTree(options = {}) {
   updateTechnologyTheme();
   document.querySelector('.app').classList.remove('unlocked-mode');
+  mainView.classList.add('tech-tree-view');
   const page = pageByKey(viewPage);
+  if (!page) return;
   currentTab = viewPage;
   renderCycleButton();
-  mainView.innerHTML = `<div class="tree-wrap" id="treeWrap"></div>`;
+  const oldBoard = document.getElementById('techBoard');
+  const samePage = treeViewState?.pageKey === page.key && Boolean(oldBoard);
+  const oldScroll = samePage ? { left: window.scrollX, top: window.scrollY } : { left: 0, top: 0 };
+  const oldFocus = document.activeElement?.dataset?.focus;
+  const fullGraph = window.ATO_TECH_TREE.buildGraph(page.nodes, node => nodeKey(page.key, node));
+  const graph = window.ATO_TECH_TREE.visibleGraph(fullGraph, node => isDiscoveredNode(page.key, node), hideUnknownTech,
+    node => isConditionDiscoveryPending(page.key, node));
+  const layoutKey = `${page.key}:${treeLanguage}`;
+  const layout = samePage && treeViewState.layoutKey === layoutKey ? treeViewState.layout
+    : window.ATO_TECH_TREE.layoutGraph(fullGraph, page, node => treeModuleSize(page.key, node));
+  const discovered = graph.nodes.filter(node => isDiscoveredNode(page.key, node));
+  const newIds = new Set(options.announce && samePage && hideUnknownTech && treeViewState.hideUnknown
+    ? discovered.filter(node => !treeViewState.visibleIds.has(node.id)).map(node => node.id) : []);
+  treeViewState = { pageKey: page.key, zoom: samePage ? treeViewState.zoom : 1, visibleIds: new Set(discovered.map(node => node.id)), hideUnknown: hideUnknownTech, layout, layoutKey };
+  const unlockedCount = page.nodes.filter(node => isUnlockedNode(page.key, node)).length;
+  const readyCount = graph.nodes.filter(node => isUnlockableNode(page.key, node)).length;
+  const segments = window.ATO_TECH_TREE.linkSegments(graph.edges, layout);
+  const renderSegment = (segment, arrows = false) => {
+    const met = segment.edges.some(edge => isUnlockedNode(page.key, page.nodes.find(node => node.id === edge.source)));
+    const optional = segment.edges.every(edge => edge.optional);
+    const connections = segment.edges.map(edge => [edge.source, edge.target]);
+    const marker = `url(#techArrow${met ? 'Met' : ''})`;
+    return `<path class="tech-link${arrows ? ' tech-link-arrows' : ''}${met ? ' met' : ''}${optional ? ' optional' : ''}" data-connections="${esc(JSON.stringify(connections))}" d="${segment.path}"${arrows && segment.arrowStart ? ` marker-start="${marker}"` : ''}${arrows && segment.arrowEnd ? ` marker-end="${marker}"` : ''}/>`;
+  };
+  const edgeHtml = segments.map(segment => renderSegment(segment)).join('');
+  const arrowHtml = segments.filter(segment => segment.arrowStart || segment.arrowEnd).map(segment => renderSegment(segment, true)).join('');
+  const arrowDefs = ['', 'Met', 'Selected', 'Filtered'].map(state => `<marker id="techArrow${state}" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto-start-reverse"><path class="tech-arrow ${state.toLowerCase()}" d="M0 0 L7 3.5 L0 7 Z"/></marker>`).join('');
+  mainView.innerHTML = `<section class="tech-explorer" aria-label="${esc(page.label)}科技树">
+    <div class="tech-board-toolbar">
+      <div class="tech-progress"><span>已发现 <strong>${discovered.length}</strong> / ${page.nodes.length}</span><span>已解锁 <strong>${unlockedCount}</strong></span><span>可解锁 <strong>${readyCount}</strong></span></div>
+      <div class="tech-board-controls"><button type="button" data-tree-control="out" aria-label="缩小科技树">−</button><span class="tech-zoom-value" id="techZoomValue">100%</span><button type="button" data-tree-control="in" aria-label="放大科技树">＋</button><button type="button" data-tree-control="reset">100%</button><button type="button" data-tree-control="fit">总览</button><button type="button" data-tree-control="ready">定位可解锁</button></div>
+    </div>
+    <div class="tech-board" id="techBoard" tabindex="0" aria-label="科技树，可缩放">
+      <div class="tech-board-size" id="techBoardSize"><div class="tree-wrap tech-canvas" id="treeWrap" style="width:${layout.width}px;height:${layout.height}px">
+        <div class="tech-sheet-divider" style="top:${layout.splitY}px"></div>
+        ${layout.lanes.map(lane => `<div class="tech-lane" style="top:${lane.y}px">${categoryLabel(lane.category)}</div>`).join('')}
+        <svg class="tech-links" width="${layout.width}" height="${layout.height}" aria-hidden="true"><defs>${arrowDefs}</defs><g class="tech-line-layer">${edgeHtml}</g><g class="tech-arrow-layer">${arrowHtml}</g></svg>
+        ${graph.nodes.map(node => treeModuleHtml(page, node, layout.positions.get(node.id), newIds.has(node.id))).join('')}
+      </div></div>
+    </div>
+    <div class="tech-discovery-message${newIds.size ? ' has-discovery' : ''}" role="status" aria-live="polite">${newIds.size ? `新发现 ${newIds.size} 项科技：${discovered.filter(node => newIds.has(node.id)).map(node => esc(displayTechName(node))).join('、')}` : ''}</div>
+  </section>`;
   const treeWrap = document.getElementById('treeWrap');
-  treeWrap.style.aspectRatio = `${page.width} / ${page.height}`;
-  treeWrap.classList.toggle('zh-labels', treeLanguage === 'zh' || hideTreeImage);
-  treeWrap.classList.toggle('zh-conditions', treeLanguage === 'zh');
-  treeWrap.classList.toggle('no-image', hideTreeImage);
-  treeWrap.classList.toggle('hide-unknown', hideUnknownTech);
-  treeWrap.innerHTML = `<img class="tree-img" src="${esc(page.image)}" alt="${esc(page.label)} technology tree">`;
-  for (const node of page.nodes) {
-    const el = document.createElement('button');
-    el.type = 'button';
-    el.className = 'node';
-    el.dataset.nodeId = node.id;
-    el.dataset.pageKey = page.key;
-    el.dataset.name = `${node.name || ''} ${node.name_zh || ''}`.toLowerCase();
-    el.dataset.techName = node.name;
-    el.dataset.progressKey = nodeKey(page.key, node);
-    applyNodeState(el, page.key, node);
-    const box = node.tree_box || node;
-    el.style.left = (box.x / page.width * 100) + '%';
-    el.style.top = (box.y / page.height * 100) + '%';
-    el.style.width = (box.w / page.width * 100) + '%';
-    el.style.height = (box.h / page.height * 100) + '%';
-    el.innerHTML = `<span class="node-label">${esc(displayTechName(node))}</span>`;
+  fitCompactTreeText(treeWrap);
+  treeWrap.querySelectorAll('.node').forEach(el => {
+    const node = page.nodes.find(item => item.id === el.dataset.nodeId);
     let clickTimer = null;
     el.addEventListener('click', (event) => {
       if (event.detail > 1) return;
@@ -4044,95 +3895,125 @@ function renderTree() {
       event.stopPropagation();
       toggleUnlocked(page.key, node);
     });
-    treeWrap.appendChild(el);
+  });
+  treeWrap.querySelectorAll('[data-unlock-node]').forEach(button => button.addEventListener('click', () => {
+    const node = page.nodes.find(item => item.id === button.dataset.unlockNode);
+    if (node && isUnlockableNode(page.key, node)) toggleUnlocked(page.key, node);
+  }));
+  treeWrap.querySelectorAll('[data-detail-node]').forEach(button => button.addEventListener('click', () => {
+    showNodeModal(page.nodes.find(item => item.id === button.dataset.detailNode));
+  }));
+  attachTreeControls();
+  if (!samePage) {
+    const board = document.getElementById('techBoard');
+    treeViewState.zoom = board.clientWidth >= 700 ? Math.min(1, board.clientWidth / layout.width) : 1;
   }
-  renderConditionBoxes(treeWrap, page);
+  setTreeZoom(treeViewState.zoom, false);
+  if (samePage) {
+    window.scrollTo(oldScroll.left, oldScroll.top);
+  }
+  if (options.preserveViewport && oldFocus) {
+    const previous = treeWrap.querySelector(`[data-focus="${CSS.escape(oldFocus)}"]`);
+    const fallbackId = oldFocus.split(':')[1];
+    (previous || treeWrap.querySelector(`.node[data-node-id="${CSS.escape(fallbackId)}"]`))?.focus({ preventScroll: true });
+  }
+  updateTreeLinkHighlights();
   applySearch();
 }
-// 「不显示底图」时用来顶替印刷文字的条件文字（中文模式下走对照表）。
-// 条件文字按长度自适应字号（单位 cqw = 树宽的 1%），长句自动小一号，避免被格子裁掉。
-function conditionTextFontCqw(text) {
-  const n = (text || '').length;
-  if (n <= 16) return 0.72;
-  if (n <= 22) return 0.64;
-  if (n <= 30) return 0.56;
-  if (n <= 38) return 0.48;
-  return 0.42;
+function fitCompactTreeText(root) {
+  root.querySelectorAll('.node-label, .tech-condition span').forEach(label => {
+    const parent = label.parentElement;
+    let size = label.classList.contains('node-label') ? 10.5 : 8.5;
+    const available = parent.clientHeight - (label.classList.contains('node-label') ? 6 : 3);
+    while (label.scrollHeight > available + 1 && size > 8) {
+      size -= .5;
+      label.style.fontSize = size + 'px';
+    }
+  });
+}
+function updateTreeLinkHighlights() {
+  document.querySelectorAll('.tech-link').forEach(el => {
+    const connections = JSON.parse(el.dataset.connections);
+    el.classList.toggle('connected', connections.some(([source, target]) => source === selectedNodeId || target === selectedNodeId));
+    updateTreeLinkMarkers(el);
+  });
+}
+function updateTreeLinkMarkers(el) {
+  const state = el.classList.contains('filtered') ? 'Filtered' : el.classList.contains('connected') ? 'Selected' : el.classList.contains('met') ? 'Met' : '';
+  for (const attribute of ['marker-start', 'marker-end']) {
+    if (el.hasAttribute(attribute)) el.setAttribute(attribute, `url(#techArrow${state})`);
+  }
+}
+function setTreeZoom(value, keepCenter = true) {
+  const board = document.getElementById('techBoard');
+  const canvas = document.getElementById('treeWrap');
+  if (!board || !canvas || !treeViewState) return;
+  const previous = treeViewState.zoom;
+  const zoom = Math.max(.25, Math.min(1.5, value));
+  const bounds = board.getBoundingClientRect();
+  const documentLeft = bounds.left + window.scrollX, documentTop = bounds.top + window.scrollY;
+  const anchorX = document.documentElement.clientWidth / 2;
+  const visibleTop = Math.max(0, Math.min(window.innerHeight, bounds.top));
+  const visibleBottom = Math.min(window.innerHeight, Math.max(visibleTop, bounds.bottom));
+  const anchorY = (visibleTop + visibleBottom) / 2;
+  const centerX = (anchorX - bounds.left - (parseFloat(canvas.style.left) || 0)) / previous;
+  const centerY = (anchorY - bounds.top) / previous;
+  treeViewState.zoom = zoom;
+  canvas.style.transform = `scale(${zoom})`;
+  const offsetX = Math.max(0, (board.clientWidth - treeViewState.layout.width * zoom) / 2);
+  canvas.style.left = offsetX + 'px';
+  const size = document.getElementById('techBoardSize');
+  size.style.width = Math.max(board.clientWidth, treeViewState.layout.width * zoom) + 'px';
+  size.style.height = treeViewState.layout.height * zoom + 'px';
+  document.getElementById('techZoomValue').textContent = Math.round(zoom * 100) + '%';
+  if (keepCenter) {
+    window.scrollTo(documentLeft + centerX * zoom + offsetX - anchorX, documentTop + centerY * zoom - anchorY);
+  }
+}
+function focusTreeNode(nodeId) {
+  const node = document.querySelector(`.tech-module[data-node-id="${CSS.escape(nodeId)}"]`);
+  node?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+}
+function attachTreeControls() {
+  const board = document.getElementById('techBoard');
+  mainView.querySelectorAll('[data-tree-control]').forEach(button => button.addEventListener('click', () => {
+    const command = button.dataset.treeControl;
+    if (command === 'in') setTreeZoom(treeViewState.zoom + .15);
+    if (command === 'out') setTreeZoom(treeViewState.zoom - .15);
+    if (command === 'reset') setTreeZoom(1);
+    if (command === 'fit') {
+      const availableHeight = window.innerHeight - (board.getBoundingClientRect().top + window.scrollY) - 16;
+      setTreeZoom(Math.min(1, board.clientWidth / treeViewState.layout.width, availableHeight / treeViewState.layout.height), false);
+      window.scrollTo(0, 0);
+    }
+    if (command === 'ready') {
+      const query = search.value.trim().toLowerCase();
+      const page = pageByKey(viewPage);
+      const node = page.nodes.find(item => isUnlockableNode(page.key, item) && (!query || `${item.name} ${item.name_zh}`.toLowerCase().includes(query)));
+      if (node) { selectedNodeId = node.id; setTreeZoom(1); focusTreeNode(node.id); updateTreeLinkHighlights(); document.querySelectorAll('.tech-module').forEach(el => el.classList.toggle('active', el.dataset.nodeId === node.id)); }
+    }
+  }));
+  let drag = null;
+  board.addEventListener('pointerdown', event => {
+    if (event.button !== 0 || event.pointerType === 'touch' || event.target.closest('.tech-module')) return;
+    drag = { x: event.clientX, y: event.clientY, left: window.scrollX, top: window.scrollY };
+    board.setPointerCapture(event.pointerId);
+    board.classList.add('is-dragging');
+  });
+  board.addEventListener('pointermove', event => {
+    if (!drag) return;
+    window.scrollTo(drag.left - (event.clientX - drag.x), drag.top - (event.clientY - drag.y));
+  });
+  const stopDrag = () => { drag = null; board.classList.remove('is-dragging'); };
+  board.addEventListener('pointerup', stopDrag);
+  board.addEventListener('pointercancel', stopDrag);
+  board.addEventListener('lostpointercapture', stopDrag);
 }
 function conditionCellDisplayText(pageKey, node, index) {
   const caption = conditionCellCaption(pageKey, node, index);
   if (!caption) return treeLanguage === 'zh' ? '（条件文字词典未收录）' : '(condition text not in dictionary)';
   if (treeLanguage !== 'zh') return caption;
   return CONDITION_TEXT_ZH[caption] || caption;
-}
-function conditionCellTitle(pageKey, node, index) {
-  const cells = conditionCells(pageKey, node) || [];
-  if (isConditionTextHidden(pageKey, node)) {
-    const count = cells.length > 1 ? `第 ${index + 1}/${cells.length} 格` : '解锁条件方格';
-    return `${count}（前置科技未解锁，条件文字已遮挡）——点击勾选`;
-  }
-  const label = conditionToggleLabel(pageKey, node, index);
-  return `${label}（点击方格切换；${cells.length > 1 ? '每个方格都要勾上，' : ''}未勾选时该节点不算可解锁）`;
-}
-function renderConditionBoxes(treeWrap, page) {
-  // 先铺遮挡块，再放复选框，保证方格永远在遮挡之上、点得到。
-  for (const node of page.nodes) {
-    const cells = conditionCells(page.key, node);
-    if (!cells) continue;
-    const box = node.tree_box || node;
-    const mask = document.createElement('div');
-    mask.className = 'cond-mask';
-    mask.dataset.pageKey = page.key;
-    mask.dataset.nodeId = node.id;
-    if (isConditionTextHidden(page.key, node)) mask.classList.add('prereq-locked');
-    // 中文模式只盖住右侧印刷文字，保留左侧复选框；前置未满足时仍整块遮挡。
-    const maskOffset = treeLanguage === 'zh' && !isConditionTextHidden(page.key, node)
-      ? PRINTED_CONDITION_BOX_WIDTH
-      : 0;
-    mask.style.left = ((box.x + maskOffset) / page.width * 100) + '%';
-    mask.style.top = ((box.y + box.h + cells[0][0]) / page.height * 100) + '%';
-    mask.style.width = ((box.w - maskOffset) / page.width * 100) + '%';
-    mask.style.height = (((cells[cells.length - 1][0] + cells[cells.length - 1][1]) - cells[0][0]) / page.height * 100) + '%';
-    treeWrap.appendChild(mask);
-  }
-  for (const node of page.nodes) {
-    const cells = conditionCells(page.key, node);
-    if (!cells) continue;
-    const box = node.tree_box || node;
-    cells.forEach(([dy, height], index) => {
-      const input = document.createElement('input');
-      input.type = 'checkbox';
-      input.className = 'cond-box';
-      input.dataset.pageKey = page.key;
-      input.dataset.nodeId = node.id;
-      input.dataset.cellIndex = String(index);
-      input.checked = isConditionCellTicked(page.key, node, index);
-      if (isConditionTextHidden(page.key, node)) input.classList.add('prereq-locked');
-      input.title = conditionCellTitle(page.key, node, index);
-      input.setAttribute('aria-label', `${displayTechName(node)} ${conditionToggleLabel(page.key, node, index)}`);
-      input.style.left = (box.x / page.width * 100) + '%';
-      input.style.top = ((box.y + box.h + dy) / page.height * 100) + '%';
-      input.style.width = (PRINTED_CONDITION_BOX_WIDTH / page.width * 100) + '%';
-      input.style.height = (height / page.height * 100) + '%';
-      treeWrap.appendChild(input);
-      // 「不显示底图」时用页面文字顶替印刷的条件文字。
-      const text = document.createElement('span');
-      text.className = 'cond-text';
-      text.dataset.pageKey = page.key;
-      text.dataset.nodeId = node.id;
-      text.dataset.cellIndex = String(index);
-      if (isConditionTextHidden(page.key, node)) text.classList.add('prereq-locked');
-      if (!conditionCellCaption(page.key, node, index)) text.classList.add('is-placeholder');
-      text.textContent = conditionCellDisplayText(page.key, node, index);
-      text.style.fontSize = conditionTextFontCqw(text.textContent) + 'cqw';
-      text.style.lineHeight = '1.06';
-      text.style.left = ((box.x + PRINTED_CONDITION_BOX_WIDTH) / page.width * 100) + '%';
-      text.style.top = ((box.y + box.h + dy) / page.height * 100) + '%';
-      text.style.width = ((box.w - PRINTED_CONDITION_BOX_WIDTH) / page.width * 100) + '%';
-      text.style.height = (height / page.height * 100) + '%';
-      treeWrap.appendChild(text);
-    });
-  }
 }
 function applySearch() {
   if (currentTab === 'gear-production') {
@@ -4148,10 +4029,16 @@ function applySearch() {
   let visible = 0;
   nodes.forEach(el => {
     const ok = !query || el.dataset.name.includes(query);
-    el.classList.toggle('filtered', !ok);
+    el.closest('.tech-module')?.classList.toggle('filtered', !ok);
     if (ok) visible++;
   });
-  count.textContent = `${visible}/${nodes.length} 节点 · 已解锁 ${unlockedVisibleCount()}`;
+  const matching = new Set(nodes.filter(el => !query || el.dataset.name.includes(query)).map(el => el.dataset.nodeId));
+  document.querySelectorAll('.tech-link').forEach(el => {
+    const connections = JSON.parse(el.dataset.connections);
+    el.classList.toggle('filtered', Boolean(query) && !connections.some(([source, target]) => matching.has(source) && matching.has(target)));
+    updateTreeLinkMarkers(el);
+  });
+  count.textContent = query ? `${visible} 个匹配节点` : `${nodes.length} 个显示节点`;
 }
 modalViewTree.addEventListener('click', () => {
   if (!activeUnlockedRecord) return;
@@ -4186,22 +4073,21 @@ gearRecordSyncChannel?.addEventListener('message', () => {
 window.addEventListener('focus', () => {
   if (currentTab === 'gear-production') void loadGearRecordState();
 });
-search.addEventListener('input', applySearch);
+search.addEventListener('input', () => {
+  applySearch();
+  if (!search.value.trim() || currentTab === 'unlocked' || currentTab === 'gear-production') return;
+  const match = mainView.querySelector('.tech-module:not(.filtered) .node');
+  if (match) focusTreeNode(match.dataset.nodeId);
+});
 hideUnknownToggle.addEventListener('change', () => {
   hideUnknownTech = hideUnknownToggle.checked;
   queueCampaignTechnologySave();
   syncHideUnknownToggle();
   refreshUnlockState();
 });
-hideImageToggle.addEventListener('change', () => {
-  hideTreeImage = hideImageToggle.checked;
-  queueCampaignTechnologySave();
-  syncHideUnknownToggle();
-  renderTree();
-});
 mainView.addEventListener('change', (event) => {
   const target = event.target;
-  if (target?.classList?.contains('cond-box')) {
+  if (target?.classList?.contains('tech-condition-input')) {
     toggleCondition(target.dataset.pageKey, target.dataset.nodeId, target.dataset.cellIndex, target.checked);
   }
 });
