@@ -3171,7 +3171,6 @@
     }
     const piles = {};
     const storageKey = "aibp-apostle-viewer-piles-v3";
-    const deckOrderViewStorageKey = "aibp-view-deck-order-v1";
     const secondScreenSnapshotUrl = "../api/campaign-state.php?section=aibp";
     const secondScreenModeUrl = "../api/campaign-state.php?action=second-screen-mode";
     const secondScreenStatusUrl = "../api/campaign-state.php?action=second-screen-status";
@@ -3192,7 +3191,7 @@
     let traitLoadToken = 0;
 
     if (viewDeckOrderToggle) {
-      viewDeckOrderToggle.checked = localStorage.getItem(deckOrderViewStorageKey) === "1";
+      viewDeckOrderToggle.checked = false;
     }
 
     function migrateLegacyHealedPiles(state) {
@@ -8222,7 +8221,6 @@
       }
     });
     viewDeckOrderToggle?.addEventListener("change", () => {
-      localStorage.setItem(deckOrderViewStorageKey, viewDeckOrderToggle.checked ? "1" : "0");
       renderAibpCards();
       scheduleSecondScreenSnapshot();
     });
