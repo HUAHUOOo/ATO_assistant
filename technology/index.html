@@ -1132,7 +1132,7 @@ button.gear-group-name:hover {
 </style>
 <link rel="stylesheet" href="../cycle-theme.css">
 <link rel="stylesheet" href="../assets/theme.css?v=20261001">
-<link rel="stylesheet" href="editorial.css?v=20261001-gear-unframed">
+<link rel="stylesheet" href="editorial.css?v=20261001-tech-heading">
 <script src="../assets/theme.js?v=20261001" defer></script>
 </head>
 <body data-theme-module="technology">
@@ -1942,7 +1942,7 @@ function renderGearProductionPage() {
     const groupName = group.techId
       ? `<button type="button" class="gear-group-name" data-tech-id="${esc(group.techId)}" title="点击查看科技卡">${esc(group.label)}</button>`
       : `<span class="gear-group-name">${esc(group.label)}</span>`;
-    html += `<div class="gear-group-header">${groupName}<span class="gear-group-count">${group.items.length} 件装备</span><span class="gear-group-chevron">▼</span></div>`;
+    html += `<div class="gear-group-header"><span class="gear-group-label">${group.techId ? '科技卡' : '装备部位'}</span>${groupName}<span class="gear-group-count">${group.items.length} 件装备</span><span class="gear-group-chevron">▼</span></div>`;
     html += `<div class="gear-items">${group.items.map(({ entry, gear }) => gearItemHtml(entry, gear)).join('')}</div>`;
     html += `</div>`;
   }

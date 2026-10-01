@@ -42,8 +42,9 @@ body :is(.tool-btn, .search, .cycle-select, .account-select, .modal-btn, .gear-r
 .gear-resource-list { gap: 0; }
 .gear-resource-row { border-radius: 0; background: transparent; border-bottom: 1px solid var(--line); padding: 10px 0; }
 .gear-resource-value { color: var(--accent-strong); }
-.gear-group { border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; margin-bottom: 20px; }
-.gear-group-header { padding: 16px 0; }
+.gear-group { border: 0; border-radius: 0; background: transparent; margin-bottom: 20px; }
+.gear-group-header { padding: 12px 14px; border-left: 3px solid var(--accent); border-bottom: 1px solid var(--line); background: var(--accent-soft); margin-bottom: 18px; }
+.gear-group-label { flex-shrink: 0; padding-right: 10px; border-right: 1px solid var(--line); color: var(--accent); font-size: 12px; font-weight: 700; }
 .gear-group-name, button.gear-group-name { font: 600 20px/1.4 "Songti SC", SimSun, Georgia, serif; color: var(--accent-strong); }
 button.gear-group-name:hover { color: var(--accent); }
 .gear-group-header:hover { background: var(--accent-soft); }
