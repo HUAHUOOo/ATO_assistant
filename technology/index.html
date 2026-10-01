@@ -1131,7 +1131,7 @@ button.gear-group-name:hover {
 </style>
 <link rel="stylesheet" href="../cycle-theme.css">
 <link rel="stylesheet" href="../assets/theme.css?v=20261001">
-<link rel="stylesheet" href="editorial.css?v=20261001-cycle-button">
+<link rel="stylesheet" href="editorial.css?v=20261001-cycle-menu">
 <script src="../assets/theme.js?v=20261001" defer></script>
 </head>
 <body data-theme-module="technology">
@@ -1149,7 +1149,8 @@ button.gear-group-name:hover {
       <div class="tools">
         <select id="accountSelect" class="account-select" aria-label="账户" hidden></select>
         <button class="tool-btn" id="languageToggle" type="button">中文名</button>
-        <button class="badge" id="cycleBadge" type="button" title="点击切换循环">循环 I</button>
+        <button class="badge" id="cycleBadge" type="button" popovertarget="cycleMenu" aria-label="选择当前循环">循环 I ▾</button>
+        <div id="cycleMenu" popover aria-label="选择当前循环"></div>
         <input id="search" class="search" placeholder="搜索科技" autocomplete="off">
         <button class="tool-btn" id="clearUnlocked" type="button">重置进度</button>
         <label class="tool-check" id="hideUnknownLabel" title="勾选后只显示已解锁与可解锁科技的名字，其余节点用白色遮挡">
@@ -3991,10 +3992,10 @@ function renderCycleButton() {
   updateTechnologyTheme();
   const index = data.pages.findIndex(page => page.key === currentCycle);
   const page = data.pages[index] || data.pages[0];
-  const nextPage = data.pages[(index + 1) % data.pages.length];
-  cycleBadge.textContent = page.label;
-  cycleBadge.title = `当前${page.label}，点击切换为${nextPage.label}`;
+  cycleBadge.textContent = `${page.label} ▾`;
+  cycleBadge.title = `当前${page.label}，点击选择循环`;
   cycleBadge.setAttribute('aria-label', cycleBadge.title);
+  document.getElementById('cycleMenu').innerHTML = data.pages.map(item => `<button type="button" data-cycle="${esc(item.key)}" aria-pressed="${item.key === currentCycle}">${esc(item.label)}</button>`).join('');
 }
 function renderTree() {
   updateTechnologyTheme();
@@ -4221,10 +4222,9 @@ languageToggle.addEventListener('click', () => {
     if (activeModalMode === 'unlocked') showUnlockedModal(page.key, node.id);
   }
 });
-function advanceTechnologyCycle() {
-  if (!data?.pages?.length || !currentCycle) return;
-  const index = data.pages.findIndex(page => page.key === currentCycle);
-  currentCycle = data.pages[(index + 1) % data.pages.length].key;
+function selectTechnologyCycle(cycleKey) {
+  if (!data?.pages?.some(page => page.key === cycleKey) || cycleKey === currentCycle) return;
+  currentCycle = cycleKey;
   unlockAutomaticCyclesThrough(currentCycle);
   selectedNodeId = null;
   saveAccounts();
@@ -4235,7 +4235,21 @@ function advanceTechnologyCycle() {
   renderTree();
   refreshUnlockState();
 }
-cycleBadge.addEventListener('click', advanceTechnologyCycle);
+const cycleMenu = document.getElementById('cycleMenu');
+cycleMenu.addEventListener('beforetoggle', event => {
+  if (event.newState !== 'open') return;
+  const rect = cycleBadge.getBoundingClientRect();
+  cycleMenu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 148))}px`;
+  cycleMenu.style.top = `${rect.bottom + 4}px`;
+});
+cycleMenu.addEventListener('click', event => {
+  const option = event.target.closest('button[data-cycle]');
+  if (!option) return;
+  cycleMenu.hidePopover();
+  selectTechnologyCycle(option.dataset.cycle);
+  cycleBadge.focus();
+});
+window.addEventListener('resize', () => cycleMenu.hidePopover());
 clearUnlocked.addEventListener('click', () => {
   if (!confirm('重置当前账号的解锁进度？')) return;
   unlocked.clear();

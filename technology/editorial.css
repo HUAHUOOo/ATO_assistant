@@ -18,6 +18,9 @@ body[data-theme-module="technology"] .tab.active { background: transparent; colo
 .tools :is(.tool-btn, .cycle-select, .account-select, .search, #cycleBadge) { height: 36px; }
 .tools #cycleBadge { justify-content: center; padding: 7px 8px; border: 1px solid transparent; font: inherit; font-weight: 700; cursor: pointer; }
 .tools #cycleBadge:hover { background: var(--accent-strong); color: #fff; }
+#cycleMenu { position: fixed; inset: auto; margin: 0; width: 140px; padding: 4px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+#cycleMenu button { display: block; width: 100%; padding: 9px 12px; border: 0; border-radius: 0; background: transparent; color: inherit; text-align: left; font: inherit; cursor: pointer; }
+#cycleMenu button:hover, #cycleMenu button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-strong); }
 .tools .tool-check { font-size: 12px; padding: 7px 0; }
 .tools .search { margin: 0; width: 120px; }
 .tools #count { white-space: nowrap; }
