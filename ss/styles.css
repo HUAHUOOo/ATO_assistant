@@ -1,12 +1,15 @@
 :root {
-  color-scheme: dark;
-  --bg: #070d0c;
-  --panel: #101917;
-  --ink: #eef7f2;
-  --muted: #92a59d;
-  --accent: #46c9b2;
-  --gold: #e4b55c;
-  --danger: #ef7269;
+  color-scheme: light;
+  --bg: #f6f0eb;
+  --panel: #fffdfb;
+  --ink: #24211d;
+  --muted: #706a60;
+  --line: #e3d4c8;
+  --accent: #7f4b26;
+  --accent-strong: #5f341b;
+  --accent-soft: #f0e3d7;
+  --gold: #9a682c;
+  --danger: #a52206;
 }
 
 * { box-sizing: border-box; }
@@ -15,7 +18,7 @@ body {
   margin: 0;
   min-height: 100vh;
   overflow: hidden;
-  background: radial-gradient(circle at 50% -20%, #1b3933 0, var(--bg) 42%);
+  background: var(--bg);
   color: var(--ink);
   font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
 }
@@ -27,9 +30,7 @@ body {
   inset: 0;
   overflow: hidden;
   padding: clamp(8px, 1.4vw, 20px);
-  background:
-    radial-gradient(circle at 18% 8%, rgba(255, 255, 255, 0.035), transparent 34%),
-    linear-gradient(135deg, #171614, #201e1a);
+  background: var(--bg);
 }
 
 .story-card {
@@ -39,41 +40,40 @@ body {
   padding: clamp(14px, 2.2vw, 32px);
   display: flex;
   flex-direction: column;
-  border: 1px solid #454038;
-  border-radius: 10px;
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.018), rgba(255, 255, 255, 0)),
-    #26231e;
-  box-shadow:
-    0 14px 42px rgba(0, 0, 0, 0.28),
-    inset 0 0 60px rgba(183, 148, 94, 0.018);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .story-card-head {
   position: relative;
   flex: 0 0 auto;
   padding: 0 0 clamp(10px, 1.3vw, 18px);
-  border-bottom: 1px solid #4b453b;
+  border-bottom: 1px solid var(--line);
 }
 
 .story-book-title,
 .story-section {
-  color: #b99a6a;
+  color: var(--accent-strong);
   font-size: clamp(11px, 1vw, 15px);
   font-weight: 800;
 }
 
 .story-section {
   margin-top: 3px;
-  color: #948b7e;
+  color: var(--muted);
 }
 
 .story-card h1 {
   max-width: calc(100% - 100px);
   margin: 6px 0 0;
   font-size: clamp(20px, 2.5vw, 36px);
-  line-height: 1.12;
-  color: #eee8dc;
+  line-height: 1.35;
+  font-family: "Songti SC", "Noto Serif CJK SC", SimSun, Georgia, serif;
+  font-weight: 600;
+  letter-spacing: .04em;
+  color: var(--accent-strong);
 }
 
 .story-entry-id {
@@ -81,10 +81,11 @@ body {
   top: 0;
   right: 0;
   padding: 5px 10px;
-  border: 1px solid #655a49;
-  border-radius: 7px;
-  background: #302c25;
-  color: #c9aa76;
+  border: 0;
+  border-left: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--accent-strong);
   font-size: clamp(15px, 1.6vw, 22px);
   font-weight: 900;
 }
@@ -94,16 +95,16 @@ body {
   flex: 1 1 auto;
   overflow: auto;
   padding-top: clamp(10px, 1.4vw, 20px);
-  color: #d8d2c7;
+  color: var(--ink);
   font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
   font-size: 18px;
-  line-height: 1.45;
+  line-height: 1.75;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  scrollbar-color: #62594c transparent;
+  scrollbar-color: var(--line) transparent;
 }
 
-.story-view.images-only { padding: 0; background: #070d0c; }
+.story-view.images-only { padding: 0; background: var(--panel); }
 .images-only .story-card { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .images-only .story-card-head { display: none; }
 .images-only .story-body { padding: 0; white-space: normal; }
@@ -116,7 +117,7 @@ body {
   display: grid;
   place-items: center;
   padding: 20px;
-  background: radial-gradient(circle at 50% 0, #1b3933 0, var(--bg) 55%);
+  background: var(--bg);
 }
 
 .pair-card {
@@ -124,10 +125,10 @@ body {
   display: grid;
   gap: 17px;
   padding: 26px;
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 12px;
+  border: 1px solid var(--line);
+  border-radius: 0;
   background: var(--panel);
-  box-shadow: 0 24px 80px rgba(0,0,0,0.38);
+  box-shadow: none;
 }
 
 .pair-card p { margin: 0; color: var(--muted); }
@@ -141,15 +142,15 @@ body {
 .pair-card input,
 .pair-card button {
   min-height: 46px;
-  border: 1px solid rgba(255,255,255,0.15);
-  border-radius: 6px;
+  border: 1px solid var(--line);
+  border-radius: 0;
   font: inherit;
 }
 
 .pair-card input {
   min-width: 0;
   padding: 0 13px;
-  background: #07100e;
+  background: var(--panel);
   color: var(--ink);
   font-size: 20px;
   font-weight: 900;
@@ -158,8 +159,8 @@ body {
 
 .pair-card button {
   padding: 0 18px;
-  background: var(--accent);
-  color: #06110e;
+  background: var(--accent-strong);
+  color: #fff;
   font-weight: 900;
   cursor: pointer;
 }
@@ -211,8 +212,8 @@ h1 {
 
 .connection-status {
   padding: 5px 9px;
-  border-radius: 99px;
-  background: rgba(70, 201, 178, 0.14);
+  border-radius: 0;
+  background: var(--accent-soft);
   color: var(--accent);
   font-weight: 900;
 }
@@ -228,7 +229,7 @@ h1 {
   overflow: hidden;
   border: 0;
   border-radius: 0;
-  background: #060908;
+  background: var(--panel);
   box-shadow: none;
 }
 
@@ -237,7 +238,7 @@ h1 {
   height: 100%;
   display: block;
   border: 0;
-  background: #151816;
+  background: var(--panel);
 }
 
 .battle-view {
@@ -266,7 +267,7 @@ h1 {
   display: grid;
   grid-template-columns: minmax(260px, 1fr) minmax(260px, var(--battle-board-column));
   overflow: hidden;
-  background: #080b0a;
+  background: var(--bg);
 }
 
 .battle-view.swapped {
@@ -302,8 +303,8 @@ h1 {
   min-width: 0;
   height: 100%;
   overflow: hidden;
-  border-right: 1px solid rgba(228, 181, 92, .28);
-  background: linear-gradient(180deg, #181916, #0c100f);
+  border-right: 1px solid var(--line);
+  background: var(--bg);
 }
 
 .battle-sidebar-content {
@@ -319,7 +320,7 @@ h1 {
   gap: 10px;
   padding: 10px;
   overflow: hidden;
-  background: linear-gradient(180deg, #181916, #0c100f);
+  background: var(--bg);
 }
 
 .battle-sidebar-content.quarter-turn,
@@ -367,8 +368,8 @@ h1 {
   padding-top: 0;
   padding-left: 10px;
   border-top: 0;
-  border-left: 1px solid rgba(228, 181, 92, .22);
-  background: #090b0a;
+  border-left: 1px solid var(--line);
+  background: var(--panel);
 }
 
 .battle-sidebar-content.quarter-turn .pending-cards,
@@ -413,7 +414,7 @@ h1 {
   gap: 6px;
   padding-top: 8px;
   overflow: hidden;
-  border-top: 1px solid rgba(228, 181, 92, .22);
+  border-top: 1px solid var(--line);
 }
 
 .battle-terrain-cards-head {
@@ -494,7 +495,7 @@ h1 {
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: #0b0e0d;
+  background: var(--panel);
 }
 
 .boss-token-layer {
@@ -579,7 +580,7 @@ h1 {
   row-gap: 7px;
   overflow: auto hidden;
   padding-top: 2px;
-  border-top: 1px solid rgba(228, 181, 92, .22);
+  border-top: 1px solid var(--line);
 }
 
 .trait-cards {
@@ -600,7 +601,7 @@ h1 {
   padding-top: 10px;
   /* 底下留一点余量：「正在结算」的卡牌下缘别贴着屏幕底边（电视过扫描会直接切掉）。 */
   padding-bottom: 18px;
-  border-top: 1px solid rgba(228, 181, 92, .22);
+  border-top: 1px solid var(--line);
 }
 
 .aibp-slot {
@@ -620,7 +621,7 @@ h1 {
   min-height: 0;
   margin-top: calc((var(--boss-small-card-height) + 23px) * -1);
   display: grid;
-  background: #090b0a;
+  background: var(--panel);
 }
 
 .pending-card {
@@ -645,7 +646,7 @@ h1 {
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: #090b0a;
+  background: var(--panel);
 }
 
 /* 「正在结算」的卡牌必须按框缩放：图片改成绝对定位铺满整个框，再用 object-fit: contain。
@@ -662,7 +663,7 @@ h1 {
 
 .empty-card,
 .empty-list {
-  color: #777e79;
+  color: var(--muted);
   font-size: 12px;
   text-align: center;
 }
@@ -680,7 +681,7 @@ h1 {
   grid-template-columns: auto minmax(0, 1fr);
   gap: 8px;
   padding-bottom: 4px;
-  border-bottom: 1px solid rgba(255, 255, 255, .07);
+  border-bottom: 1px solid var(--line);
 }
 
 .battle-facts b { color: var(--gold); }
@@ -703,7 +704,7 @@ h1 {
   place-items: center;
   overflow: auto;
   padding: clamp(6px, 1.1vmin, 12px);
-  background: radial-gradient(circle at 50% 45%, #19221f, #050706 68%);
+  background: var(--panel);
 }
 
 .battle-board-frame {
@@ -711,7 +712,7 @@ h1 {
   position: relative;
   width: min(100%, calc((var(--battle-safe-height) - clamp(12px, 2.2vmin, 24px)) * 1.4285714286 * var(--battle-scale)));
   aspect-ratio: 10 / 7;
-  filter: drop-shadow(0 22px 38px rgba(0, 0, 0, .5));
+  filter: none;
 }
 
 .battle-board-grid {
