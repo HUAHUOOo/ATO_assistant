@@ -1347,13 +1347,6 @@ def fixed_catalog_payload() -> dict[str, Any]:
         ),
     ))
 
-    for cycle_number in range(1, 6):
-        additions.append(CatalogItem(
-            id=make_id(f"c{cycle_number}", "科技树总览", "科技树页面", str(cycle_number), "科技树"),
-            cycle=f"c{cycle_number}", module="科技树总览", subgroup="科技树页面",
-            name=f"循环 {cycle_number} 科技树总览", number=f"C{cycle_number}", sort_order=55_000 + cycle_number,
-            faces={"front": f"technology/images/tech_tree_pages/cycle{cycle_number}_tree_v24.png"},
-        ))
     for order, (stem, (cycle, label)) in enumerate(TITAN_IMAGE_LABELS.items()):
         additions.append(CatalogItem(
             id=make_id(cycle, "泰坦职业配图", "泰坦职业", stem, label),
@@ -1428,6 +1421,7 @@ def fixed_catalog_payload() -> dict[str, Any]:
         "ATO-Local-0.2.11+complete-import-assets-14-cycle-symbols"
         "+c45-trait-common-tr-002+c2-exploration-13642+remove-unused-c45-conditions"
         "+hypertime-trait-v+ur-fleece-panel-2-remove-trii-002+custom-token-cm+custom-trait-blank"
+        "+remove-tech-tree-backgrounds"
     )
     return payload
 
@@ -1496,6 +1490,12 @@ def ensure_fixed_catalog(db: Database) -> dict[str, int]:
         conn.execute(
             "DELETE FROM catalog_items WHERE module=? AND subgroup=?",
             ("状态卡", "C4/C5 状态"),
+        )
+        # Interactive trees no longer use printed backgrounds. Remove their old
+        # library entries too, including entries that already have captured faces.
+        conn.execute(
+            "DELETE FROM catalog_items WHERE module=? OR faces_json LIKE ?",
+            ("科技树总览", "%technology/images/tech_tree_pages/%"),
         )
     payload = fixed_catalog_payload()
     source = payload["source"]

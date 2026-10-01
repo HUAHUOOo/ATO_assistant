@@ -28,6 +28,10 @@ def check_catalog(catalog: dict) -> None:
     template_targets = [target for target in targets.values()
                         if target == "aibp/ps/other/trait/custom_trait_blank.jpg"]
     assert len(template_targets) == 1, "APK lacks the custom trait template import mapping"
+    assert not any(target.startswith("technology/images/tech_tree_pages/")
+                   for target in targets.values()), "APK still requests obsolete technology tree backgrounds"
+    assert any(target.startswith("technology/images/titans/") for target in targets.values())
+    assert any(target.startswith("technology/images/gear_cards/") for target in targets.values())
 
     source = (ROOT / "index.html").read_text(encoding="utf-8")
     block = re.search(r"const hiddenExplorationCards = \{([\s\S]*?)\n    \};", source)
