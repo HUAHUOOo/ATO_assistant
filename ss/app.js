@@ -447,6 +447,7 @@ function fitStoryTextToViewport() {
     }
     body.style.fontSize = `${best}px`;
     body.scrollTop = 0;
+    body.scrollLeft = 0;
   });
 }
 
