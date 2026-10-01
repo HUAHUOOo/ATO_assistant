@@ -47,7 +47,7 @@ vm.runInContext(`
   function normalizeTokens(value) { return value?.tokens || {}; }
   function focusArgoAfterNextRender() {}
   function render() { renders++; }
-  ${['isPlainObject', 'defaultCycleState', 'createDefaultState', 'normalizeState', 'normalizeMapZoom', 'loadSecondScreenMapState'].map(extract).join('\n')}
+  ${['isPlainObject', 'defaultCycleState', 'createDefaultState', 'normalizeTitanXTrackPosition', 'normalizeState', 'normalizeMapZoom', 'loadSecondScreenMapState'].map(extract).join('\n')}
 `, context);
 
 (async () => {
