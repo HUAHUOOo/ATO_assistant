@@ -1,7 +1,7 @@
 /* Paper, cycle colors and continuous sections shared with the record pages. */
 :root { color-scheme: light; --text: var(--ink); --panel-2: var(--accent-soft); --radius: 0; --shadow: none; }
 body { background: var(--bg); line-height: 1.6; }
-aside { background: var(--bg); border-color: var(--line); box-shadow: none; padding: 26px 16px; }
+aside { background: var(--bg); background: color-mix(in srgb, var(--bg) 95%, #000); border-color: var(--line); box-shadow: none; padding: 26px 16px; }
 h1, h2, h3, .card-column-title { font-family: "Songti SC", "Noto Serif CJK SC", SimSun, Georgia, serif; color: var(--accent-strong); font-weight: 600; }
 #aibpTitle { display: flex; align-items: center; gap: 10px; font-size: 26px; margin-bottom: 24px; }
 #aibpTitle .cycle-symbol { width: 32px; height: 36px; object-fit: contain; }
