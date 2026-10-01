@@ -50,11 +50,11 @@
     return { nodes, edges: graph.edges.filter(edge => ids.has(edge.source) && ids.has(edge.target) && namedIds.has(edge.source) && namedIds.has(edge.target)) };
   }
 
-  // Preserve the printed arrangement and per-cycle adjustments while enlarging
-  // its gutters. Use the full graph so discovery never moves nodes or routes.
+  // Keep printed coordinates unless a cycle specifies a reorganized battle grid.
+  // Use the full graph so discovery never moves nodes or routes.
   function layoutGraph(graph, page = {}, sizeForNode = () => ({ width: 90, height: 34 })) {
     const spacingX = 1.25, spacingY = 1.2;
-    const width = (Number(page.width) || 1190.5511474609375) * spacingX;
+    let width = (Number(page.width) || 1190.5511474609375) * spacingX;
     const height = (Number(page.height) || 841.8897705078125) * spacingY;
     const splitY = (Number(page.split_y) || 411.0247802734375) * spacingY;
     const boxes = new Map(graph.nodes.map((node, index) => {
@@ -64,33 +64,48 @@
       const y = Number.isFinite(Number(box.y)) ? Number(box.y) : 28 + Math.floor(index / 8) * 70;
       return [node.id, { x, y, w: Number(box.w) || 113.386, h: Number(box.h) || 49.606 }];
     }));
+    const groupShifts = new Map();
+    for (const group of page.node_shift_groups || []) {
+      const from = boxes.get(group.from), to = boxes.get(group.to);
+      if (!from || !to) continue;
+      const shift = to.y + to.h / 2 - from.y - from.h / 2;
+      for (const id of group.nodes) groupShifts.set(id, shift);
+    }
     const positions = new Map();
     graph.nodes.forEach(node => {
       const box = boxes.get(node.id);
+      const column = boxes.get(page.node_align_x?.[node.id]) || box;
       const row = boxes.get(page.node_align_y?.[node.id]) || box;
       const size = sizeForNode(node);
       const nodeWidth = Math.min(box.w, size.width, page.node_widths?.[node.id] || Infinity), nodeHeight = size.height;
+      const grid = page.battle_grid, slot = grid?.slots[node.id];
       positions.set(node.id, {
-        x: (box.x + box.w / 2) * spacingX - nodeWidth / 2,
-        y: (row.y + row.h / 2) * spacingY - nodeHeight / 2,
+        x: (slot ? grid.x + slot[0] * grid.column_gap : (column.x + column.w / 2) * spacingX) - nodeWidth / 2,
+        y: (slot ? grid.y + slot[1] * grid.row_gap : (row.y + row.h / 2 + (groupShifts.get(node.id) || 0)) * spacingY) - nodeHeight / 2,
         width: nodeWidth, height: nodeHeight, totalHeight: size.totalHeight || nodeHeight,
         conditionHeights: size.conditionHeights || [],
       });
     });
+    // A reorganized branch can extend beyond the printed sheet's columns.
+    // Reserve the same outer margin for every node in the full graph.
+    if (page.battle_grid) width = Math.max(width, ...[...positions.values()].map(pos => pos.x + pos.width + 16));
     const obstacles = [...positions.values()].map(pos => ({ ...pos, height: pos.totalHeight }));
     const clearance = 8;
     const routingObstacles = obstacles.map(rect => ({
       x: rect.x - clearance, y: rect.y - clearance,
       width: rect.width + clearance * 2, height: rect.height + clearance * 2,
     }));
-    const edgeChannels = {};
+    const edgeChannels = {}, edgeChannelXs = {};
     for (const [key, channel] of Object.entries(page.edge_channels || {})) {
       const above = positions.get(channel.above), below = positions.get(channel.below);
       if (above && below) edgeChannels[key] = (above.y + above.totalHeight + below.y) / 2;
+      const left = positions.get(channel.left), right = positions.get(channel.right);
+      if (left && right) edgeChannelXs[key] = left.x + left.width
+        + (right.x - left.x - left.width) * (channel.fraction ?? .5);
     }
     return {
       positions, width, height, splitY, spacingX, spacingY, obstacles, routingObstacles,
-      edges: graph.edges, edgePorts: page.edge_ports || {}, edgeChannels, routes: new Map(), routesReady: false,
+      edges: graph.edges, edgePorts: page.edge_ports || {}, edgeChannels, edgeChannelXs, routes: new Map(), routesReady: false,
       lanes: [{ category: 'structure', y: splitY - 22 }, { category: 'battle', y: splitY + 6 }],
     };
   }
@@ -154,6 +169,7 @@
     if (!sources.length || !targets.length) return [];
     const candidates = [], preferred = [];
     const channelY = layout.edgeChannels[edge.source + '>' + edge.target];
+    const channelX = layout.edgeChannelXs[edge.source + '>' + edge.target];
     const middleX = (source.x + target.x) / 2, middleY = (source.y + target.y) / 2;
     const nearby = (axis, middle, extent) => [...new Set(layout.routingObstacles.flatMap(rect => [rect[axis] - 4, rect[axis] + rect[axis === 'x' ? 'width' : 'height'] + 4]))]
       .filter(value => value >= 12 && value <= extent - 12).sort((a, b) => Math.abs(a - middle) - Math.abs(b - middle)).slice(0, 10).concat([12, extent - 12]);
@@ -164,6 +180,8 @@
       // Its height follows the actual captions and remains subject to clearance.
       if (Number.isFinite(channelY)) preferred.push([from.edge, a,
         { x: a.x, y: channelY }, { x: b.x, y: channelY }, b, to.edge]);
+      if (Number.isFinite(channelX)) preferred.push([from.edge, a,
+        { x: channelX, y: a.y }, { x: channelX, y: b.y }, b, to.edge]);
       const add = middle => candidates.push([from.edge, a, ...middle, b, to.edge]);
       add([{ x: b.x, y: a.y }]); add([{ x: a.x, y: b.y }]);
       for (const x of xs) add([{ x, y: a.y }, { x, y: b.y }]);

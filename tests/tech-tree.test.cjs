@@ -218,7 +218,7 @@ test('a returning branch departs from a different side than its entry, independe
   assert.equal(tree.edgePath(graph.edges[1], again), departure);
 });
 
-test('all five cycles keep the printed arrangement and chosen adjustments with space for arrowheads', () => {
+test('all five cycles keep their chosen layouts with space for arrowheads and condition captions', () => {
   const c = context();
   let count = 0;
   for (const language of ['en', 'zh']) {
@@ -227,13 +227,23 @@ test('all five cycles keep the printed arrangement and chosen adjustments with s
       const graph = tree.buildGraph(page.nodes, node => c.nodeKey(page.key, node));
       const layout = tree.layoutGraph(graph, page, node => c.treeModuleSize(page.key, node));
       assert.equal(layout.positions.size, page.nodes.length);
-      assert.equal(layout.width, page.width * layout.spacingX);
+      assert.equal(layout.width, page.battle_grid
+        ? Math.max(page.width * layout.spacingX, ...[...layout.positions.values()].map(pos => pos.x + pos.width + 16))
+        : page.width * layout.spacingX);
       assert.equal(layout.height, page.height * layout.spacingY);
       for (const node of page.nodes) {
         const position = layout.positions.get(node.id), box = node.tree_box;
+        const column = page.nodes.find(item => item.id === page.node_align_x?.[node.id])?.tree_box || box;
         const row = page.nodes.find(item => item.id === page.node_align_y?.[node.id])?.tree_box || box;
-        assert.ok(Math.abs(position.x + position.width / 2 - (box.x + box.w / 2) * layout.spacingX) < .001);
-        assert.ok(Math.abs(position.y + position.height / 2 - (row.y + row.h / 2) * layout.spacingY) < .001);
+        const group = page.node_shift_groups?.find(item => item.nodes.includes(node.id));
+        const from = page.nodes.find(item => item.id === group?.from)?.tree_box;
+        const to = page.nodes.find(item => item.id === group?.to)?.tree_box;
+        const shift = group ? to.y + to.h / 2 - from.y - from.h / 2 : 0;
+        const grid = page.battle_grid, slot = grid?.slots[node.id];
+        const centerX = slot ? grid.x + slot[0] * grid.column_gap : (column.x + column.w / 2) * layout.spacingX;
+        const centerY = slot ? grid.y + slot[1] * grid.row_gap : (row.y + row.h / 2 + shift) * layout.spacingY;
+        assert.ok(Math.abs(position.x + position.width / 2 - centerX) < .001);
+        assert.ok(Math.abs(position.y + position.height / 2 - centerY) < .001);
         assert.ok(position.width <= 104 && position.height >= 34 && position.height <= Math.max(34, box.h));
       }
       const positions = [...layout.positions.values()];
@@ -296,10 +306,11 @@ test('all five cycles keep the printed arrangement and chosen adjustments with s
   assert.equal(count, 646);
 });
 
-test('cycle II recruitment and security swap heights and recruitment enters the propylon from above', () => {
+test('cycle II security sits above recruitment level with the works and recruitment enters the propylon from above', () => {
   const c = context(), page = c.data.pages[1];
   const recruit = page.nodes.find(node => node.name === 'War Recruitment');
   const security = page.nodes.find(node => node.name === 'Argo Security');
+  const works = page.nodes.find(node => node.name === 'Argo Works II');
   const gate = page.nodes.find(node => node.name === 'War Propylon');
   const graph = tree.buildGraph(page.nodes, node => c.nodeKey(page.key, node));
   const originalRecruit = { ...recruit.tree_box }, originalSecurity = { ...security.tree_box };
@@ -308,7 +319,12 @@ test('cycle II recruitment and security swap heights and recruitment enters the 
     const layout = tree.layoutGraph(graph, page, node => c.treeModuleSize(page.key, node));
     const r = layout.positions.get(recruit.id), s = layout.positions.get(security.id), g = layout.positions.get(gate.id);
     assert.equal(r.y + r.height / 2, (originalSecurity.y + originalSecurity.h / 2) * layout.spacingY);
-    assert.equal(s.y + s.height / 2, (originalRecruit.y + originalRecruit.h / 2) * layout.spacingY);
+    const w = layout.positions.get(works.id);
+    assert.equal(s.y + s.height / 2, w.y + w.height / 2);
+    assert.equal(s.x + s.width / 2, r.x + r.width / 2);
+    assert.equal(s.width, r.width);
+    assert.equal(s.height, r.height);
+    assert.ok(s.y + s.totalHeight < r.y);
     const edge = graph.edges.find(item => item.source === recruit.id && item.target === gate.id);
     tree.edgePath(edge, layout);
     const route = layout.routes.get(edge.source + '>' + edge.target);
@@ -325,12 +341,18 @@ test('cycle II recruitment and security swap heights and recruitment enters the 
 test('adjusted related nodes form straight horizontal branches in both languages', () => {
   const c = context();
   const branches = [
-    [['cycle1_22', 'cycle1_30'], ['cycle1_30', 'cycle1_51'], ['cycle1_51', 'cycle1_29'], ['cycle1_29', 'cycle1_2']],
-    [['cycle2_30', 'cycle2_29'], ['cycle2_43', 'cycle2_14'], ['cycle2_31', 'cycle2_11'], ['cycle2_54', 'cycle2_17']],
-    [['cycle3_20', 'cycle3_57'], ['cycle3_57', 'cycle3_1'], ['cycle3_22', 'cycle3_58'], ['cycle3_58', 'cycle3_2']],
+    [['cycle1_22', 'cycle1_30'], ['cycle1_30', 'cycle1_51'], ['cycle1_51', 'cycle1_29'], ['cycle1_29', 'cycle1_2'], ['cycle1_5', 'cycle1_7']],
+    [['cycle2_30', 'cycle2_29'], ['cycle2_43', 'cycle2_14'], ['cycle2_31', 'cycle2_11'], ['cycle2_54', 'cycle2_17'],
+      ['cycle2_47', 'cycle2_28'], ['cycle2_28', 'cycle2_46'],
+      ['cycle2_35', 'cycle2_33'], ['cycle2_33', 'cycle2_10'], ['cycle2_10', 'cycle2_14'],
+      ['cycle2_49', 'cycle2_9'], ['cycle2_9', 'cycle2_25']],
+    [['cycle3_20', 'cycle3_57'], ['cycle3_57', 'cycle3_1'], ['cycle3_22', 'cycle3_58'], ['cycle3_58', 'cycle3_2'],
+      ['cycle3_5', 'cycle3_65'], ['cycle3_25', 'cycle3_4'], ['cycle3_43', 'cycle3_40']],
     [['cycle4_da2185', 'cycle4_da2193'], ['cycle4_da2205', 'cycle4_da2211'], ['cycle4_da2211', 'cycle4_da2216'],
       ['cycle4_da2203', 'cycle4_da2220'], ['cycle4_da2200', 'cycle4_da2204']],
-    [['cycle5_ea2777', 'cycle5_ea2778'], ['cycle5_ea2778', 'cycle5_ea2779']],
+    [['cycle5_ea2777', 'cycle5_ea2778'], ['cycle5_ea2778', 'cycle5_ea2779'], ['cycle5_ea2776', 'cycle5_ea2777'],
+      ['cycle5_ea2749', 'cycle5_ea2776'], ['cycle5_ea2766', 'cycle5_ea2767'], ['cycle5_ea2772', 'cycle5_ea2782'],
+      ['cycle5_ea2729', 'cycle5_ea2747'], ['cycle5_ea2747', 'cycle5_ea2757']],
   ];
   for (const language of ['zh', 'en']) {
     c.treeLanguage = language;
@@ -353,7 +375,7 @@ test('adjusted related nodes form straight horizontal branches in both languages
         const node = page.nodes.find(item => item.id === id), rect = layout.positions.get(id);
         const originalY = (node.tree_box.y + node.tree_box.h / 2) * layout.spacingY;
         if (index === 0) assert.ok(rect.y + rect.height / 2 > originalY, `${id} moves down`);
-        if (index === 2) assert.ok(rect.y + rect.height / 2 < originalY, `${id} moves up`);
+        if (index === 2 && ['cycle3_57', 'cycle3_58', 'cycle3_4'].includes(id)) assert.ok(rect.y + rect.height / 2 < originalY, `${id} moves up`);
       }
     }
   }
@@ -408,10 +430,10 @@ test('cycle IV cloud support fleet receives from above and departs to the right'
   }
 });
 
-test('cycle IV and V requested adjustments move nodes in the specified direction', () => {
+test('cycle IV structural and cycle V adjustments move nodes in the specified direction', () => {
   const c = context();
   const changes = [
-    [3, 'Dahaka Sighting', 1], [3, 'Sandstorm Navigation', 1],
+    [3, 'Sandstorm Navigation', 1],
     [3, 'Sustainable Oasis', -1], [3, 'Curse Economy Basics', -1],
     [4, 'Tight-spaces Navigation', -1],
   ];
@@ -424,6 +446,47 @@ test('cycle IV and V requested adjustments move nodes in the specified direction
       const rect = layout.positions.get(node.id), box = node.tree_box;
       const difference = rect.y + rect.height / 2 - (box.y + box.h / 2) * layout.spacingY;
       assert.ok(direction * difference > 1, `${language}: ${name} moves ${direction > 0 ? 'down' : 'up'}`);
+    }
+  }
+});
+
+test('cycle IV battle branches have clear routing gutters, fewer crossings and preserve the structural layout', () => {
+  const c = context(), page = c.data.pages[3];
+  const graph = tree.buildGraph(page.nodes, node => c.nodeKey(page.key, node));
+  const battle = new Set(page.nodes.filter(node => node.tree_box.y > page.split_y).map(node => node.id));
+  const edges = graph.edges.filter(edge => battle.has(edge.source) || battle.has(edge.target));
+  function crossings(layout) {
+    const segments = tree.linkSegments(edges, layout);
+    const horizontal = segments.filter(segment => segment.start.y === segment.end.y);
+    const vertical = segments.filter(segment => segment.start.x === segment.end.x);
+    return horizontal.reduce((count, a) => count + vertical.filter(b =>
+      b.start.x > a.start.x + 1 && b.start.x < a.end.x - 1
+      && a.start.y > b.start.y + 1 && a.start.y < b.end.y - 1).length, 0);
+  }
+  for (const language of ['zh', 'en']) {
+    c.treeLanguage = language;
+    const layout = tree.layoutGraph(graph, page, node => c.treeModuleSize(page.key, node));
+    const original = tree.layoutGraph(graph, {
+      ...page, battle_grid: undefined,
+      node_align_y: { ...page.node_align_y, cycle4_da2185: 'cycle4_da2193' },
+    }, node => c.treeModuleSize(page.key, node));
+    for (const node of page.nodes.filter(node => !battle.has(node.id))) {
+      assert.deepEqual(layout.positions.get(node.id), original.positions.get(node.id));
+    }
+    for (const edge of edges.filter(edge => battle.has(edge.source))) {
+      const from = layout.positions.get(edge.source), to = layout.positions.get(edge.target);
+      assert.ok(from.x + from.width < to.x, `${language}: ${edge.source} -> ${edge.target} progresses right`);
+    }
+    assert.ok(crossings(layout) < crossings(original), `${language}: fewer battle branch crossings`);
+    const segments = tree.linkSegments(edges, layout);
+    for (let i = 0; i < segments.length; i++) for (let j = i + 1; j < segments.length; j++) {
+      const a = segments[i], b = segments[j], vertical = a.start.x === a.end.x;
+      if (vertical !== (b.start.x === b.end.x)) continue;
+      const axis = vertical ? 'y' : 'x', fixed = vertical ? 'x' : 'y';
+      const gap = Math.abs(a.start[fixed] - b.start[fixed]);
+      const overlap = Math.min(a.end[axis], b.end[axis]) - Math.max(a.start[axis], b.start[axis]);
+      assert.ok(overlap <= 30 || gap < .01 || gap >= 16,
+        `${language}: parallel runs need at least 16px of space, received ${gap.toFixed(2)}px`);
     }
   }
 });
