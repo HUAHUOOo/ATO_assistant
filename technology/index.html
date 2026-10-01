@@ -1101,7 +1101,6 @@ button.gear-group-name:hover {
   .tools > * { min-width: 0; }
   .tool-btn.return-main,
   .cycle-select { grid-column: span 2; }
-  #cycleBadge { display: none; }
   #count {
     grid-column: span 2;
     align-self: center;
@@ -1132,7 +1131,7 @@ button.gear-group-name:hover {
 </style>
 <link rel="stylesheet" href="../cycle-theme.css">
 <link rel="stylesheet" href="../assets/theme.css?v=20261001">
-<link rel="stylesheet" href="editorial.css?v=20261001-badge-height">
+<link rel="stylesheet" href="editorial.css?v=20261001-cycle-button">
 <script src="../assets/theme.js?v=20261001" defer></script>
 </head>
 <body data-theme-module="technology">
@@ -1149,9 +1148,8 @@ button.gear-group-name:hover {
       <div class="tabs" id="tabs"></div>
       <div class="tools">
         <select id="accountSelect" class="account-select" aria-label="账户" hidden></select>
-        <select id="cycleSelect" class="cycle-select" aria-label="当前循环"></select>
         <button class="tool-btn" id="languageToggle" type="button">中文名</button>
-        <span class="badge" id="cycleBadge">Cycle I</span>
+        <button class="badge" id="cycleBadge" type="button" title="点击切换循环">循环 I</button>
         <input id="search" class="search" placeholder="搜索科技" autocomplete="off">
         <button class="tool-btn" id="clearUnlocked" type="button">重置进度</button>
         <label class="tool-check" id="hideUnknownLabel" title="勾选后只显示已解锁与可解锁科技的名字，其余节点用白色遮挡">
@@ -1906,7 +1904,7 @@ function gearItemHtml(entry, gear) {
 
 function renderGearProductionPage() {
   currentTab = 'gear-production';
-  cycleBadge.textContent = '装备制造';
+  renderCycleButton();
   gearCraftPlans = new Map();
   requestGearRecordState();
 
@@ -2726,7 +2724,6 @@ const count = document.getElementById('count');
 const search = document.getElementById('search');
 const accountSelect = document.getElementById('accountSelect');
 const returnMain = document.getElementById('returnMain');
-const cycleSelect = document.getElementById('cycleSelect');
 const languageToggle = document.getElementById('languageToggle');
 const cycleBadge = document.getElementById('cycleBadge');
 const clearUnlocked = document.getElementById('clearUnlocked');
@@ -3135,7 +3132,7 @@ function resetTechnologyToDefault() {
   selectedNodeId = null;
   updateLanguageToggle();
   renderAccountSelect();
-  renderCycleSelect();
+  renderCycleButton();
   renderTabs();
   syncHideUnknownToggle();
   renderTree();
@@ -3262,7 +3259,7 @@ function applyCampaignUsersToTechnology(campaign, profileId = null) {
   selectedNodeId = null;
   updateLanguageToggle();
   renderAccountSelect();
-  renderCycleSelect();
+  renderCycleButton();
   renderTabs();
   syncHideUnknownToggle();
   renderTree();
@@ -3313,7 +3310,7 @@ function applyTechnologyAccountState(state) {
   unlockAutomaticCyclesThrough(currentCycle);
   selectedNodeId = null;
   updateLanguageToggle();
-  renderCycleSelect();
+  renderCycleButton();
   renderTabs();
   syncHideUnknownToggle();
   renderTree();
@@ -3620,7 +3617,7 @@ async function switchAccount(id) {
   selectedNodeId = null;
   campaignTechBaseState = technologySectionState();
   renderAccountSelect();
-  renderCycleSelect();
+  renderCycleButton();
   renderTabs();
   renderTree();
   loadCampaignTechnologySection();
@@ -3840,7 +3837,7 @@ function toggleUnimportantForActive() {
 function renderUnlockedPage() {
   currentTab = 'unlocked';
   document.querySelector('.app').classList.add('unlocked-mode');
-  cycleBadge.textContent = '已解锁';
+  renderCycleButton();
   const records = unlockedRecords();
   mainView.innerHTML = `<div class="unlocked-page">
     ${unlockedGroupsHtml(records)}
@@ -3990,17 +3987,21 @@ function updateTechnologyTheme() {
   document.body.dataset.cycle = cycleId;
   window.ATO_CYCLE_SYMBOLS?.prependTitleIcon(document.querySelector('#technologyTitle'), cycleId, '../');
 }
-function renderCycleSelect() {
+function renderCycleButton() {
   updateTechnologyTheme();
-  cycleSelect.innerHTML = data.pages.map(page => `<option value="${esc(page.key)}">当前${esc(page.label)}</option>`).join('');
-  cycleSelect.value = currentCycle;
+  const index = data.pages.findIndex(page => page.key === currentCycle);
+  const page = data.pages[index] || data.pages[0];
+  const nextPage = data.pages[(index + 1) % data.pages.length];
+  cycleBadge.textContent = page.label;
+  cycleBadge.title = `当前${page.label}，点击切换为${nextPage.label}`;
+  cycleBadge.setAttribute('aria-label', cycleBadge.title);
 }
 function renderTree() {
   updateTechnologyTheme();
   document.querySelector('.app').classList.remove('unlocked-mode');
   const page = pageByKey(viewPage);
   currentTab = viewPage;
-  cycleBadge.textContent = page.label;
+  renderCycleButton();
   mainView.innerHTML = `<div class="tree-wrap" id="treeWrap"></div>`;
   const treeWrap = document.getElementById('treeWrap');
   treeWrap.style.aspectRatio = `${page.width} / ${page.height}`;
@@ -4220,17 +4221,21 @@ languageToggle.addEventListener('click', () => {
     if (activeModalMode === 'unlocked') showUnlockedModal(page.key, node.id);
   }
 });
-cycleSelect.addEventListener('change', () => {
-  currentCycle = cycleSelect.value;
+function advanceTechnologyCycle() {
+  if (!data?.pages?.length || !currentCycle) return;
+  const index = data.pages.findIndex(page => page.key === currentCycle);
+  currentCycle = data.pages[(index + 1) % data.pages.length].key;
   unlockAutomaticCyclesThrough(currentCycle);
   selectedNodeId = null;
   saveAccounts();
   viewPage = currentCycle;
   currentTab = viewPage;
+  renderCycleButton();
   renderTabs();
   renderTree();
   refreshUnlockState();
-});
+}
+cycleBadge.addEventListener('click', advanceTechnologyCycle);
 clearUnlocked.addEventListener('click', () => {
   if (!confirm('重置当前账号的解锁进度？')) return;
   unlocked.clear();
@@ -4242,7 +4247,7 @@ clearUnlocked.addEventListener('click', () => {
   selectedNodeId = null;
   unlockAutomaticCyclesThrough(currentCycle);
   saveAccounts();
-  renderCycleSelect();
+  renderCycleButton();
   renderTabs();
   renderTree();
   refreshUnlockState();
@@ -4271,7 +4276,7 @@ function boot(appData) {
   updateLanguageToggle();
   syncHideUnknownToggle();
   renderAccountSelect();
-  renderCycleSelect();
+  renderCycleButton();
   renderTabs();
   renderTree();
   loadCampaignTechnologySection();
