@@ -1,15 +1,15 @@
 /* Live technology modules; the diagram has no printed background. */
 html { scrollbar-gutter: stable; }
 .tech-explorer { width: 100%; margin: 0 auto; }
-.viewport.tech-tree-view { --bg: #fff; flex: 1 0 auto; padding: 0; overflow: visible; background: var(--bg); }
-.tech-board-toolbar { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 10px 40px; background: var(--bg); }
+.viewport.tech-tree-view { flex: 1 0 auto; padding: 8px 40px 24px; overflow: visible; background: var(--bg); }
+.tech-board-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 0 0 12px; }
 .tech-progress { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--muted); font-size: 12px; }
 .tech-progress strong { color: var(--accent-strong); font-weight: 700; }
 .tech-board-controls { display: flex; align-items: center; gap: 5px; }
 .tech-board-controls button { min-width: 32px; height: 30px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }
 .tech-board-controls button:hover { border-color: var(--accent); color: var(--accent); }
 .tech-zoom-value { min-width: 42px; text-align: center; font-size: 11px; color: var(--muted); }
-.tech-board { position: relative; width: 100%; border: 0; background: transparent; cursor: grab; }
+.tech-board { --bg: var(--panel); position: relative; width: 100%; height: max(320px, calc(100dvh - 220px)); overflow: auto; scrollbar-gutter: stable; border: 1px solid var(--line); background: var(--panel); cursor: grab; }
 .tech-board.is-dragging { cursor: grabbing; user-select: none; }
 .tech-board-size { position: relative; overflow: clip; }
 body[data-theme-module="technology"] .tree-wrap.tech-canvas { position: absolute; top: 0; left: 0; margin: 0; max-width: none; border: 0; box-shadow: none; background: transparent; transform-origin: top left; container-type: normal; }
@@ -43,11 +43,11 @@ body[data-theme-module="technology"] .tree-wrap.tech-canvas { position: absolute
 .tech-condition { display: flex; align-items: flex-start; gap: 4px; margin: 0; padding-top: 3px; background: transparent; color: var(--muted); font: 8.5px/10px system-ui, sans-serif; cursor: pointer; }
 .tech-condition input { flex: 0 0 auto; width: 9px; height: 9px; margin: 0; accent-color: var(--accent); cursor: pointer; }
 .tech-condition span { display: block; min-width: 0; overflow-wrap: anywhere; }
-.tech-discovery-message { margin: 10px 40px 20px; color: var(--muted); font-size: 12px; }
+.tech-discovery-message { margin: 10px 0 0; color: var(--muted); font-size: 12px; }
 .tech-discovery-message:empty { display: none; }
 .tech-discovery-message.has-discovery { color: var(--accent-strong); }
 .tech-unknown-note { color: var(--muted); font-size: 12px; padding: 8px 0; }
 @keyframes tech-discover { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
 @media (prefers-reduced-motion: reduce) { .tech-module.newly-discovered { animation: none; } }
-@media (max-width: 980px) { .tech-board-toolbar { padding: 10px 20px; } .tech-discovery-message { margin-inline: 20px; } }
+@media (max-width: 980px) { .viewport.tech-tree-view { padding: 8px 20px 24px; } }
 @media (max-width: 600px) { .tech-board-toolbar { align-items: flex-start; } .tech-module { scroll-margin-top: 110px; } }
