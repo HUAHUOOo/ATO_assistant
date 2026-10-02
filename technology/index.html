@@ -2052,7 +2052,9 @@ async function adjustArsenal(gearId, delta) {
 
 // 布局元数据住在 technology/tech-page-layout.js：战役简报（briefing/）要用同一份坐标
 // 重放科技树点亮过程，两份页面共用一套布局，节点位置才不会互相漂移。
-const PAGE_METADATA = window.ATO_TECH_PAGE_LAYOUT;
+// 注意：那份文件自己已经在脚本顶层声明了 `const PAGE_METADATA`，这里**不能**再声明同名变量
+// ——同一文档的两个经典脚本共享全局词法作用域，重复声明会让这整段脚本直接 SyntaxError 不执行
+// （页面就会停在「正在连接...」）。需要时一律走它挂出来的 window.ATO_TECH_PAGE_LAYOUT。
 
 
 // 保留原版条件条数，沿用存档中的条件键；坐标不再参与绘图。
@@ -2319,9 +2321,10 @@ function computeDisambiguatedTechNames(pages) {
   }
 
 function dictionaryToAppData(dictionary) {
-    const pages = PAGE_METADATA.map(page => ({ ...page, nodes: [] }));
+    const layout = window.ATO_TECH_PAGE_LAYOUT || [];
+    const pages = layout.map(page => ({ ...page, nodes: [] }));
     const pagesByKey = new Map(pages.map(page => [page.key, page]));
-    const pageLabelsByKey = new Map(PAGE_METADATA.map(page => [page.key, page.label]));
+    const pageLabelsByKey = new Map(layout.map(page => [page.key, page.label]));
     const records = (Array.isArray(dictionary.cards) ? dictionary.cards : Object.values(dictionary.cards || {}))
       .filter(Boolean)
       .sort((a, b) => Number(a.index ?? 0) - Number(b.index ?? 0));
