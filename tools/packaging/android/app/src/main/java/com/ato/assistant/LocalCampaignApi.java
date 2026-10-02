@@ -141,6 +141,9 @@ final class LocalCampaignApi {
     put(response, "battleBoardVisible", settings.optBoolean("battleBoardVisible", true));
     put(response, "displayMode", settings.optString("displayMode", "map"));
     put(response, "urls", new JSONArray(urls));
+    // 安卓的局域网入口和这台手机共用同一个登录态（能读也能写，登录/退出只在本机做）：
+    // 主控台用它决定局域网那一行提示怎么写。
+    put(response, "lanSharedAccount", true);
     return response;
   }
 

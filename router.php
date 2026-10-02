@@ -23,6 +23,18 @@ declare(strict_types=1);
 // it over HTTP.
 $privateDirectories = ['data', 'tmp', 'export', 'log', 'logs', '.git'];
 
+// Testing and troubleshooting can move the runtime data directory elsewhere
+// (ATO_DATA_DIR, honoured by api/campaign-state.php and briefing/api.php).
+// That directory keeps the same "never reachable over HTTP" contract, so deny
+// its top-level name here as well; in a normal deployment this is just `data`.
+$envDataDir = getenv('ATO_DATA_DIR');
+if (is_string($envDataDir) && $envDataDir !== '') {
+  $dataName = basename(rtrim($envDataDir, "\\/"));
+  if ($dataName !== '' && !in_array(strtolower($dataName), $privateDirectories, true)) {
+    $privateDirectories[] = strtolower($dataName);
+  }
+}
+
 // Individual files that live inside otherwise public directories.  `tools/` has
 // to stay reachable (map/app.js opens ../tools/tag-editor.html), so the
 // credential file is denied by name instead of by directory.

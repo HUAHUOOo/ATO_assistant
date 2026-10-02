@@ -109,7 +109,7 @@ console.log(`故事卡可用列宽      ${storyCardColumn}px（卡面上限 ${fa
 console.log(`故事卡实际宽度      ${storyCardWidth}px，卡面高约 ${Math.round(storyCardWidth / ratio)}px`);
 console.log(`灾祸卡容器可用宽度  ${doomItemCap - ITEM_CHROME}px（卡面上限 ${doomFaceCap}px）`);
 console.log(`灾祸卡实际宽度      ${doomCardWidth}px，卡面高约 ${Math.round(doomCardWidth / ratio)}px`);
-console.log(`弹窗高度上限        ${pxCap(declared(".card-track-dialog", "max-height"), ".card-track-dialog")}px（卡面加上标题和控件后可能会滚动）`);
+console.log(`弹窗高度上限        ${pxCap(declared(".card-track-dialog", "max-height"), ".card-track-dialog")}px（高度不再死卡 920px，灾祸卡按窗口高度缩放）`);
 
 // 两张卡要一样大，这是明确要求，别再拉开差距。
 assert.equal(
@@ -141,4 +141,31 @@ assert.ok(
   "灾祸卡宽度上限超过了弹窗正文可用宽度，上限是虚的",
 );
 
+// 灾祸弹窗不许出现上下滚动条：卡面按窗口高度缩放，整块内容必须装得进弹窗。
+const doomFaceWidth = declared('.card-track-dialog[data-group="doom"] .card-track-face', "width");
+const widthFormula = doomFaceWidth.match(/calc\(\s*(\d+(?:\.\d+)?)dvh\s*-\s*(\d+)px\s*\)/);
+assert.ok(widthFormula, `灾祸卡面宽度里没有按 dvh 的高度预算：${doomFaceWidth}`);
+const widthPerVh = Number(widthFormula[1]) / 100;
+const widthReserve = Number(widthFormula[2]);
+
+const dialogMaxHeight = declared(".card-track-dialog", "max-height");
+const heightFormula = dialogMaxHeight.match(/calc\(\s*100dvh\s*-\s*(\d+)px\s*\)/);
+assert.ok(heightFormula, `弹窗高度上限没有按窗口高度算：${dialogMaxHeight}`);
+const heightReserve = Number(heightFormula[1]);
+const heightCap = pxCap(dialogMaxHeight, ".card-track-dialog");
+
+// 弹窗里除卡面以外的固定占用：与 index.html 里那段注释同一份预算
+// （外边距 28 + 标题栏 61 + 正文内边距 28 + 卡片自身 182）。
+const FIXED_CHROME = 299;
+[700, 800, 950, 1080, 1200].forEach((dvh) => {
+  const available = Math.min(heightCap, dvh - heightReserve);
+  const cardWidth = Math.min(doomFaceCap, widthPerVh * dvh - widthReserve, doomItemCap - ITEM_CHROME);
+  const content = FIXED_CHROME + cardWidth / ratio;
+  assert.ok(
+    content <= available,
+    `窗口高 ${dvh}px 时灾祸弹窗内容约 ${Math.round(content)}px 超过可用高度 ${available}px，会出现上下滚动条`,
+  );
+});
+
 console.log("OK: 灾祸卡 / 故事卡尺寸约束全部通过");
+

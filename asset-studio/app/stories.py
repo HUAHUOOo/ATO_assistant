@@ -16,6 +16,12 @@ ENTRY_RE = re.compile(
     r"^(?P<number>\*?\d{3,5}|M\d{3}|[αΩ]|\d{1,2}\s*[-–—]\s*\d{1,2})(?:\s*[:：|·\-–—]\s*(?P<title>.*))?$",
     re.IGNORECASE,
 )
+# 故事书用拇指图标标出「另起一段」的入口。图标位置印在编号前面，于是这行开头是标记而不是编号，
+# 普通编号规则认不出来，整段就会被并进上一段。见 split_segments()。
+THUMB_HEADING_RE = re.compile(
+    r"^[（(]\s*拇指\s*[)）]\s*(?P<number>\*?\d{3,5}|M\d{3}|[αΩ]|\d{1,2}\s*[-–—]\s*\d{1,2})(?=$|[\s:：|·\-–—])",
+    re.IGNORECASE,
+)
 
 
 def normalize_text(value: str) -> str:
@@ -48,6 +54,23 @@ def extract_text(path: Path, page_start: int | None = None, page_end: int | None
     raise ValueError("仅支持 PDF、DOCX 和 TXT")
 
 
+def parse_entry_heading(line: str) -> dict | None:
+    """解析段落标题行；拇指标记开头的编号同样起新段，标记行留在新段正文开头。"""
+    thumb = THUMB_HEADING_RE.match(line)
+    if thumb:
+        number = re.sub(r"\s+", "", thumb.group("number")).replace("–", "-").replace("—", "-")
+        # 标记行本身是书上的排版内容（拇指图标 + 编号 + 标题），整行留在正文开头。
+        return {"entry_number": number, "title": number, "heading_line": line.strip()}
+    match = ENTRY_RE.match(line)
+    if not match:
+        return None
+    return {
+        "entry_number": re.sub(r"\s+", "", match.group("number")).replace("–", "-").replace("—", "-"),
+        "title": (match.group("title") or "").strip(),
+        "heading_line": "",
+    }
+
+
 def split_segments(text: str, chapter_key: str, chapter_title: str) -> list[dict]:
     segments: list[dict] = []
     current: dict | None = None
@@ -60,14 +83,14 @@ def split_segments(text: str, chapter_key: str, chapter_title: str) -> list[dict
             elif preface:
                 preface.append("")
             continue
-        match = ENTRY_RE.match(stripped)
-        if match:
+        heading = parse_entry_heading(stripped)
+        if heading:
             if current:
                 segments.append(current)
             current = {
-                "entry_number": re.sub(r"\s+", "", match.group("number")).replace("–", "-").replace("—", "-"),
-                "title": (match.group("title") or "").strip(),
-                "body_lines": [],
+                "entry_number": heading["entry_number"],
+                "title": heading["title"],
+                "body_lines": [heading["heading_line"]] if heading["heading_line"] else [],
             }
         elif current:
             current["body_lines"].append(stripped)

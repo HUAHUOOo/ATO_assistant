@@ -58,6 +58,7 @@ $allowedPaths = @(
   'assets/update/app-version.js',
   'assets/update/update-check.css',
   'assets/update/update-check.js',
+  'assets/vendor/gifenc.js',
   'tools/packaging/android/app/src/main/res/drawable-nodpi/app_icon.jpg'
 )
 

@@ -26,8 +26,10 @@ import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -35,10 +37,27 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+/**
+ * 局域网入口：把整个应用（主控台、各模块、第二屏幕）开放给同一网段的其他设备，读和写都开放。
+ *
+ * 登录 / 注册 / 退出这三个 action 不转发：它们改的是这台手机的登录态（currentUser 存在
+ * SharedPreferences 里），别的设备一提交就会把手机上的账号换掉或退出。局域网页面读到的
+ * 「当前账号」就是手机上的账号，所以它本来也不需要登录。
+ *
+ * 静态文件直接来自 APK 的 assets/web（再加上导入的资源包）：/ 打开主控台，/ss/ 是第二屏。
+ * 并发写入由 API 的 section 版本号（sectionRevisions）把关：版本对不上会回 409，页面自己重放。
+ */
 final class LocalSecondScreenServer {
   private final Context context;
   private final AtopackStore atopackStore;
   private final LocalCampaignApi localApi;
+
+  // 不在局域网里转发的 action（见类注释）。
+  private static final Set<String> LAN_BLOCKED_ACTIONS = new HashSet<>(Arrays.asList(
+    "login", "register", "logout"));
+  // 请求体上限：够放得下整份存档，又不至于让一次请求把内存吃光。
+  private static final int MAX_BODY_BYTES = 32 * 1024 * 1024;
+
   private final Object lock = new Object();
   private volatile ServerSocket serverSocket;
   private volatile ExecutorService executor;
@@ -69,7 +88,10 @@ final class LocalSecondScreenServer {
         serverSocket = null;
       }
       if (executor != null) {
-        executor.shutdownNow();
+        // 只 shutdown 不 shutdownNow：局域网页面也可能提交「关闭第二屏幕」（这会走到这里），
+        // 打断正在处理的那个请求会让它连响应都收不到。排空在跑的请求即可，
+        // accept 循环会因为 socket 关闭而退出。
+        executor.shutdown();
         executor = null;
       }
     }
@@ -155,16 +177,27 @@ final class LocalSecondScreenServer {
   private void handle(Socket socket) {
     try (Socket connection = socket) {
       connection.setSoTimeout(10_000);
-      BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.US_ASCII));
+      // 表头用 ISO-8859-1 读：1 字节 = 1 字符，无损，所以后面能按字符读请求体再还原成 UTF-8。
+      BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.ISO_8859_1));
       String requestLine = reader.readLine();
       if (requestLine == null) return;
       String[] request = requestLine.split(" ", 3);
-      if (request.length < 2 || !("GET".equals(request[0]) || "HEAD".equals(request[0]))) {
-        sendText(connection.getOutputStream(), 405, "text/plain; charset=utf-8", "Method Not Allowed", false);
+      if (request.length < 2) {
+        sendText(connection.getOutputStream(), 400, "text/plain; charset=utf-8", "Bad Request", false);
         return;
       }
+      long contentLength = -1;
+      boolean chunked = false;
       for (String header; (header = reader.readLine()) != null && !header.isEmpty();) {
-        // Consume request headers before writing the response.
+        int separator = header.indexOf(':');
+        if (separator <= 0) continue;
+        String name = header.substring(0, separator).trim().toLowerCase(Locale.ROOT);
+        String value = header.substring(separator + 1).trim();
+        if ("content-length".equals(name)) {
+          try { contentLength = Long.parseLong(value); } catch (NumberFormatException ignored) { contentLength = -1; }
+        } else if ("transfer-encoding".equals(name) && value.toLowerCase(Locale.ROOT).contains("chunked")) {
+          chunked = true;
+        }
       }
       URI uri;
       try {
@@ -173,13 +206,32 @@ final class LocalSecondScreenServer {
         sendText(connection.getOutputStream(), 400, "text/plain; charset=utf-8", "Bad Request", false);
         return;
       }
-      boolean head = "HEAD".equals(request[0]);
-      if ("/api/campaign-state.php".equals(uri.getPath())) {
-        if (!allowedApiAction(uri)) {
-          sendText(connection.getOutputStream(), 403, "application/json; charset=utf-8", apiDenied(), head);
+      String method = request[0];
+      boolean head = "HEAD".equals(method);
+      boolean get = "GET".equals(method);
+      boolean post = "POST".equals(method);
+      boolean api = "/api/campaign-state.php".equals(uri.getPath());
+      if (!get && !head && !post) {
+        // 页面只用 GET 和 POST：其它方法按 HTTP 语义回 405（API 也用 JSON 说明一下）。
+        if (api) sendText(connection.getOutputStream(), 405, "application/json; charset=utf-8", apiMethodNotAllowed(), head);
+        else sendText(connection.getOutputStream(), 405, "text/plain; charset=utf-8", "Method Not Allowed", false);
+        return;
+      }
+      if (api && !allowedApiAction(uri)) {
+        sendText(connection.getOutputStream(), 403, "application/json; charset=utf-8", apiBlocked(), head);
+        return;
+      }
+      String body = "";
+      if (post) {
+        try {
+          body = readBody(reader, contentLength, chunked);
+        } catch (IOException tooLarge) {
+          sendText(connection.getOutputStream(), 413, "text/plain; charset=utf-8", "Payload Too Large", false);
           return;
         }
-        serveApi(connection.getOutputStream(), request[1], head);
+      }
+      if (api) {
+        serveApi(connection.getOutputStream(), request[1], method, body, head);
       } else {
         serveStatic(connection.getOutputStream(), uri.getRawPath(), head);
       }
@@ -188,15 +240,64 @@ final class LocalSecondScreenServer {
     }
   }
 
-  // 局域网入口只转发第二屏展示需要的只读请求，登录、退出、读写存档等 action 一律不转发给本机 API。
+  // 局域网里读写都放行，只有登录 / 注册 / 退出不在局域网转发（见类注释）。
   // 这里用的是 java.net.URI（见文件顶部的 import），它没有 getQueryParameter —— 那是
   // android.net.Uri 的方法。手写查询串解析，只依赖 JDK 的 getRawQuery / URLDecoder（两者都已导入）。
   private static boolean allowedApiAction(URI uri) {
     try {
-      return "second-screen".equals(queryParameter(uri.getRawQuery(), "action"));
+      String action = queryParameter(uri.getRawQuery(), "action");
+      return action == null || !LAN_BLOCKED_ACTIONS.contains(action);
     } catch (IllegalArgumentException error) {
       return false;
     }
+  }
+
+  /**
+   * 读出请求体（GET/HEAD 之外只有 POST 会走到这里）。
+   *
+   * 表头是 ISO-8859-1 读的，所以每个字符就是原始的一个字节；请求体是 UTF-8 的 JSON，
+   * 按字符读出后再按 ISO-8859-1 还原字节、用 UTF-8 解码，中文才不会变乱码。
+   * 浏览器用 fetch 发字符串时都会带 Content-Length；万一遇到 chunked 也顺手支持。
+   */
+  private static String readBody(BufferedReader reader, long contentLength, boolean chunked) throws IOException {
+    StringBuilder raw = new StringBuilder();
+    if (chunked) {
+      while (true) {
+        String sizeLine = reader.readLine();
+        if (sizeLine == null) break;
+        int extension = sizeLine.indexOf(';');
+        String sizeText = (extension < 0 ? sizeLine : sizeLine.substring(0, extension)).trim();
+        int size;
+        try {
+          size = Integer.parseInt(sizeText, 16);
+        } catch (NumberFormatException error) {
+          break;
+        }
+        if (size <= 0) break;
+        if (raw.length() + size > MAX_BODY_BYTES) throw new IOException("Request body too large.");
+        char[] chunk = new char[size];
+        int read = 0;
+        while (read < chunk.length) {
+          int count = reader.read(chunk, read, chunk.length - read);
+          if (count < 0) break;
+          read += count;
+        }
+        raw.append(chunk, 0, read);
+        reader.readLine();
+      }
+    } else if (contentLength > 0) {
+      if (contentLength > MAX_BODY_BYTES) throw new IOException("Request body too large.");
+      char[] buffer = new char[(int) contentLength];
+      int read = 0;
+      while (read < buffer.length) {
+        int count = reader.read(buffer, read, buffer.length - read);
+        if (count < 0) break;
+        read += count;
+      }
+      raw.append(buffer, 0, read);
+    }
+    if (raw.length() == 0) return "";
+    return new String(raw.toString().getBytes(StandardCharsets.ISO_8859_1), StandardCharsets.UTF_8);
   }
 
   // rawQuery 是已编码的查询串（不含 '?'），可能为 null。
@@ -213,12 +314,16 @@ final class LocalSecondScreenServer {
     return null;
   }
 
-  private static String apiDenied() {
-    return "{\"ok\":false,\"error\":\"This action is not available from the local network.\"}";
+  private static String apiBlocked() {
+    return "{\"ok\":false,\"code\":\"LAN_SESSION_LOCAL\",\"error\":\"登录、注册、退出只能在这台手机上操作。\"}";
   }
 
-  private void serveApi(OutputStream output, String target, boolean head) throws IOException {
-    String resultText = localApi.handleForJavascript(android.net.Uri.parse("http://127.0.0.1" + target), "GET", "");
+  private static String apiMethodNotAllowed() {
+    return "{\"ok\":false,\"error\":\"Unsupported method.\"}";
+  }
+
+  private void serveApi(OutputStream output, String target, String method, String body, boolean head) throws IOException {
+    String resultText = localApi.handleForJavascript(android.net.Uri.parse("http://127.0.0.1" + target), method, body);
     try {
       JSONObject result = new JSONObject(resultText);
       sendText(output, result.optInt("status", 500), "application/json; charset=utf-8", result.optString("body", "{}"), head);
@@ -235,7 +340,7 @@ final class LocalSecondScreenServer {
       sendText(output, 400, "text/plain; charset=utf-8", "Bad Request", head);
       return;
     }
-    if ("/".equals(path)) path = "/ss/";
+    if ("/".equals(path)) path = "/index.html";
     if (path.endsWith("/")) path += "index.html";
     String relative = path.startsWith("/") ? path.substring(1) : path;
     if (!safeRelative(relative)) {
@@ -288,7 +393,8 @@ final class LocalSecondScreenServer {
 
   private static void writeHeaders(OutputStream output, int status, String contentType, long length) throws IOException {
     String reason = status == 200 ? "OK" : status == 400 ? "Bad Request" : status == 403 ? "Forbidden"
-      : status == 404 ? "Not Found" : status == 405 ? "Method Not Allowed" : "Error";
+      : status == 404 ? "Not Found" : status == 405 ? "Method Not Allowed"
+      : status == 413 ? "Payload Too Large" : "Error";
     StringBuilder headers = new StringBuilder("HTTP/1.1 ").append(status).append(' ').append(reason).append("\r\n")
       .append("Content-Type: ").append(contentType).append("\r\n")
       .append("Cache-Control: no-store\r\n")

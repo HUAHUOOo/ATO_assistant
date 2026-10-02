@@ -1,11 +1,16 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 const LOCAL_DATA_PATH = path.resolve("story/data/storybook-data.js");
 const REMOTE_BOOK_FILES = {
   c4: path.resolve("tools/bgstorybook-c4.json"),
   c5: path.resolve("tools/bgstorybook-c5.json"),
 };
+
+// 故事书用拇指图标标出「另起一段」的入口。来源页没把这类段落做成标题时，标记行会并进上一段正文，
+// 于是这一段连同后面的编号一起消失；这里按标记切开，标记行留在新段正文开头（和书上排版一致）。
+const THUMB_HEADING_RE = /[（(]\s*拇指\s*[)）]\s*(\*?\d{3,5}|M\d{3})(?=$|[\s:：|·\-–—])/g;
 
 function loadLocalStorybook(source) {
   const prefix = "window.STORYBOOK_DATA = ";
@@ -39,6 +44,28 @@ function isHubLayerEntry(chapter, entry, entryType) {
   return /^(?:α|Ω|\d{1,2}-\d{1,2})$/i.test(normalizeText(entry.id));
 }
 
+function splitThumbSections(entry) {
+  const text = String(entry.text ?? "");
+  const markers = [...text.matchAll(THUMB_HEADING_RE)].filter((match) => match.index > 0);
+  if (!markers.length) return [entry];
+
+  const parts = [];
+  let cursor = 0;
+  markers.forEach((marker, markerIndex) => {
+    parts.push({ ...entry, text: text.slice(cursor, marker.index).trim() });
+    const end = markers[markerIndex + 1]?.index ?? text.length;
+    const { html, ...rest } = entry;
+    parts.push({
+      ...rest,
+      id: marker[1],
+      title: marker[1],
+      text: text.slice(marker.index, end).trim(),
+    });
+    cursor = end;
+  });
+  return parts.filter((part) => String(part.text ?? "").trim());
+}
+
 function toLocalBook(remoteBook) {
   let order = 0;
   const entries = [];
@@ -46,7 +73,8 @@ function toLocalBook(remoteBook) {
   remoteBook.chapters.forEach((chapter, chapterIndex) => {
     let currentEncounter = null;
 
-    chapter.entries.forEach((entry, entryIndex) => {
+    const chapterEntries = chapter.entries.flatMap((entry) => splitThumbSections(entry));
+    chapterEntries.forEach((entry, entryIndex) => {
       const entryType = isNumberEntry(entry.id) ? "number" : "heading";
       let encounterKey = null;
       let encounter = null;
@@ -131,7 +159,11 @@ async function main() {
   console.log(`updated ${LOCAL_DATA_PATH}`);
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}
+
+export { splitThumbSections, toLocalBook };

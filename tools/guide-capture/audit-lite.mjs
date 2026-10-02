@@ -28,7 +28,7 @@ const ALLOWED_PATHS = new Set([
   'assets/exploration-card-resource-rules.js', 'assets/exploration-card-resources.js',
   'assets/exploration-card-tags.js', 'assets/page-focus-router.js',
   'assets/story-doom-card-data.js', 'assets/term-language.js', 'assets/update/app-version.js',
-  'assets/update/update-check.css', 'assets/update/update-check.js',
+  'assets/update/update-check.css', 'assets/update/update-check.js', 'assets/vendor/gifenc.js',
   'tools/packaging/android/app/src/main/res/drawable-nodpi/app_icon.jpg',
 ]);
 

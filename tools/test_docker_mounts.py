@@ -73,6 +73,7 @@ ROOT_APP_PATHS = (
     "api",            # 存档 / 账号 API
     "assets",         # 主控台脚本样式、登录守卫、BGM 程序
     "aibp",           # AIBP（ps/ 里的程序数据与使用者卡图同级，必须整棵挂）
+    "briefing",       # 战役简报（按每日备份回放地图与科技树）
     "hero",
     "map",
     "record",
