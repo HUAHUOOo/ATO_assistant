@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ATO 战役简报</title>
+<link rel="stylesheet" href="../cycle-theme.css">
+<link rel="stylesheet" href="briefing.css?v=20261002-day1">
+</head>
+<body data-cycle="c1">
+<header class="briefing-head">
+  <div class="head-title">
+    <h1>战役简报</h1>
+    <p class="head-sub" id="headSub">正在读取每日备份…</p>
+    <p class="head-status" id="exportStatus" role="status" hidden></p>
+  </div>
+  <div class="head-actions">
+    <label class="field">
+      <span>循环</span>
+      <select id="cycleSelect" aria-label="选择循环"></select>
+    </label>
+    <button type="button" id="refreshButton" class="ghost-button">重新读取</button>
+    <button type="button" id="exportFilesButton" class="primary-button" disabled title="地图回放 GIF + 科技树回放 GIF + 逐日简报 PDF，打成一个 zip">导出 GIF / PDF</button>
+    <a id="backLink" class="ghost-button link-button" href="../">回主控台</a>
+  </div>
+</header>
+
+<main class="briefing-body" id="briefingBody" hidden>
+  <section class="replay" aria-label="回放">
+    <div class="replay-head">
+      <div class="day-readout">
+        <span class="day-index" id="dayIndex">1 / 1</span>
+        <strong class="day-title" id="dayTitle">—</strong>
+        <span class="day-meta" id="dayMeta"></span>
+      </div>      <div class="replay-controls">
+        <button type="button" id="prevButton" class="ghost-button" title="上一天（←）">上一天</button>
+        <button type="button" id="playButton" class="primary-button" title="播放 / 暂停（空格）">播放</button>
+        <button type="button" id="nextButton" class="ghost-button" title="下一天（→）">下一天</button>
+        <label class="field">
+          <span>速度</span>
+          <select id="speedSelect" aria-label="播放速度">
+            <option value="1600">慢</option>
+            <option value="900" selected>正常</option>
+            <option value="420">快</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <div class="axis-wrap">
+      <input type="range" id="dayRange" min="0" max="0" value="0" step="1" aria-label="日期轴">
+      <div class="axis-ticks" id="axisTicks"></div>
+    </div>
+
+    <div class="panes">
+      <article class="pane pane-map">
+        <header class="pane-head">
+          <h2>地图进展</h2>
+          <span class="pane-sub" id="mapSummary"></span>
+        </header>
+        <div class="pane-canvas map-canvas" id="mapCanvas">
+          <div class="map-stage" id="mapStage"></div>
+        </div>
+        <footer class="pane-foot" id="mapNewList"></footer>
+      </article>
+
+      <article class="pane pane-tech">
+        <header class="pane-head">
+          <h2>科技树点亮</h2>
+          <span class="pane-sub" id="techSummary"></span>
+        </header>
+        <div class="pane-canvas tech-canvas" id="techCanvas">
+          <svg class="tech-svg" id="techSvg" role="img" aria-label="科技树点亮过程"></svg>
+        </div>
+        <footer class="pane-foot" id="techNewList"></footer>
+      </article>
+    </div>
+  </section>
+
+  <section class="log" aria-label="逐日清单">
+    <header class="log-head">
+      <h2>逐日记录</h2>
+      <p class="log-sub">点任意一天跳到那天；写着「无记录」的日期说明当天没留下备份，差分因此跨过了它。</p>
+    </header>
+    <ol class="log-list" id="logList"></ol>
+  </section>
+</main>
+
+<section class="notice" id="notice" aria-live="polite">
+  <div class="notice-card">
+    <h2 id="noticeTitle">正在读取…</h2>
+    <p id="noticeText">战役简报会从每日存档备份里重建这一轮的经过。</p>
+    <div class="notice-actions" id="noticeActions"></div>
+  </div>
+</section>
+
+<!-- 地图与科技树复用仓库里现成的布局代码，简报自己只负责「按日期回放」。 -->
+<script src="../assets/vendor/gifenc.js?v=20261002-day1"></script>
+<script src="../assets/campaign-session.js?v=20260917"></script>
+<script src="../map/map-data.js?v=20260926"></script>
+<script src="../map/nemesis-path.js?v=20260926"></script>
+<script src="../technology/tech-page-layout.js?v=20261002"></script>
+<script src="../technology/tech-tree.js?v=20261001-c4-gutters"></script>
+<script src="briefing-core.js?v=20261002-square"></script>
+<script src="briefing-map.js?v=20261002-day1"></script>
+<script src="briefing-tech.js?v=20261002-square"></script>
+<script src="briefing-gif.js?v=20261002-day1"></script>
+<script src="briefing-report.js?v=20261002-day1"></script>
+<script src="briefing-app.js?v=20261002-day1"></script>
+</body>
+</html>

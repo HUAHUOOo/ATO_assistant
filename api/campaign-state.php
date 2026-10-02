@@ -15,11 +15,17 @@ set_error_handler(static function (int $severity, string $message, string $file,
 
 $cookieLifetime = 60 * 60 * 24 * 180;
 ini_set('session.gc_maxlifetime', (string) $cookieLifetime);
+// 落地部署里数据目录固定是 <仓库根>/data；测试与排查可以用 ATO_DATA_DIR 指向一份临时
+// 拷贝（briefing/api.php 与 router.php 同样认这个变量），这样回归测试不会动到真实存档。
+$envDataDir = getenv('ATO_DATA_DIR');
+$dataDir = (is_string($envDataDir) && $envDataDir !== '')
+  ? rtrim($envDataDir, "\\/")
+  : dirname(__DIR__) . DIRECTORY_SEPARATOR . 'data';
 // PHP's built-in server changes the working directory to the requested script's
 // directory, so a relative session.save_path resolved under api/ and every
 // login session was silently dropped.  Pin the portable session directory when
 // it exists: session storage must not depend on how the site was launched.
-$sessionDir = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'sessions';
+$sessionDir = $dataDir . DIRECTORY_SEPARATOR . 'sessions';
 if (!is_dir($sessionDir)) @mkdir($sessionDir, 0770, true);
 if (is_dir($sessionDir) && is_writable($sessionDir)) {
   session_save_path($sessionDir);
@@ -37,7 +43,6 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
 $allowedSections = ['dashboard', 'map', 'record', 'technology', 'heroes', 'aibp', 'story'];
-$dataDir = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'data';
 $usersFile = $dataDir . DIRECTORY_SEPARATOR . 'ato-users.json';
 $secondScreensFile = $dataDir . DIRECTORY_SEPARATOR . 'ato-second-screens.json';
 // 必须比 php.ini 的 post_max_size（默认 8M）小：请求体一旦超过 post_max_size，

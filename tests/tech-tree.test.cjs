@@ -6,6 +6,10 @@ const vm = require('node:vm');
 const tree = require('../technology/tech-tree.js');
 const root = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'technology/index.html'), 'utf8').replace(/\r\n/g, '\n');
+// 布局元数据（PAGE_METADATA）已抽到 technology/tech-page-layout.js：战役简报要用同一份
+// 坐标重放科技树，两份页面共用一套布局。那个文件仍然保留 `const PAGE_METADATA = [...]`
+// 这个声明形式，所以下面按声明名读源码的逻辑不用改。
+const layoutSource = fs.readFileSync(path.join(root, 'technology/tech-page-layout.js'), 'utf8').replace(/\r\n/g, '\n');
 
 function context() {
   const scope = vm.createContext({
@@ -20,10 +24,14 @@ function context() {
     'renderTechRefList', 'renderRequirementUnlockColumns', 'renderRequirementAnyGroups', 'renderConditionNotes', 'renderConditionToggle',
     'treeTextUnits', 'treeTextRows', 'treeModuleSize', 'treeModuleHtml', 'treeNodeStatus', 'conditionCellCaption', 'conditionCellDisplayText'];
   const declarations = ['PAGE_METADATA', 'PRINTED_CONDITION_BOXES', 'PRINTED_CONDITION_TEXT', 'CONDITION_TEXT_ZH'];
+  const declarationSource = (name) => (name === 'PAGE_METADATA' ? layoutSource : source);
   vm.runInContext(declarations.map(name => {
-    const start = source.indexOf(`const ${name} =`);
-    return source.slice(start, source.indexOf('\n];', start) > -1 && name === 'PAGE_METADATA'
-      ? source.indexOf('\n];', start) + 3 : source.indexOf('\n};', start) + 3);
+    const text = declarationSource(name);
+    const start = text.indexOf(`const ${name} =`);
+    assert.ok(start >= 0, `缺少 ${name} 的声明`);
+    return name === 'PAGE_METADATA'
+      ? text.slice(start, text.indexOf('\n];', start) + 3)
+      : text.slice(start, text.indexOf('\n};', start) + 3);
   }).join('\n') + '\n' + names.map(name => {
     const endIndent = ['dictionaryToAppData', 'computeDisambiguatedTechNames'].includes(name) ? '  ' : '';
     const match = source.match(new RegExp('^( *)(?:async )?function ' + name + '\\([^]*?^' + endIndent + '}', 'm'));

@@ -30,6 +30,7 @@ services:
       - ./api:/var/www/html/api
       - ./assets:/var/www/html/assets
       - ./aibp:/var/www/html/aibp
+      - ./briefing:/var/www/html/briefing
       - ./hero:/var/www/html/hero
       - ./map:/var/www/html/map
       - ./record:/var/www/html/record
