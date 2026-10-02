@@ -1288,6 +1288,7 @@
     let heroSaveInFlight = false;
     let heroSavePending = false;
     let heroLoading = false;
+    let heroExternalReloadPending = false;
     let heroSessionEpoch = 0;
 
     function loadState() {
@@ -1304,10 +1305,10 @@
       return { heroes: [], activeHeroId: "", graveyard: [] };
     }
 
-    function normalizeState() {
-      state.heroes = Array.isArray(state.heroes) ? state.heroes : [];
-      state.heroes.forEach(h => {
-        if (!h.id) h.id = "hero-" + Date.now() + "-" + Math.random().toString(16).slice(2, 8);
+    function normalizeState(target = state, assignIds = true) {
+      target.heroes = Array.isArray(target.heroes) ? target.heroes : [];
+      target.heroes.forEach(h => {
+        if (!h.id && assignIds) h.id = "hero-" + Date.now() + "-" + Math.random().toString(16).slice(2, 8);
         if (h.skills && !h.baseSkills) {
           h.baseSkills = h.skills;
           delete h.skills;
@@ -1330,7 +1331,7 @@
           if (!Array.isArray(h.fatedMnemos[c])) h.fatedMnemos[c] = [];
         });
       });
-      if (!state.heroes.some(hero => hero.id === state.activeHeroId)) state.activeHeroId = state.heroes[0]?.id || "";
+      if (!target.heroes.some(hero => hero.id === target.activeHeroId)) target.activeHeroId = target.heroes[0]?.id || "";
     }
 
     function persistLocal() {
@@ -1406,8 +1407,14 @@
     }
 
     function chooseHeroMerge(remote) {
-      const merged = mergeHeroStates(heroServerBaseline, heroSnapshot(state), remote);
-      if (merged.conflicts.length && !window.confirm(`英雄记录存在同时修改：\n${merged.conflicts.slice(0, 8).join("\n")}\n\n确定：保留本页冲突字段并合并\n取消：加载服务器版本（本机未同步修改将被放弃）`)) return remote;
+      const base = heroServerBaseline ? heroSnapshot(heroServerBaseline) : null;
+      const normalizedRemote = heroSnapshot(remote);
+      // Legacy defaults must mean the same thing on all three sides. Do not
+      // generate new identities merely to compare an older snapshot.
+      if (base) normalizeState(base, false);
+      normalizeState(normalizedRemote, false);
+      const merged = mergeHeroStates(base, heroSnapshot(state), normalizedRemote);
+      if (merged.conflicts.length && !window.confirm(`英雄记录存在同时修改：\n${merged.conflicts.slice(0, 8).join("\n")}\n\n确定：保留本页冲突字段并合并\n取消：加载服务器版本（本机未同步修改将被放弃）`)) return normalizedRemote;
       return merged.state;
     }
 
@@ -1482,6 +1489,7 @@
       } finally {
         heroSaveInFlight = false;
         if (sessionEpoch !== heroSessionEpoch && heroSavePending && state._dirty && state._userId) void saveToServer();
+        if (heroExternalReloadPending) void syncHeroFromExternalUpdate();
       }
     }
 
@@ -1491,6 +1499,7 @@
     async function reloadAfterAccountChange() {
       const sessionEpoch = ++heroSessionEpoch;
       heroSavePending = false;
+      heroExternalReloadPending = false;
       heroServerBaseline = null;
       clearTimeout(saveTimer);
       saveTimer = null;
@@ -1558,8 +1567,21 @@
         setSaveStatus("NAS 不可用，使用本机存档");
       } finally {
         heroLoading = false;
-        if (sessionEpoch === heroSessionEpoch && serverStorageAvailable && state._dirty) void saveToServer();
+        if (sessionEpoch === heroSessionEpoch && heroExternalReloadPending) void syncHeroFromExternalUpdate();
+        else if (sessionEpoch === heroSessionEpoch && serverStorageAvailable && state._dirty) void saveToServer();
       }
+    }
+
+    async function syncHeroFromExternalUpdate() {
+      if (heroLoading || heroSaveInFlight) {
+        heroExternalReloadPending = true;
+        return;
+      }
+      heroExternalReloadPending = false;
+      // Dashboard broadcasts can arrive before its write completes. Read the
+      // confirmed revision and merge our pending edits, rather than adopting
+      // an overwritten localStorage cache with a mismatched save baseline.
+      await loadFromServer();
     }
 
     function setSaveStatus(msg) {
@@ -2784,13 +2806,7 @@
     if (heroMnemosSyncChannel) heroMnemosSyncChannel.addEventListener("message", (event) => {
       const msg = event.data;
       if (msg.type === "hero-state-updated") {
-        // Dashboard has updated our localStorage, reload
-        const reloaded = loadState();
-        if (reloaded && Array.isArray(reloaded.heroes)) {
-          state = reloaded;
-          normalizeState();
-          renderAll();
-        }
+        void syncHeroFromExternalUpdate();
       }
     });
 

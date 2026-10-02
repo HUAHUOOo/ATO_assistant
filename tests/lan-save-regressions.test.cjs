@@ -111,6 +111,7 @@ test('map identity mismatch aborts before revision conflict retry',async()=>{
 });
 function techContext(extra={}) {
   const c=context('technology/index.html',['probeCampaignReconnect','saveCampaignTechnologySection','adoptTechnologyCampaign','mergeTechnologyAccountState','technologyStateValuesEqual'],{
+    normalizeTechnologyMergeState: clone,
     campaignSession:session(),campaignStorageAvailable:false,campaignReconnectInFlight:false,
     campaignSaveQueuedBeforeReady:true,campaignSaveInFlight:false,campaignSavePending:false,
     campaignTechRevision:1,campaignTechLoaded:true,campaignTechConflict:false,
@@ -194,9 +195,9 @@ test('record conflict retry reads and saves original profile A after dashboard s
   assert.deepEqual(c.saved.state.resources,{a:5,b:7});
 });
 function heroContext(extra={}) {
-  return context('hero/index.html',['heroSnapshot','mergeHeroStates','chooseHeroMerge','saveToServer','persistLocal','loadFromServer'],{
+  return context('hero/index.html',['heroSnapshot','mergeHeroStates','chooseHeroMerge','saveToServer','persistLocal','loadFromServer','syncHeroFromExternalUpdate'],{
     state:{heroes:[],graveyard:[],_userId:'login-A'},heroServerBaseline:null,heroSaveInFlight:false,
-    heroSavePending:false,heroLoading:false,heroSessionEpoch:0,serverSectionRevision:1,serverStorageAvailable:true,
+    heroSavePending:false,heroLoading:false,heroExternalReloadPending:false,heroSessionEpoch:0,serverSectionRevision:1,serverStorageAvailable:true,
     serverStorageUrl:'/api',serverStorageSection:'heroes',storageKey:'hero',localStorage:{setItem:noop},
     normalizeState:noop,renderAll:noop,setSaveStatus:noop,window:{confirm:()=>true},...extra,
   });
@@ -262,6 +263,36 @@ test('hero page defers autosave until its initial server read completes',async()
   let posts=0;
   const c=heroContext({heroLoading:true,fetch:async()=>{posts++;throw Error('Should not write yet');}});
   await c.saveToServer();assert.equal(posts,0);assert.equal(c.heroSavePending,true);
+});
+
+test('hero dashboard notification merges server progress without losing pending local edits',async()=>{
+  const base={heroes:[{id:'h1',notes:'',mnemosProgress:{card:0}}],graveyard:[],activeHeroId:'h1'};
+  const local=clone(base);local.heroes[0].notes='unsaved note';
+  const remote=clone(base);remote.heroes[0].mnemosProgress.card=1;
+  let saved,reads=0;
+  const c=heroContext({heroServerBaseline:base,state:{...local,_dirty:true,_userId:'login-A'},fetch:async(u,o)=>{
+    if(!o?.method){reads++;return response(200,{ok:true,exists:true,user:{id:'login-A'},revision:2,state:remote});}
+    saved=JSON.parse(o.body);return response(200,{ok:true,revision:3});
+  }});
+  await c.syncHeroFromExternalUpdate();await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(reads,1);assert.equal(saved.expectedRevision,2);
+  assert.equal(saved.state.heroes[0].notes,'unsaved note');
+  assert.equal(saved.state.heroes[0].mnemosProgress.card,1);
+});
+
+test('hero dashboard notification waits until an outstanding save completes',async()=>{
+  let finishSave,reads=0;
+  const c=heroContext({state:{heroes:[{id:'h1',notes:'local'}],graveyard:[],_dirty:true,_userId:'login-A'},fetch:async(u,o)=>{
+    if(o?.method)return new Promise(resolve=>{finishSave=resolve;});
+    reads++;return response(200,{ok:true,exists:true,user:{id:'login-A'},revision:2,state:{heroes:[{id:'h1',notes:'local'}],graveyard:[]}});
+  }});
+  const saving=c.saveToServer();
+  await c.syncHeroFromExternalUpdate();
+  assert.equal(reads,0);assert.equal(c.heroExternalReloadPending,true);
+  finishSave(response(200,{ok:true,revision:2}));await saving;
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(reads,1);assert.equal(c.heroExternalReloadPending,false);
+  assert.equal(c.state.heroes[0].notes,'local');
 });
 for(const keepLocal of [false,true]) test(`dashboard reconnect asks about overlapping edits (keep local=${keepLocal})`,async()=>{
   let queued=false,asked=0;

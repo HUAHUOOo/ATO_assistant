@@ -358,6 +358,14 @@ function normalizeState(saved) {
     ? requestedCycle
     : (cycleIds.includes(saved.activeCycleId) ? saved.activeCycleId : defaults.activeCycleId);
 
+  // Match the ship location and marker that renderControls/renderTokenPalette
+  // display, so their legacy-data repairs cannot look like concurrent edits.
+  const cycleState = cycles[activeCycleId];
+  const argo = argoTileId(cycleState);
+  const validArgo = mapData.cycles.find((cycle) => cycle.id === activeCycleId)?.tiles.some((tile) => tile.id === argo);
+  cycleState.currentTile = validArgo ? argo : "";
+  cycleState.tokens.AG = cycleState.currentTile;
+
   return {
     ...defaults,
     ...saved,
@@ -368,7 +376,7 @@ function normalizeState(saved) {
     hideUnknown: saved.hideUnknown == null ? defaults.hideUnknown : Boolean(saved.hideUnknown),
     showAdjacency: Boolean(saved.showAdjacency),
     mapZoom: normalizeMapZoom(saved.mapZoom),
-    selectedToken: tokenAssetById[saved.selectedToken] ? saved.selectedToken : "AG",
+    selectedToken: tokenAvailableInCycle(tokenAssetById[saved.selectedToken], activeCycleId) ? saved.selectedToken : "AG",
     selectedEdgeDirection: edgeDirections.includes(saved.selectedEdgeDirection)
       ? saved.selectedEdgeDirection
       : "up",

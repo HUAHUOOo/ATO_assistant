@@ -1,0 +1,33 @@
+.arsenal-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.arsenal-toolbar label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 750; white-space: nowrap; }
+.arsenal-toolbar select, .arsenal-add select, .arsenal-add input {
+  min-width: 0; max-width: 100%; height: 34px; box-sizing: border-box;
+  border: 1px solid var(--line); border-radius: 0;
+  padding: 6px 8px; background: var(--panel); color: var(--ink); font: inherit;
+}
+.arsenal-add { display: flex; flex: 1; flex-wrap: wrap; align-items: center; gap: 8px; min-width: min(360px, 100%); margin: 0; }
+.arsenal-add .arsenal-add-gear { flex: 1; min-width: min(180px, 100%); }
+.arsenal-add-gear select { flex: 1; width: 160px; }
+.arsenal-add input { width: 56px; }
+.arsenal-toolbar .tool-btn {
+  display: inline-flex; align-items: center; justify-content: center; align-self: center;
+  flex: 0 0 auto; height: 34px; min-height: 34px; box-sizing: border-box;
+  border-radius: 0; padding: 0 10px; font-size: 12px; line-height: 1;
+  text-align: center; white-space: nowrap;
+}
+body[data-theme-module="technology"] .arsenal-add .tool-btn[type="submit"] { background: var(--accent-soft); color: var(--accent-strong); border-color: var(--line); }
+body[data-theme-module="technology"] .arsenal-toolbar .tool-btn:hover:not(:disabled) { background: var(--accent-strong); color: var(--panel); border-color: var(--accent-strong); }
+.arsenal-toolbar .tool-btn:disabled { opacity: .5; cursor: not-allowed; }
+.arsenal-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 0 0 12px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.arsenal-summary { margin-left: auto; font-weight: 750; }
+.arsenal-message { margin-bottom: 12px; color: var(--accent-strong); font-size: 12px; line-height: 1.5; }
+.arsenal-message.error { color: var(--ink); border-left: 2px solid var(--accent); padding-left: 8px; }
+.arsenal-item .gear-card-thumb { max-height: 220px; }
+.arsenal-item-meta { color: var(--muted); font-size: 11px; line-height: 1.6; margin-bottom: 8px; overflow-wrap: anywhere; }
+.arsenal-quantity { display: flex; align-items: center; gap: 10px; margin-top: auto; padding-top: 8px; }
+.arsenal-quantity-value { flex: 1; text-align: center; font-size: 14px; font-weight: 850; color: var(--accent-strong); }
+.arsenal-quantity .gear-resource-btn { width: 30px; height: 30px; border-radius: 0; border-color: var(--line); background: var(--panel); color: var(--accent-strong); }
+.arsenal-quantity .gear-resource-btn:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent-strong); border-color: var(--accent); }
+.arsenal-quantity .gear-resource-btn:disabled { opacity: .45; cursor: not-allowed; }
+.gear-stock { color: var(--accent-strong); font-size: 11px; font-weight: 750; }
+.arsenal-items { padding-top: 10px; }

@@ -121,6 +121,7 @@ assert(saveCommandIndex >= 0 && battleNavigationIndex > saveCommandIndex,
   "Dashboard adversary battle navigation runs before the map state is saved.");
 
 const dashboardFunctions = [
+  "isPlainObject",
   "simpleConstantSlotIds",
   "findSimpleConstantRow",
   "getPharosDreamStoryLink",
@@ -204,6 +205,6 @@ assert(recordHarness.markAdventureFromSurvey("c4", "Normal", "omega") === "omega
 assert(recordHarness.markAdventureFromSurvey("c5", "Normal", "42") === "mid1", "Record URL handler ordinary middle-slot behavior regressed.");
 assert(recordSource.includes("consumeDashboardSurveyNote({ clearUrl: false })"), "Record URL action is cleared before NAS loading completes.");
 assert(/state = nextState;[\s\S]{0,240}consumeDashboardSurveyNote\(\)/.test(recordSource), "Record URL action is not reapplied after merging the NAS state.");
-assert(/首次修改时会创建记录表存档[\s\S]{0,120}requestedDashboardSurveyNote[\s\S]{0,60}queueServerSave/.test(recordSource), "A first-time record does not save the imported dashboard action.");
+assert(/首次修改时会创建记录表存档[\s\S]{0,160}importedDashboardSurveyNote \|\| flushQueuedSave[\s\S]{0,60}queueServerSave/.test(recordSource), "A first-time record does not save the imported dashboard action.");
 
 console.log("C4/C5 story constants and record autofill regression tests passed.");

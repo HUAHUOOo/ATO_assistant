@@ -18,6 +18,8 @@ services:
       # （PHP 内置服务器的 router.php 在这里不会被执行），少挂它 data/、export/、logs/
       # 就重新变成可下载的静态文件。详见 .htaccess 与 router.php 里的说明。
       - ./index.html:/var/www/html/index.html:ro
+      - ./dashboard.css:/var/www/html/dashboard.css:ro
+      - ./cycle-theme.css:/var/www/html/cycle-theme.css:ro
       - ./router.php:/var/www/html/router.php:ro
       - ./.htaccess:/var/www/html/.htaccess:ro
       # 让 .htaccess 真正生效：php:8.3-apache 用的是 Debian 默认 apache2.conf，

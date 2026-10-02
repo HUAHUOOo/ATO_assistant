@@ -9,10 +9,11 @@ html { scrollbar-gutter: stable; }
 .tech-board-controls button { min-width: 32px; height: 30px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }
 .tech-board-controls button:hover { border-color: var(--accent); color: var(--accent); }
 .tech-zoom-value { min-width: 42px; text-align: center; font-size: 11px; color: var(--muted); }
-.tech-board { --bg: var(--panel); position: relative; width: 100%; height: max(320px, calc(100dvh - 220px)); overflow: auto; scrollbar-gutter: stable; border: 1px solid var(--line); background: var(--panel); cursor: grab; }
+.tech-board { --bg: var(--panel); position: relative; width: 100%; height: max(320px, calc(100dvh - 220px)); overflow: auto; scrollbar-gutter: stable; border: 0; background: transparent; cursor: grab; }
 .tech-board.is-dragging { cursor: grabbing; user-select: none; }
 .tech-board-size { position: relative; overflow: clip; }
 body[data-theme-module="technology"] .tree-wrap.tech-canvas { position: absolute; top: 0; left: 0; margin: 0; max-width: none; border: 0; box-shadow: none; background: transparent; transform-origin: top left; container-type: normal; }
+.tech-board-paper { position: absolute; box-sizing: border-box; border: 1px solid var(--line); background: var(--panel); pointer-events: none; }
 .tech-sheet-divider { position: absolute; left: 28px; width: calc(100% - 56px); height: 1px; background: var(--line); pointer-events: none; }
 .tech-lane { position: absolute; left: 28px; height: 16px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .14em; pointer-events: none; }
 .tech-links { position: absolute; inset: 0; overflow: visible; pointer-events: none; }

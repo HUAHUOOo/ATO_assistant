@@ -66,6 +66,8 @@ ROOT_WEB_ROOT = "/var/www/html"
 # 持久化目录，不是页面资源。
 ROOT_APP_PATHS = (
     "index.html",     # 主控台入口
+    "dashboard.css",  # 主控台提醒与布局样式
+    "cycle-theme.css", # 主控台与各模块共用的循环配色
     "router.php",     # 内置服务器的私有目录拦截脚本（发布包与便携版都靠它启动）
     ".htaccess",      # Apache/NAS 一边的私有目录拒绝规则
     "api",            # 存档 / 账号 API
@@ -104,6 +106,7 @@ NEVER_SHADOWED_FILES = (
 PS_PROGRAM_DIR = "/app/aibp/ps"
 PRISTINE_PS_DIR = "/opt/ato/aibp-ps-program"
 RESTORED_PROGRAM_FILES = (
+    "aibp/ps/other/3b6e9d20/catalog.json",
     "aibp/ps/CHIMERA_METASTASIOS/bp_status_map.js",
     "aibp/ps/CHIMERA_METASTASIOS/bp_status_map.json",
     "aibp/ps/other/resouce/bp_resource_map.js",

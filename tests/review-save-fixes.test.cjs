@@ -91,6 +91,111 @@ function recordContext(extra = {}) {
     requestedDashboardSurveyNote: null, window: { confirm: () => true }, ...extra,
   });
 }
+function recordStartupContext({ remote, fetch, keepLocal = true, cycle = 'c1', surveyNote = null } = {}) {
+  const source = fs.readFileSync(path.join(root, 'record/index.html'), 'utf8').replace(/\r\n/g, '\n');
+  const inputs = [...source.slice(0, source.indexOf('    const storageKey = '))
+    .matchAll(/\bdata-cycle-bind="([^"]+)"/g)]
+    .map(match => ({ dataset: { cycleBind: match[1] }, value: '' }));
+  const initialState = {
+    cycle: 'c2', day: 0, cycleDays: { c2: '0' }, cycleStats: { c2: {} },
+    resources: { bone: 0, meat: 0 },
+  };
+  const activity = { prompts: 0, saves: 0 };
+  const c = recordContext({
+    state: clone(initialState), defaultState: clone(initialState), serverStateBaseline: clone(initialState),
+    elements: { cycleTitle: {}, cycleWarning: {} },
+    document: { querySelectorAll: selector => selector === '[data-cycle-bind]' ? inputs : [] },
+    currentCycle: () => ({ label: 'cycle', fateWarning: '' }),
+    applyRequestedCycleFromUrl: () => { c.state.cycle = cycle; }, bindInputs: noop,
+    renderAll: () => c.renderCycleFields(),
+    queueServerSave: () => activity.saves++,
+    requestedDashboardSurveyNote: surveyNote,
+    cycleData: { c1: {}, c2: {}, c3: {}, c4: {}, c5: {} },
+    markAdventureFromSurvey: (cycleId, adventure, box) => {
+      c.state.adventures ||= {};
+      c.state.adventures[`${cycleId}-0-${box}`] = true;
+      return box;
+    },
+    appendSyncLog: message => c.setCycleStat('syncLog', message), adventureSlotLabel: slot => slot,
+    window: { confirm: () => { activity.prompts++; return keepLocal; } },
+    fetch: fetch || (async () => response(200, { ok: true, campaign: {
+      sections: { record: remote }, sectionRevisions: { record: 3 },
+    } })),
+  });
+  vm.runInContext(['renderCycleFields', 'currentCycleStats', 'getCycleStat', 'setCycleStat', 'defaultDayForCycle',
+    'normalizeCycleDay', 'consumeDashboardSurveyNote', 'jsonEqual']
+    .map(name => extract('record/index.html', name)).join('\n'), c);
+  c.cycleScopedBindKeys = new Set();
+  c.initialRead = null;
+  const load = c.loadServerState;
+  c.loadServerState = () => (c.initialRead = load());
+  const startup = source.match(/^    applyRequestedCycleFromUrl\(\);\n[^]*?^    loadServerState\(\);/m);
+  assert.ok(startup, 'record startup sequence');
+  vm.runInContext(startup[0], c);
+  return { c, activity, inputs };
+}
+const strangerRecord = {
+  cycle: 'c1', day: '0', cycleDays: { c1: '0', c2: '0' },
+  cycleStats: { c1: { strangers: '4' }, c2: {} }, strangers: '4',
+  resources: { bone: 0, meat: 7 },
+};
+test('record reopening with saved strangers does not treat its initial render as an edit', async () => {
+  for (let opening = 0; opening < 3; opening++) {
+    const { c, activity, inputs } = recordStartupContext({ remote: strangerRecord });
+    await c.initialRead;
+    assert.equal(activity.prompts, 0, 'opening the record must not ask to replace saved strangers');
+    assert.equal(activity.saves, 0, 'opening the record must not queue a placeholder save');
+    assert.equal(c.state.strangers, '4');
+    assert.equal(inputs.find(input => input.dataset.cycleBind === 'strangers').value, '4');
+    assert.deepEqual(clone(c.state.resources), { bone: 0, meat: 7 });
+  }
+});
+for (const cycle of ['c1', 'c2', 'c3', 'c4', 'c5']) test(`record ${cycle} startup preserves every saved cycle field without a false conflict`, async () => {
+  const source = fs.readFileSync(path.join(root, 'record/index.html'), 'utf8');
+  const stats = Object.fromEntries([...source.slice(0, source.indexOf('    const storageKey = '))
+    .matchAll(/\bdata-cycle-bind="([^"]+)"/g)].map((match, index) => [match[1], String(index + 1)]));
+  const remote = {
+    cycle, day: '9', cycleDays: { [cycle]: '9' }, cycleStats: { [cycle]: stats }, ...stats,
+    resources: { bone: 8, meat: 7 },
+  };
+  const { c, activity, inputs } = recordStartupContext({ cycle, remote });
+  await c.initialRead;
+  assert.equal(activity.prompts, 0);
+  assert.equal(activity.saves, 0);
+  assert.equal(c.state.day, '9');
+  for (const input of inputs) {
+    assert.equal(input.value, stats[input.dataset.cycleBind]);
+    assert.equal(c.state.cycleStats[cycle][input.dataset.cycleBind], stats[input.dataset.cycleBind]);
+  }
+  assert.deepEqual(clone(c.state.resources), { bone: 8, meat: 7 });
+});
+for (const keepLocal of [true, false]) test(`record startup still asks about a real overlapping stranger edit (${keepLocal})`, async () => {
+  let resolveRead;
+  const { c, activity } = recordStartupContext({ keepLocal, fetch: () => new Promise(resolve => { resolveRead = resolve; }) });
+  c.setCycleStat('strangers', '2');
+  resolveRead(response(200, { ok: true, campaign: {
+    sections: { record: strangerRecord }, sectionRevisions: { record: 3 },
+  } }));
+  await c.initialRead;
+  assert.equal(activity.prompts, 1);
+  assert.equal(c.state.strangers, keepLocal ? '2' : '4');
+  assert.equal(c.serverStateBaseline.strangers, '4');
+  assert.deepEqual(clone(c.state.resources), { bone: 0, meat: 7 });
+  assert.equal(activity.saves, 1);
+});
+for (const remote of [null, strangerRecord]) test(`record startup preserves dashboard survey notes (${remote ? 'existing' : 'first'} record)`, async () => {
+  const { c, activity } = recordStartupContext({ remote, surveyNote: {
+    cycle: 'c1', day: '9', adventure: 'survey adventure', box: 'alpha',
+  } });
+  await c.initialRead;
+  assert.equal(activity.prompts, 0);
+  assert.equal(activity.saves, 1);
+  assert.equal(c.state.cycle, 'c1');
+  assert.equal(c.state.day, '9');
+  assert.equal(c.state.adventures['c1-0-alpha'], true);
+  assert.match(c.state.cycleStats.c1.syncLog, /survey adventure/);
+  if (remote) assert.equal(c.state.strangers, '4');
+});
 test('record first read preserves edits even before debounce fires', async () => {
   let resolveRead, queued = 0;
   const c = recordContext({ fetch: () => new Promise(r => { resolveRead = r; }), queueServerSave: () => queued++ });
@@ -134,11 +239,177 @@ test('record reconnect polling does not overlap its pending initial read', async
   await pending;
   assert.equal(c.serverLoadInFlight, false);
 });
+for (const race of ['save in flight', 'save finished', 'account changed']) test(`record ignores a stale polling read: ${race}`, async () => {
+  let finishRead, prompts = 0, renders = 0;
+  const c = recordContext({
+    serverStorageAvailable: true, serverSectionRevision: 3,
+    readLatestRecordState: () => new Promise(resolve => { finishRead = resolve; }),
+    renderAll: () => renders++, window: { confirm: () => { prompts++; return true; } },
+  });
+  const syncing = c.syncRecordFromExternalUpdate();
+  c.state.resources.bone = 5;
+  if (race === 'save in flight') c.serverSaveInFlight = true;
+  if (race === 'save finished') c.serverSectionRevision = 5;
+  if (race === 'account changed') c.campaignSession.changed = true;
+  finishRead({ revision: 4, userId: 'default', state: { resources: { bone: 7, meat: 0 } } });
+  await syncing;
+  assert.equal(c.state.resources.bone, 5);
+  assert.equal(prompts, 0);
+  assert.equal(renders, 0);
+});
+function dashboardStartupContext({ fetch, keepLocal = true, sparse = false } = {}) {
+  const initial = { activeProfileId: 'default', profiles: { default: {
+    id: 'default', name: 'default', activeCycleId: 'c1',
+    cycles: { c1: { id: 'c1', state: { day: 'T0', notes: '', exploration: null } } },
+  } } };
+  const remote = clone(initial);
+  const saved = remote.profiles.default.cycles.c1.state;
+  saved.day = 9;
+  saved.notes = 'saved note';
+  saved.exploration = { selectedByCycle: { c1: ['card-b'] }, drawStateByCycle: { c1: {
+    drawPile: ['card-b'], activePiles: [[], []], temporaryRemoved: [], permanentRemoved: [],
+    history: [], discardPile: [], current: null,
+  } } };
+  if (sparse) saved.exploration = null;
+  const activity = { prompts: 0, saves: 0 };
+  const c = context('index.html', ['startAuthenticatedApp', 'renderDashboardArchive', 'setCampaignSaveStatus',
+    'loadCampaignSection', 'mergeDashboardChanges', 'currentProfile', 'currentCycle', 'currentCycleConfig',
+    'normalizeExploration', 'getSelectedExplorationIds', 'ensureExplorationDrawState', 'createExplorationDrawState',
+    'probeCampaignReconnect', 'syncDashboardFromExternalUpdate', 'dashboardArchiveFromServer', 'jsonEqual',
+    'ensureTodaySurveyConstants', 'normalizeSurveyConstants', 'surveyConstantsDayKey', 'ensureTodaySimpleConstants', 'pharosDreamsDayKey'], {
+    URL, URLSearchParams, CustomEvent: function () {},
+    archive: clone(initial), defaultArchive: clone(initial), normalizeArchive: clone,
+    cloneJson: clone, isPlainObject, state: null,
+    cycleConfigs: [{ id: 'c1' }], defaultExplorationSelections: { c1: ['card-a', 'card-b'] },
+    getExplorationLibrary: () => [{ id: 'card-a' }, { id: 'card-b' }], shuffleList: clone,
+    campaignSessionEpoch: 0, sessionUser: null, campaignSaveTimer: null,
+    campaignSectionBaseline: null, campaignServerBaseline: null, campaignInitialBaseline: null, campaignSaveQueuedBeforeReady: false,
+    campaignRestoreInFlight: false, campaignExternalSyncInFlight: false, campaignConflictReloading: false,
+    campaignSaveInFlight: false, campaignSectionRevision: 0,
+    campaignStorageAvailable: false, campaignReconnectInFlight: false, campaignStorageUrl: '/api',
+    clearCampaignReconnect: noop, clearTimeout: noop, beginDashboardWriteLease: noop,
+    ownsDashboardWriteLease: () => true, setDashboardWriteLeaseState: noop,
+    elements: { sessionAccountName: {}, authGate: {}, appShell: {}, campaignSaveStatus: { dataset: {} } },
+    window: {
+      location: { href: 'https://ato.test/index.html', search: '' }, dispatchEvent: noop,
+      confirm: () => { activity.prompts++; return keepLocal; },
+    },
+    syncInputs: noop, renderProfiles: noop, renderCycles: noop, renderDateTrack: noop,
+    renderFlow: () => {
+      c.ensureExplorationDrawState();
+      c.ensureTodaySurveyConstants();
+      for (const key of ['pharosDreams', 'mainStoryConstants', 'mnemosBreakthroughConstants', 'specialEventConstants']) {
+        c.ensureTodaySimpleConstants(key, `${key}Day`, `${key}Active`);
+      }
+    }, storedTermLanguage: () => 'fan',
+    refreshCachedArgoRecord: noop, loadSecondScreenStatus: noop,
+    loadNegotiationCards: async () => {}, queueCampaignSave: () => activity.saves++,
+    scheduleCampaignReconnect: noop,
+    fetch: fetch || (async () => response(200, { ok: true, exists: true, revision: 3,
+      user: { id: 'owner' }, state: remote })),
+    readLatestDashboardSection: async () => ({ archive: c.dashboardArchiveFromServer(remote), serverArchive: clone(remote), exists: true, revision: 3 }),
+  });
+  const load = c.loadCampaignSection;
+  c.loadCampaignSection = epoch => (c.initialRead = load(epoch));
+  c.startAuthenticatedApp({ id: 'owner' });
+  return { c, activity, remote };
+}
+test('dashboard startup preserves saved exploration data without treating placeholder initialization as edits', async () => {
+  for (let opening = 0; opening < 3; opening++) {
+    const { c, activity } = dashboardStartupContext();
+    assert.equal(c.elements.appShell.inert, true, 'keep the placeholder locked until the server read finishes');
+    await c.initialRead;
+    assert.equal(activity.prompts, 0);
+    assert.equal(activity.saves, 0);
+    assert.equal(c.state.day, 9);
+    assert.equal(c.state.notes, 'saved note');
+    assert.deepEqual(clone(c.state.exploration.selectedByCycle.c1), ['card-b']);
+    assert.deepEqual(clone(c.state.exploration.drawStateByCycle.c1.drawPile), ['card-b']);
+    assert.equal(c.elements.appShell.inert, false);
+  }
+});
+
+test('dashboard keeps initialized legacy decks stable across later server updates', async () => {
+  const { c, activity, remote } = dashboardStartupContext({ sparse: true });
+  await c.initialRead;
+  const deck = clone(c.state.exploration.drawStateByCycle.c1);
+  assert.deepEqual(clone(c.archive), clone(c.campaignSectionBaseline));
+  for (let revision = 4; revision < 7; revision++) {
+    remote.profiles.default.cycles.c1.state.notes = `remote note ${revision}`;
+    c.readLatestDashboardSection = async () => ({
+      archive: c.dashboardArchiveFromServer(remote), serverArchive: clone(remote), revision, exists: true,
+    });
+    await c.syncDashboardFromExternalUpdate();
+    assert.deepEqual(clone(c.state.exploration.drawStateByCycle.c1), deck);
+    assert.deepEqual(clone(c.archive), clone(c.campaignSectionBaseline));
+    assert.equal(c.state.notes, `remote note ${revision}`);
+  }
+  assert.equal(activity.prompts, 0);
+  assert.equal(activity.saves, 0);
+});
+
+for (const keepLocal of [true, false]) test(`dashboard still detects genuine concurrent deck edits (${keepLocal})`, async () => {
+  const { c, activity, remote } = dashboardStartupContext({ sparse: true, keepLocal });
+  await c.initialRead;
+  c.state.exploration.drawStateByCycle.c1.drawPile = ['card-a'];
+  remote.profiles.default.cycles.c1.state.exploration = clone(c.campaignSectionBaseline.profiles.default.cycles.c1.state.exploration);
+  remote.profiles.default.cycles.c1.state.exploration.drawStateByCycle.c1.drawPile = ['card-b', 'card-a'];
+  c.readLatestDashboardSection = async () => ({
+    archive: c.dashboardArchiveFromServer(remote), serverArchive: clone(remote), revision: 4, exists: true,
+  });
+  await c.syncDashboardFromExternalUpdate();
+  assert.equal(activity.prompts, 1);
+  assert.equal(activity.saves, keepLocal ? 1 : 0);
+  assert.equal(c.state.exploration.drawStateByCycle.c1.drawPile[0], keepLocal ? 'card-a' : 'card-b');
+});
+
+for (const race of ['save in flight', 'save finished', 'account changed', 'older read-only response']) test(`dashboard ignores a stale polling read: ${race}`, async () => {
+  const { c, activity, remote } = dashboardStartupContext();
+  await c.initialRead;
+  let finishRead;
+  c.readLatestDashboardSection = () => new Promise(resolve => { finishRead = resolve; });
+  const syncing = c.syncDashboardFromExternalUpdate();
+  c.state.notes = 'latest local edit';
+  if (race === 'save in flight') c.campaignSaveInFlight = true;
+  if (race === 'save finished') c.campaignSectionRevision = 5;
+  if (race === 'account changed') c.campaignSessionEpoch++;
+  if (race === 'older read-only response') c.ownsDashboardWriteLease = () => false;
+  finishRead({ archive: clone(remote), revision: race === 'older read-only response' ? 2 : 4, exists: true });
+  await syncing;
+  assert.equal(c.state.notes, 'latest local edit');
+  assert.equal(activity.prompts, 0);
+  assert.equal(activity.saves, 0);
+});
+for (const keepLocal of [true, false]) test(`dashboard startup protects real edits made during its initial read (${keepLocal})`, async () => {
+  let resolveRead;
+  const { c, activity, remote } = dashboardStartupContext({ keepLocal, fetch: () => new Promise(resolve => { resolveRead = resolve; }) });
+  c.state.notes = 'local note';
+  resolveRead(response(200, { ok: true, exists: true, revision: 3, user: { id: 'owner' }, state: remote }));
+  await c.initialRead;
+  assert.equal(activity.prompts, 1);
+  assert.equal(c.state.notes, keepLocal ? 'local note' : 'saved note');
+  assert.deepEqual(clone(c.state.exploration.selectedByCycle.c1), ['card-b']);
+});
+test('dashboard initial reconnect merges pending edits against the rendered placeholder', async () => {
+  const { c, activity, remote } = dashboardStartupContext({ fetch: async () => response(503, {}) });
+  await c.initialRead;
+  c.state.day = 2;
+  c.state.notes = 'offline note';
+  c.campaignSaveQueuedBeforeReady = true;
+  remote.profiles.default.cycles.c1.state.day = 'T0';
+  remote.profiles.default.cycles.c1.state.notes = '';
+  await c.probeCampaignReconnect();
+  assert.equal(activity.prompts, 0);
+  assert.equal(c.state.day, 2);
+  assert.equal(c.state.notes, 'offline note');
+  assert.deepEqual(clone(c.state.exploration.selectedByCycle.c1), ['card-b']);
+  assert.equal(activity.saves, 1);
+});
 for (const keepLocal of [true, false]) test(`dashboard first read resolves overlapping edits explicitly (${keepLocal})`, async () => {
   let resolveRead, asked = 0;
-  const c = context('index.html', ['loadCampaignSection', 'mergeDashboardChanges'], {
+  const c = context('index.html', ['loadCampaignSection', 'dashboardArchiveFromServer', 'mergeDashboardChanges'], {
     campaignSessionEpoch: 1, campaignStorageUrl: '/api', sessionUser: { id: 'owner' },
-    campaignSectionBaseline: null, campaignSaveQueuedBeforeReady: false,
+    campaignSectionBaseline: null, campaignServerBaseline: null, campaignInitialBaseline: null, campaignSaveQueuedBeforeReady: false,
     archive: { day: 1, note: '' }, defaultArchive: { day: 1, note: '' },
     normalizeArchive: clone, cloneJson: clone, jsonEqual: equal, isPlainObject,
     clearCampaignReconnect: noop, ownsDashboardWriteLease: () => true, queueCampaignSave: noop,

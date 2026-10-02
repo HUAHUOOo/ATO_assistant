@@ -4,7 +4,7 @@
 // 2) 悬停/聚焦不再弹出「暂时移出牌堆」预览浮层 —— 鼠标扫过按钮就弹窗会挡住牌面；
 //    暂时移出的牌在下方的「暂时移出牌堆」折叠区里本来就能看到；
 // 3) 按钮本身照旧只做放回，牌数照旧写在按钮文字里；
-// 4) 「已选 N / M 张」跟在「选择探索卡库」入口后面，不再显示在工具条上；
+// 4) 「已选 N / M 张」放在折叠的卡库内容开头，不再显示在工具条上；
 // 5) 自动结算按钮仍然只出现在「本次探索结果」的牌上，不出现在暂时移出的牌上。
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -72,6 +72,7 @@ function createElement(tag) {
     listeners: {},
     attributes: {},
     append(...nodes) { this.children.push(...nodes); },
+    prepend(...nodes) { this.children.unshift(...nodes); },
     appendChild(node) { this.children.push(node); return node; },
     addEventListener(type, handler) { (this.listeners[type] ||= []).push(handler); },
     setAttribute(name, value) { this.attributes[name] = String(value); },
@@ -176,7 +177,7 @@ const pileSection = descendants(wrapper).find((node) => node.tagName === "DETAIL
 assert.ok(pileSection, "暂时移出牌堆的折叠区没了");
 assert.equal(collectClass(pileSection, "exploration-drawn-card").length, 2, "折叠区里要列出两张暂时移出的牌");
 
-// 4) 「已选 N / M 张」跟在「选择探索卡库」入口后面，不再占用工具条。
+// 4) 「已选 N / M 张」跟随卡库一起折叠，不再占用工具条。
 const counts = collectClass(wrapper, "exploration-count");
 assert.equal(counts.length, 1, "已选张数只该出现一次");
 assert.equal(counts[0].textContent, "已选 2 / 2 张");
@@ -185,8 +186,10 @@ assert.ok(toolbar, "工具条没了");
 assert.equal(collectClass(toolbar, "exploration-count").length, 0, "工具条上不该再显示已选张数");
 const builder = collectClass(wrapper, "exploration-builder")[0];
 assert.ok(builder, "「选择探索卡库」入口没了");
-assert.equal(wrapper.children[wrapper.children.indexOf(builder) + 1], counts[0],
-  "已选张数要紧跟在「选择探索卡库」后面");
+assert.equal(collectClass(builder, "exploration-count")[0], counts[0],
+  "已选张数要放在折叠的卡库内容内");
+assert.equal(builder.children[1].children[0], counts[0],
+  "已选张数要位于卡库内容开头");
 
 // 5) 自动结算只挂在本次探索结果上。
 assert.deepEqual(settleCalls, ["6404"], "只有本次探索结果的牌才生成结算区块");
