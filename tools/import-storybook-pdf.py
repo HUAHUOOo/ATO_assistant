@@ -215,9 +215,21 @@ ENTRY_HEADING_RE = re.compile(
     re.IGNORECASE,
 )
 
+# 故事书用拇指图标标出「另起一段」的入口，图标印在编号前面；不认这一行就会把整段并进上一段。
+THUMB_MARKER_RE = re.compile(r"^[（(]\s*拇指\s*[)）]\s*")
+
+
+def thumb_marker_prefix(line):
+    """返回行首的拇指标记行；没有标记时返回空串。标记行会留在新段落正文开头。"""
+    stripped = line.strip()
+    return stripped if THUMB_MARKER_RE.match(stripped) else ""
+
 
 def probable_entry_heading(line):
     stripped = line.strip()
+    marker = THUMB_MARKER_RE.match(stripped)
+    if marker:
+        stripped = stripped[marker.end():].strip()
     if re.match(r"^(?:如果|否则|进行|每个|每位|投掷|检定|你可以|B\d+|C\d+|D\d+|E\d+|F\d+|G\d+|H\d+|I\d+|J\d+|K\d+|L\d+|M\d+|N\d+|O\d+|P\d+|Q\d+|R\d+|S\d+|T\d+)", stripped):
         return None
     match = ENTRY_HEADING_RE.match(stripped)
@@ -436,10 +448,11 @@ def split_entries_from_pages(page_texts, default_chapter_key, default_chapter_ti
             if heading:
                 flush()
                 entry_id, title = heading
+                thumb_line = thumb_marker_prefix(line)
                 current = {
                     "id": entry_id,
                     "title": title,
-                    "body": [],
+                    "body": [thumb_line, ""] if thumb_line else [],
                     "chapterKey": active_chapter_key,
                     "chapter": active_chapter_title,
                     "page": page["page"],
