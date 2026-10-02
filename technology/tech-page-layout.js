@@ -7,7 +7,9 @@
 const PAGE_METADATA = [
   {
     key: 'cycle1', label: '循环 I', width: 1190.5511474609375, height: 841.8897705078125, split_y: 425.1977844238281,
-    node_align_y: { cycle1_30: 'cycle1_22', cycle1_29: 'cycle1_51' },
+    // cycle1_26「百臂巨人观测」对齐 cycle1_9 的行：它左侧那条来自 cycle1_9 的箭头本来在 y 上
+    // 差 8.5px，会拐一个台阶；对齐后是一条直线。
+    node_align_y: { cycle1_30: 'cycle1_22', cycle1_29: 'cycle1_51', cycle1_26: 'cycle1_9' },
     node_shift_groups: [{
       nodes: ['cycle1_52', 'cycle1_43', 'cycle1_44', 'cycle1_31', 'cycle1_50', 'cycle1_5', 'cycle1_34', 'cycle1_32', 'cycle1_27'],
       from: 'cycle1_50', to: 'cycle1_7',

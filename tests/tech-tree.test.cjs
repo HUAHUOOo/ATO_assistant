@@ -16,6 +16,8 @@ function context() {
     currentCycle: 'cycle1', treeLanguage: 'zh', hideUnknownTech: true, selectedNodeId: null,
     unlocked: new Set(), conditionTicked: new Set(),
     TECH_KEY_ALIASES: { 'upstream navigation': 'up-stream navigation' },
+    // 页面通过 window.ATO_TECH_PAGE_LAYOUT 读布局文件，这里照浏览器那样把它挂上。
+    window: {},
   });
   const names = ['dictionaryToAppData', 'computeDisambiguatedTechNames', 'techKey', 'nodeKey', 'isAutoUnlockedNode',
     'isUnlockedNode', 'isRequirementUnlocked', 'nodeRecordByName', 'areRequirementsMet', 'isDiscoveredNode', 'isConditionDiscoveryPending',
@@ -38,6 +40,7 @@ function context() {
     assert.ok(match, `Missing ${name}`);
     return match[0];
   }).join('\n'), scope);
+  vm.runInContext('window.ATO_TECH_PAGE_LAYOUT = PAGE_METADATA;', scope);
   scope.data = scope.dictionaryToAppData(JSON.parse(fs.readFileSync(path.join(root, 'technology/tech_card_dictionary.min.json'), 'utf8')));
   scope.PAGE_INDEX = new Map(scope.data.pages.map((page, index) => [page.key, index]));
   scope.DISAMBIGUATED_TECH_NAMES = scope.computeDisambiguatedTechNames(scope.data.pages);
@@ -553,4 +556,22 @@ test('revealing a branch preserves the coordinates and paths of already discover
   assert.ok(after.nodes.length > before.nodes.length);
   assert.equal(JSON.stringify([...layout.positions]), snapshot);
   assert.deepEqual(before.edges.map(edge => tree.edgePath(edge, layout)), paths);
+});
+
+
+test('科技页不会再声明布局文件已经声明过的脚本级名字', () => {
+  // 布局元数据搬到 technology/tech-page-layout.js 之后，两个文件是同一个文档里的两个经典脚本：
+  // 全局词法作用域共享，页面里再写一次 const PAGE_METADATA 会让整段内联脚本以 SyntaxError
+  // 结束（页面停在「正在连接...」），所以这里按声明名交叉核对。
+  const declared = [...layoutSource.matchAll(/^(?:const|let)\s+([A-Za-z_$][\w$]*)/gm)].map(match => match[1]);
+  assert.ok(declared.includes('PAGE_METADATA'), '布局文件应当保留 const PAGE_METADATA 声明');
+  const inlineScripts = [...source.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map(match => match[1]);
+  assert.ok(inlineScripts.length > 0, '科技页应当有内联脚本');
+  const clashes = [];
+  for (const body of inlineScripts) {
+    for (const match of body.matchAll(/^(?:const|let)\s+([A-Za-z_$][\w$]*)/gm)) {
+      if (declared.includes(match[1])) clashes.push(match[1]);
+    }
+  }
+  assert.deepEqual(clashes, [], '内联脚本重复声明了布局文件的脚本级名字：' + clashes.join(', '));
 });
