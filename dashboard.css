@@ -467,6 +467,29 @@ button {
   border-left: 2px solid var(--accent);
 }
 
+.app .step-track-reminder.terrain {
+  background: var(--accent-soft);
+}
+
+.app .step-track-reminder.calamity {
+  border-left: 4px solid #a52206;
+  background: #f8ded8;
+}
+
+.app .step-track-reminder.story-progress {
+  border-left: 4px solid #216849;
+  background: #dcefe3;
+}
+
+.app .step-track-reminder.calamity .step-track-tag {
+  background: #a52206;
+  color: #fff;
+}
+
+.app .step-track-reminder:is(.terrain, .calamity, .story-progress) .step-track-desc {
+  color: var(--ink);
+}
+
 .app .step-track-reminder.battle-tech {
   border: 1px solid #a8b9dc;
   border-left: 4px solid #355a9a;

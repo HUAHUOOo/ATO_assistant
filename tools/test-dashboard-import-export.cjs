@@ -163,6 +163,7 @@ async function main() {
       cloneJson: (value) => JSON.parse(JSON.stringify(value)),
       campaignSyncChannel: null,
       syncInputs() {}, renderProfiles() {}, renderCycles() {}, renderFlow() {}, renderDateTrack() {},
+      renderDashboardArchive() {},
       elements: { importInput: { value: 'fixture' } },
       window: { alert: (message) => { alertText = message; } },
       loadFullCampaign: async () => ({ sectionRevisions: currentRevisions }),

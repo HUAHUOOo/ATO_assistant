@@ -2210,6 +2210,12 @@
     };
 
 
+    const cycleIdentityKeys = [
+      "storyCard", "doomCard", "mapTiles", "fate", "aaLimit", "strangers", "humanity", "renegade",
+      "loopLength", "frozenTime", "paradox", "babelianDebt", "oxygenCurrent", "oxygenLimit",
+      "reapMark", "reapMarkNotes", "sowMark", "sowMarkNotes", "paranoia", "supply",
+    ];
+
     const defaultState = {
       profileName: "阿尔戈号记录",
       cycle: "c2",
@@ -2479,8 +2485,10 @@
         return;
       }
       serverExternalSyncInFlight = true;
+      const revisionBeforeRead = serverSectionRevision;
       try {
         const latest = await readLatestRecordState();
+        if (campaignSession.changed || serverSaveInFlight || revisionBeforeRead !== serverSectionRevision) return;
         if (latest.revision <= serverSectionRevision) {
           flushPendingServerSave();
           if (options.retry && !options.retried) {
@@ -2548,7 +2556,7 @@
         rooting: _removedRooting,
         ...storedState
       } = isPlainObject(value) ? value : {};
-      return {
+      const normalized = {
         ...defaultState,
         ...storedState,
         cycle: cycleData[value?.cycle] ? value.cycle : defaultState.cycle,
@@ -2579,6 +2587,20 @@
         titanLimit: hasTitanLimit ? normalizeTitanLimit(value?.titanLimit) : migrateTitanLimit(titans),
         titan: undefined,
       };
+      // Compare the same values that the page displays, including legacy aliases
+      // and counters derived from the selected cards. Rendering is not an edit.
+      cycleIdentityKeys.forEach((key) => {
+        normalized[key] = normalized.cycleStats[normalized.cycle]?.[key] ?? "";
+      });
+      normalized.day = String(normalized.cycleDays[normalized.cycle] ?? defaultDayForCycle(normalized.cycle));
+      normalized.godformUsedCards = normalized.godformUsedCards.filter((id) => normalized.godforms.includes(id));
+      normalized.nymphUsedCards = normalized.nymphUsedCards.filter((id) => normalized.nymphCards.includes(id));
+      normalized.godformUsed = String(normalized.godformUsedCards.length);
+      normalized.nymphUsed = String(normalized.nymphUsedCards.length);
+      const charges = Math.max(0, Math.floor(Number(normalized.nymphCharges || 0)));
+      normalized.nymphCharges = String(normalized.nymphLimit === "" || normalized.nymphLimit == null
+        ? charges : Math.min(charges, Math.max(0, Math.floor(Number(normalized.nymphLimit || 0)))));
+      return normalized;
     }
 
     function normalizeCycleStats(value) {
@@ -2586,13 +2608,11 @@
       const activeCycle = cycleData[value?.cycle] ? value.cycle : defaultState.cycle;
       stats[activeCycle] ||= {};
       [
-        "storyCard", "doomCard", "mapTiles", "fate", "aaLimit",
-        "humanity", "renegade", "strangers", "loopLength", "frozenTime", "paradox", "hull", "crew",
-        "reapMark", "reapMarkNotes", "sowMark", "sowMarkNotes", "babelianDebt", "oxygenCurrent", "oxygenLimit", "paranoia", "supply",
+        ...cycleIdentityKeys, "hull", "crew",
         "boons", "afflictions", "counters", "notes", "syncLog",
       ].forEach((key) => {
-        if (stats[activeCycle][key] === undefined && value?.[key] !== undefined) {
-          stats[activeCycle][key] = value[key];
+        if (stats[activeCycle][key] === undefined) {
+          stats[activeCycle][key] = value?.[key] ?? defaultState[key] ?? "";
         }
       });
       Object.values(stats).forEach((cycleStats) => {
@@ -2779,18 +2799,16 @@
         serverStateBaseline = cloneJson(latest.state);
         recordProfileLoaded = true;
         state = nextState;
+        applyRequestedCycleFromUrl();
+        const importedDashboardSurveyNote = consumeDashboardSurveyNote();
+        renderAll();
         if (payload.campaign?.sections?.record) {
-          applyRequestedCycleFromUrl();
-          const importedDashboardSurveyNote = consumeDashboardSurveyNote();
-          renderAll();
           setSaveStatus(`已从 NAS 读取 ${new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}`);
-          if (importedDashboardSurveyNote) queueServerSave();
         } else {
           clearDashboardSurveyNoteFromUrl();
           setSaveStatus("NAS 存档已启用，当前账号首次修改时会创建记录表存档");
-          if (requestedDashboardSurveyNote) queueServerSave();
         }
-        if (flushQueuedSave) queueServerSave();
+        if (importedDashboardSurveyNote || flushQueuedSave) queueServerSave();
       } catch (error) {
         serverStorageAvailable = false;
         console.warn(error);
@@ -5829,6 +5847,9 @@
     consumeDashboardSurveyNote({ clearUrl: false });
     bindInputs();
     renderAll();
+    // Rendering initializes cycle fields and compatibility values. Only changes
+    // after this snapshot are edits to merge into the first server response.
+    serverStateBaseline = cloneJson(state);
     loadServerState();
   </script>
   <script src="../assets/ato-terms.js?v=20260912f"></script>

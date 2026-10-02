@@ -2155,7 +2155,7 @@
       }
     }
   </style>
-  <link rel="stylesheet" href="./dashboard.css?v=20261001-card-dialog-theme">
+  <link rel="stylesheet" href="./dashboard.css?v=20261002-reminder-colors">
   <link rel="stylesheet" href="./assets/theme.css?v=20261001">
   <script src="./assets/theme.js?v=20261001" defer></script>
   <link rel="stylesheet" href="./assets/update/update-check.css?v=2">
@@ -3478,6 +3478,8 @@
     let campaignSectionExists = false;
     let campaignConflictReloading = false;
     let campaignSectionBaseline = null;
+    let campaignServerBaseline = null;
+    let campaignInitialBaseline = null;
     let campaignExternalSyncInFlight = false;
     let campaignSessionEpoch = 0;
     let campaignReconnectTimer = null;
@@ -3670,6 +3672,7 @@
         campaignSectionRevision = latest.revision;
         campaignSectionExists = latest.exists;
         campaignSectionBaseline = cloneJson(latest.archive);
+        campaignServerBaseline = cloneJson(latest.serverArchive || latest.archive);
         renderDashboardArchive(latest.archive);
         setCampaignSaveStatus("已取得编辑权限", "saved");
       } catch (error) {
@@ -3787,6 +3790,7 @@
         currentProfile().activeCycleId = requestedCycleId;
       }
       state = currentCycle().state;
+      const beforeRender = cloneJson(archive);
       if (campaignSectionBaseline) {
         // The terminology shown on screen is a per-browser display preference.
         // The campaign profile only seeds it for a browser that never chose one,
@@ -3800,7 +3804,20 @@
       renderProfiles();
       renderCycles();
       renderFlow();
-      renderDateTrack();
+      renderDateTrack({ focusCurrentDay: true });
+      if (campaignSectionBaseline) {
+        // Rendering initializes old saves (including shuffled exploration decks).
+        // Rebase only those changes, so actual edits in nextArchive stay dirty.
+        campaignSectionBaseline = mergeDashboardChanges(beforeRender, campaignSectionBaseline, archive).value;
+      }
+    }
+
+    function dashboardArchiveFromServer(value) {
+      const normalized = normalizeArchive(value || defaultArchive);
+      if (!campaignServerBaseline || !campaignSectionBaseline) return normalized;
+      // Carry the same display defaults forward while applying server changes.
+      // An unchanged legacy save must not regenerate a different random deck.
+      return mergeDashboardChanges(campaignServerBaseline, normalized, campaignSectionBaseline).value;
     }
 
     async function readLatestDashboardSection() {
@@ -3820,8 +3837,10 @@
       if (serverAccountId && sessionUser?.id && serverAccountId !== sessionUser.id) {
         throw accountMismatchError();
       }
+      const serverArchive = normalizeArchive(payload.state || defaultArchive);
       return {
-        archive: normalizeArchive(payload.state || defaultArchive),
+        archive: dashboardArchiveFromServer(serverArchive),
+        serverArchive,
         revision: Math.max(0, Number(payload.revision || 0)),
         exists: Boolean(payload.exists),
       };
@@ -3874,11 +3893,12 @@
         if (sessionEpoch !== campaignSessionEpoch) return;
         const hadQueuedSave = campaignSaveQueuedBeforeReady;
         const localArchive = cloneJson(archive);
-        const localBaseline = cloneJson(campaignSectionBaseline || defaultArchive);
+        const localBaseline = cloneJson(campaignSectionBaseline || campaignInitialBaseline || normalizeArchive(defaultArchive));
         campaignStorageAvailable = true;
         campaignSectionRevision = latest.revision;
         campaignSectionExists = latest.exists;
         campaignSectionBaseline = cloneJson(latest.archive);
+        campaignServerBaseline = cloneJson(latest.serverArchive || latest.archive);
         campaignSaveQueuedBeforeReady = false;
         campaignReconnectDelay = 2000;
 
@@ -3934,23 +3954,27 @@
       if (campaignRestoreInFlight) return;
       if (!campaignStorageAvailable || campaignExternalSyncInFlight || campaignConflictReloading || campaignSaveInFlight) return;
       campaignExternalSyncInFlight = true;
+      const sessionEpoch = campaignSessionEpoch;
+      const revisionBeforeRead = campaignSectionRevision;
       try {
         const latest = await readLatestDashboardSection();
-        if (campaignRestoreInFlight) return;
+        if (sessionEpoch !== campaignSessionEpoch || campaignRestoreInFlight || campaignSaveInFlight || revisionBeforeRead !== campaignSectionRevision) return;
+        if (latest.revision <= campaignSectionRevision) return;
         if (!ownsDashboardWriteLease()) {
           campaignSectionRevision = latest.revision;
           campaignSectionExists = latest.exists;
           campaignSectionBaseline = cloneJson(latest.archive);
+          campaignServerBaseline = cloneJson(latest.serverArchive || latest.archive);
           if (!jsonEqual(cloneJson(archive), campaignSectionBaseline)) renderDashboardArchive(latest.archive);
           setCampaignSaveStatus("只读：已同步编辑页的最新存档", "readonly");
           return;
         }
-        if (latest.revision <= campaignSectionRevision) return;
         const localChanged = !jsonEqual(cloneJson(archive), campaignSectionBaseline || cloneJson(archive));
         if (!localChanged) {
           campaignSectionRevision = latest.revision;
           campaignSectionExists = latest.exists;
           campaignSectionBaseline = cloneJson(latest.archive);
+          campaignServerBaseline = cloneJson(latest.serverArchive || latest.archive);
           renderDashboardArchive(latest.archive);
           return;
         }
@@ -3959,6 +3983,7 @@
         campaignSectionRevision = latest.revision;
         campaignSectionExists = latest.exists;
         campaignSectionBaseline = cloneJson(latest.archive);
+        campaignServerBaseline = cloneJson(latest.serverArchive || latest.archive);
         if (merged.conflicts.length) {
           const shown = merged.conflicts.slice(0, 8).join("\n");
           const more = merged.conflicts.length > 8 ? `\n另有 ${merged.conflicts.length - 8} 项` : "";
@@ -3970,6 +3995,11 @@
         renderDashboardArchive(merged.value);
         queueCampaignSave();
       } catch (error) {
+        if (sessionEpoch !== campaignSessionEpoch) return;
+        if (error?.code === "ACCOUNT_MISMATCH") {
+          stopForAccountMismatch();
+          return;
+        }
         if (error?.status === 401) {
           showAuth("登录已过期，请重新登录。");
         } else {
@@ -4097,10 +4127,14 @@
       campaignSectionRevision = 0;
       campaignSectionExists = false;
       campaignSectionBaseline = null;
+      campaignServerBaseline = null;
       campaignStorageAvailable = false;
       sessionUser = user;
       beginDashboardWriteLease();
       renderDashboardArchive(defaultArchive);
+      // Keep the server baseline empty so the placeholder stays locked, but
+      // compare first-read edits against the fully initialized placeholder.
+      campaignInitialBaseline = cloneJson(archive);
       elements.sessionAccountName.textContent = user?.username || "当前账号";
       elements.authGate.hidden = true;
       elements.appShell.hidden = false;
@@ -5545,11 +5579,12 @@
         clearCampaignReconnect();
         campaignSectionRevision = Math.max(0, Number(payload.revision || 0));
         campaignSectionExists = Boolean(payload.exists);
-        const localBaseline = cloneJson(campaignSectionBaseline || normalizeArchive(defaultArchive));
+        const localBaseline = cloneJson(campaignSectionBaseline || campaignInitialBaseline || normalizeArchive(defaultArchive));
         const flushQueuedSave = campaignSaveQueuedBeforeReady || !jsonEqual(archive, localBaseline);
         const initializeEmptySection = !payload.exists || !payload.state;
         campaignSaveQueuedBeforeReady = false;
-        const remote = normalizeArchive(payload.state || defaultArchive);
+        const serverArchive = normalizeArchive(payload.state || defaultArchive);
+        const remote = dashboardArchiveFromServer(serverArchive);
         let nextArchive = remote;
         if (flushQueuedSave) {
           const merged = mergeDashboardChanges(localBaseline, archive, remote);
@@ -5558,6 +5593,7 @@
           )) nextArchive = merged.value;
         }
         campaignSectionBaseline = cloneJson(remote);
+        campaignServerBaseline = cloneJson(serverArchive);
         renderDashboardArchive(nextArchive);
         if ((flushQueuedSave || initializeEmptySection) && ownsDashboardWriteLease()) queueCampaignSave();
         else setCampaignSaveStatus("已同步", "saved");
@@ -5668,10 +5704,12 @@
           if (!campaignConflictReloading) {
             campaignConflictReloading = true;
             const latest = await readLatestDashboardSection();
+            if (sessionEpoch !== campaignSessionEpoch) return false;
             if (!ownsDashboardWriteLease()) {
               campaignSectionRevision = latest.revision;
               campaignSectionExists = latest.exists;
               campaignSectionBaseline = cloneJson(latest.archive);
+              campaignServerBaseline = cloneJson(latest.serverArchive || latest.archive);
               renderDashboardArchive(latest.archive);
               campaignConflictReloading = false;
               return false;
@@ -5680,6 +5718,7 @@
             campaignSectionRevision = latest.revision;
             campaignSectionExists = latest.exists;
             campaignSectionBaseline = cloneJson(latest.archive);
+            campaignServerBaseline = cloneJson(latest.serverArchive || latest.archive);
 
             if (merged.conflicts.length) {
               const shown = merged.conflicts.slice(0, 8).join("\n");
@@ -5705,6 +5744,7 @@
         campaignSectionRevision = Math.max(0, Number(payload.revision || campaignSectionRevision));
         campaignSectionExists = true;
         campaignSectionBaseline = archiveBeingSaved;
+        campaignServerBaseline = cloneJson(archiveBeingSaved);
         campaignSaveQueuedBeforeReady = false;
         campaignReconnectDelay = 2000;
         setCampaignSaveStatus("已保存", "saved");
@@ -6628,6 +6668,8 @@
         record.profileName ||= "阿尔戈号记录";
         record.cycle = action.cycle;
         record.day = action.day;
+        if (!isPlainObject(record.cycleDays)) record.cycleDays = {};
+        record.cycleDays[action.cycle] = action.day;
         const slot = markRecordAdventure(record, action);
         if (slot) appendRecordSyncLog(record, `Day ${action.day} 定数写入：${action.adventure} -> ${adventureSlotLabel(slot)}`);
         return record;
@@ -6680,7 +6722,15 @@
         minute: "2-digit",
       });
       const line = `${stamp} ${message}`;
-      record.syncLog = [line, record.syncLog].filter(Boolean).join("\n").slice(0, 6000);
+      if (record.cycle) {
+        if (!isPlainObject(record.cycleStats)) record.cycleStats = {};
+        if (!isPlainObject(record.cycleStats[record.cycle])) record.cycleStats[record.cycle] = {};
+        const cycleStats = record.cycleStats[record.cycle];
+        cycleStats.syncLog = [line, cycleStats.syncLog ?? record.syncLog].filter(Boolean).join("\n").slice(0, 6000);
+        record.syncLog = cycleStats.syncLog;
+      } else {
+        record.syncLog = [line, record.syncLog].filter(Boolean).join("\n").slice(0, 6000);
+      }
     }
 
     function recordAdventureIndex(cycleId, adventure) {
@@ -6698,7 +6748,9 @@
     function markRecordAdventure(record, action) {
       const index = recordAdventureIndex(action.cycle, action.adventure);
       if (index < 0) return "";
-      record.adventures ||= {};
+      // PHP can return an empty JSON object as []. Named array properties are
+      // dropped by JSON.stringify, leaving a sync log without a saved mark.
+      if (!isPlainObject(record.adventures)) record.adventures = {};
       const prefix = `${action.cycle}-${index}`;
       let slot = "";
       const explicitSlots = new Set(["alpha", "beta", "gamma", "delta", "epsilon", "lambda", "omicron", "sigma", "psi", "omega"]);
@@ -8316,7 +8368,7 @@
           title: "新探索板块放置进展",
           tag: { label: "进展", className: "structure-tech" },
           desc: `${currentMapTileLabel()} 是最新揭示的板块，且带有进展指示物标记。请在故事步骤放置 1 个进展。`,
-          className: "tech",
+          className: "tech story-progress",
         });
       }
       // Check hero mnemos nodes pending settlement
@@ -8385,7 +8437,7 @@
         title: "当前板块放置灾祸指示物",
         tag: { label: "灾祸", className: "battle" },
         desc: `${currentMapTileLabel()} 带有灾祸标记。请在灾祸步骤放置 1 个灾祸指示物。`,
-        className: "important",
+        className: "important calamity",
       }];
     }
 
@@ -8399,7 +8451,7 @@
         title: "下次战斗特殊板块",
         tag: { label: "板块", className: "battle-tech" },
         desc: `${terrain.terrain}${source ? `，来源：${source}` : ""}。`,
-        className: "tech",
+        className: "tech terrain",
         // 地形与分支名都出自勘察步骤的定数框，官方翻译沿用同一段术语（survey-record）。
         scope: "survey-record",
       }];
@@ -8637,6 +8689,7 @@
         state = currentCycle().state;
         campaignSectionRevision = payload.campaign.sectionRevisions.dashboard;
         campaignSectionBaseline = cloneJson(archive);
+        campaignServerBaseline = cloneJson(archive);
         campaignSavePending = false;
         clearTimeout(campaignSaveTimer);
         campaignSyncChannel?.postMessage({ revision: campaignSectionRevision });
@@ -8850,12 +8903,9 @@
           campaignSectionRevision = Math.max(0, Number(dashboardSave?.revision || campaignSectionRevision));
           campaignSectionExists = Boolean(dashboardSave?.ok || campaignSectionExists);
           campaignSectionBaseline = cloneJson(archive);
+          campaignServerBaseline = cloneJson(archive);
           campaignSyncChannel?.postMessage({ revision: campaignSectionRevision });
-          syncInputs();
-          renderProfiles();
-          renderCycles();
-          renderFlow();
-          renderDateTrack();
+          renderDashboardArchive(archive);
           window.alert("导入完成。");
         } catch (error) {
           window.alert(`导入失败：${String(error.message || error)}`);
