@@ -1332,7 +1332,10 @@
 
     .card-track-dialog {
       width: min(1440px, calc(100vw - 28px));
-      max-height: min(920px, calc(100vh - 28px));
+      /* 上限不再死卡在 920px：卡面按窗口高度缩放（见下面 doom 那组规则），
+         弹窗给足高度，内容就不会挤出上下滚动条。 */
+      max-height: min(1120px, calc(100vh - 28px));
+      max-height: min(1120px, calc(100dvh - 28px));
       border: 1px solid var(--line);
       border-radius: 8px;
       padding: 0;
@@ -1348,7 +1351,8 @@
     .card-track-shell {
       display: grid;
       grid-template-rows: auto minmax(0, 1fr);
-      max-height: min(920px, calc(100vh - 28px));
+      max-height: min(1120px, calc(100vh - 28px));
+      max-height: min(1120px, calc(100dvh - 28px));
     }
 
     .card-track-head {
@@ -1409,10 +1413,16 @@
       width: min(100%, 1080px);
     }
 
-    /* 和故事卡同宽：灾难卡面不能比故事卡小。容器留够 1px 边框 + 10px 内边距。 */
+    /* 灾祸卡面按窗口高度缩放，弹窗里不留上下滚动条。
+       高度预算（从 dvh 里扣掉）：弹窗外边距 28 + 标题栏约 61 + 正文内边距 28 +
+       卡片自身（内边距 20 + 边框 2 + 标题行 22 + 两处 10 间距 + 灾祸/进展与回退/推进
+       两行控件约 118）≈ 299px；卡面 aspect-ratio 是 1.4，所以宽度上限
+       = 1.4 × (dvh - 299)，再留约 60px 余量写成 140dvh - 500px（仍在 1040px 以内）。
+       和故事卡同宽：灾难卡面不能比故事卡小。容器留够 1px 边框 + 10px 内边距。 */
     .card-track-dialog[data-group="doom"] .card-track-face,
     .card-track-dialog[data-group="doom"] .card-track-empty {
-      width: min(100%, 1040px);
+      width: min(100%, 1040px, max(300px, calc(140vh - 500px)));
+      width: min(100%, 1040px, max(300px, calc(140dvh - 500px)));
     }
 
     .card-track-item {
@@ -2155,7 +2165,7 @@
       }
     }
   </style>
-  <link rel="stylesheet" href="./dashboard.css?v=20261002-reminder-colors">
+  <link rel="stylesheet" href="./dashboard.css?v=20261002-briefing-button1">
   <link rel="stylesheet" href="./assets/theme.css?v=20261001">
   <script src="./assets/theme.js?v=20261001" defer></script>
   <link rel="stylesheet" href="./assets/update/update-check.css?v=2">
@@ -2285,6 +2295,13 @@
                 <button id="copySecondScreenButton" type="button" class="secondary" data-dashboard-readonly-allowed>复制网址</button>
                 <a id="openSecondScreenLink" class="record-card-link" href="./ss/" target="_blank" rel="noopener">打开</a>
               </div>
+              <!-- 安卓版把整个应用也开放到局域网（不只是第二屏），可以读也可以写：这里给出主控台
+                   地址（其它部署或没检测到局域网地址时整行隐藏）。登录/退出仍在这台设备上做。 -->
+              <div id="lanConsoleRow" class="second-screen-address" hidden>
+                <input id="lanConsoleUrl" type="text" readonly aria-label="局域网主控台网址">
+                <button id="copyLanConsoleButton" type="button" class="secondary" data-dashboard-readonly-allowed>复制网址</button>
+                <a id="openLanConsoleLink" class="record-card-link" href="./" target="_blank" rel="noopener">打开</a>
+              </div>
               <label id="secondScreenBattleBoardToggleRow" class="second-screen-toggle second-screen-subtoggle" hidden>
                 <input id="secondScreenBattleBoardToggle" type="checkbox" checked>
                 显示决战版图
@@ -2307,6 +2324,9 @@
               <button id="exportButton" type="button" class="secondary" data-dashboard-readonly-allowed>导出状态</button>
               <button id="importButton" type="button" class="secondary">导入状态</button>
               <button id="termLanguageToggle" class="secondary" type="button" aria-pressed="false" title="切换为官方翻译" data-dashboard-readonly-allowed>切换为官方翻译</button>
+              <!-- 简报读的是每日存档备份，所以入口放在存档控制这一块（不再放在顶部工具条）；
+                   它是链接但用 secondary 按钮样式，和旁边三个按钮长得一致。 -->
+              <a class="secondary briefing-card-link" href="./briefing/index.html">战役简报</a>
               <input id="importInput" type="file" accept="application/json,.json" hidden>
             </div>
             <div id="resourcePackCard" class="second-screen-card" hidden>
@@ -2395,9 +2415,9 @@
   </dialog>
 
   <script src="./assets/page-focus-router.js?v=20260813-no-screen-focus1"></script>
-  <script src="./assets/story-doom-card-data.js"></script>
-  <script src="./assets/exploration-card-tags.js"></script>
-  <script src="./assets/exploration-card-rules.js"></script>
+  <script src="./assets/story-doom-card-data.js?v=20261002-cache1"></script>
+  <script src="./assets/exploration-card-tags.js?v=20261002-cache1"></script>
+  <script src="./assets/exploration-card-rules.js?v=20261002-cache1"></script>
   <script src="./assets/exploration-card-resource-rules.js?v=20260927-settlement-rules1"></script>
   <script src="./assets/exploration-card-resources.js?v=20260927-settlement-rules1"></script>
   <script src="./map/map-tile-tags.js?v=20260730-c4-oasis-tag"></script>
@@ -3024,7 +3044,8 @@
           { id: "dreams-laid-bare", title: "Dreams Laid Bare", passage: "74", boxes: [["alpha", "α", "A Knife So Sharp", "voyage"], ["1-2", "1-2", "Changing of the Guard", "supernatural"], ["3-4", "3-4", "Prisoners", "family"], ["5-6", "5-6", "Stalked by the Maze", "curse"], ["7-8", "7-8", "Mazed Hull", "tragedy"], ["9-10", "9-10", "Among Broken Pottery and Trampled Grapes", "heritage"], ["omega", "Ω", "Price of a Promise", "dream"]] },
         ],
         rr: [
-          ["1", "Catch of the Day"], ["2", "Clothes Make the Argonaut"], ["3", "The One with the Goats"], ["4", "Eschaton Deniers"], ["5", "Fete for the Aeons"], ["6", "Secret Admirer"], ["7", "Lysistrata"], ["8", "The Stray"], ["9", "The Burden"], ["10", "Drunken Odyssey"],
+          // 后一项 goTo 是追踪标上带 * 的第二个框：若已标记该 R&R，再标第二格并前往该段号。
+          ["1", "Catch of the Day", { goTo: "11" }], ["2", "Clothes Make the Argonaut", { goTo: "22" }], ["3", "The One with the Goats"], ["4", "Eschaton Deniers"], ["5", "Fete for the Aeons"], ["6", "Secret Admirer"], ["7", "Lysistrata"], ["8", "The Stray"], ["9", "The Burden", { goTo: "99" }], ["10", "Drunken Odyssey"],
         ],
       },
       c2: {
@@ -3098,7 +3119,7 @@
           { id: "the-crescent-and-the-full-moon", title: "The Crescent and the Full Moon", passage: "125", boxes: [["alpha", "α", "The Hand You Were Dealt", "curse"], ["1-2", "1-2", "The Sea Recedes", "family"], ["3-4", "3-4", "Infinite Rope", "crime"], ["5-6", "5-6", "Moon in the Palm of Their Hand", "dream"], ["7-8", "7-8", "Cicadas Go Silent", "voyage"], ["9-10", "9-10", "No More Tales", "heritage"], ["omega", "Ω", "We Are Forever", "deed"]] },
         ],
         rr: [
-          ["1", "Old Priest's Big Break"], ["2", "The Nubian Prince"], ["3", "Bargo"], ["4", "An Argonaut's Best Friend"], ["5", "We've Got Ourselves a Mystery"], ["6", "Tales of the Thrice-Cursed Land"], ["7", "Centimanes Spiders"], ["8", "Diaries of the Old Priest"], ["9", "Beware of Greeks Bearing Gift Returns"], ["10", "One Thousand in One Night"],
+          ["1", "Old Priest's Big Break"], ["2", "The Nubian Prince"], ["3", "Bargo"], ["4", "An Argonaut's Best Friend", { goTo: "44" }], ["5", "We've Got Ourselves a Mystery"], ["6", "Tales of the Thrice-Cursed Land"], ["7", "Centimanes Spiders"], ["8", "Diaries of the Old Priest"], ["9", "Beware of Greeks Bearing Gift Returns"], ["10", "One Thousand in One Night"],
         ],
       },
       c5: {
@@ -3149,7 +3170,7 @@
         module: "dreams-of-pharos",
         boxes: [
           ["1", "1", "卷轴"],
-          ["2", "2", "石碑"],
+          ["2", "2", "卷轴"],
           ["3", "3", "错误"],
           ["4", "4", "卷轴"],
           ["5", "5", "卷轴"],
@@ -3453,6 +3474,10 @@
       secondScreenUrl: document.querySelector("#secondScreenUrl"),
       copySecondScreenButton: document.querySelector("#copySecondScreenButton"),
       openSecondScreenLink: document.querySelector("#openSecondScreenLink"),
+      lanConsoleRow: document.querySelector("#lanConsoleRow"),
+      lanConsoleUrl: document.querySelector("#lanConsoleUrl"),
+      copyLanConsoleButton: document.querySelector("#copyLanConsoleButton"),
+      openLanConsoleLink: document.querySelector("#openLanConsoleLink"),
       secondScreenHint: document.querySelector("#secondScreenHint"),
       secondScreenScaleRow: document.querySelector("#secondScreenScaleRow"),
       secondScreenScale: document.querySelector("#secondScreenScale"),
@@ -4144,6 +4169,17 @@
       loadSecondScreenStatus();
     }
 
+    // 第二屏地址去掉 /ss/ 就是主控台地址：安卓把整个应用（主控台 + 各模块 + 第二屏）
+    // 开在同一个端口上，所以这两个地址只差一个路径。带 token 的部署（便携版/Docker）
+    // 也顺手把查询串去掉，免得把第二屏的 token 带到主控台地址里。
+    // 认不出 /ss/ 时返回空串，调用方据此隐藏整行。
+    function lanConsoleUrlFrom(secondScreenUrl) {
+      const value = String(secondScreenUrl || "");
+      if (!value) return "";
+      const stripped = value.replace(/\/ss\/.*$/, "/");
+      return stripped === value ? "" : stripped;
+    }
+
     function renderSecondScreenStatus(payload = {}) {
       const enabled = Boolean(payload.enabled);
       const urls = Array.isArray(payload.urls) ? payload.urls : [];
@@ -4195,7 +4231,18 @@
       elements.copySecondScreenButton.hidden = enabled && !preferred;
       elements.openSecondScreenLink.hidden = enabled && !preferred;
       elements.openSecondScreenLink.href = preferred || "#";
-      elements.secondScreenHint.textContent = enabled && !preferred
+
+      // 安卓版把整个应用都开放到局域网（不只是第二屏）：第二屏地址去掉 /ss/ 就是主控台地址，
+      // 同一网段的设备打开它就能用主控台和各模块（和这台手机共用登录态，登录/退出仍在手机上做）。
+      const lanConsoleUrl = lanConsoleUrlFrom(preferred);
+      const hasLanConsole = Boolean(enabled && lanConsoleUrl);
+      elements.lanConsoleRow.hidden = !hasLanConsole;
+      if (hasLanConsole) {
+        elements.lanConsoleUrl.value = lanConsoleUrl;
+        elements.openLanConsoleLink.href = lanConsoleUrl;
+      }
+
+      const hint = enabled && !preferred
         ? "第二屏幕服务已开启，但未检测到 Wi-Fi 或有线局域网地址。请先连接局域网后刷新状态。"
         : enabled
         ? payload.displayMode === "blank"
@@ -4206,6 +4253,14 @@
             ? "第二屏幕已开启。AIBP 开启新战役时显示决战版图，战利品写入记录表后恢复地图。"
             : "第二屏幕已开启。战斗期间显示 AIBP 镜像和当前地形卡，决战版图状态仍会保留。"
         : "打开后，同一局域网设备可通过专用网址查看地图、决战版图或故事文本。";
+      // 安卓版把整个应用都开放给局域网，且和这台手机共用登录态（可读可写，登录/退出只在本机）；
+      // 便携版 / Docker 的局域网入口本来就是完整站点，别的设备要自己登录后才能用。
+      const lanHint = lanConsoleUrl
+        ? payload.lanSharedAccount
+          ? " 同一局域网的设备也可以打开主控台地址浏览和修改主控台与各模块（登录态跟着这台手机走，登录/退出仍在本机操作）。"
+          : " 同一局域网的设备也可以打开主控台地址浏览主控台与各模块（在那台设备上登录后使用）。"
+        : "";
+      elements.secondScreenHint.textContent = hint + lanHint;
     }
 
     async function loadSecondScreenStatus() {
@@ -4678,16 +4733,16 @@
       const fromIds = rule.from.map((corner) => getExplorationCardByCornerNumber(cycleId, corner)?.id);
       const toIds = rule.to.map((corner) => getExplorationCardByCornerNumber(cycleId, corner)?.id);
       if (fromIds.some((id) => !id) || toIds.some((id) => !id)) return;
-      const replacementPlan = window.ATO_EXPLORATION_RULES.createReplacementPlan(fromIds, toIds);
+      const replacementPlan = explorationRules().createReplacementPlan(fromIds, toIds);
 
       const selectedIds = getSelectedExplorationIds();
       const drawState = ensureExplorationDrawState();
-      state.exploration.selectedByCycle[cycleId] = window.ATO_EXPLORATION_RULES.applyReplacementPlan(
+      state.exploration.selectedByCycle[cycleId] = explorationRules().applyReplacementPlan(
         selectedIds,
         replacementPlan,
         true
       );
-      drawState.drawPile = window.ATO_EXPLORATION_RULES.applyReplacementPlan(
+      drawState.drawPile = explorationRules().applyReplacementPlan(
         drawState.drawPile,
         replacementPlan,
         true
@@ -4770,13 +4825,94 @@
       };
     }
 
+    // 探索卡规则模块（assets/exploration-card-rules.js）是通过普通 <script> 加载的全局
+    // 对象：只要那一次页面加载没有把它执行成功（便携包 php -S 不读 .htaccess、静态响应
+    // 没有缓存校验头，浏览器可能一直复用一份坏副本；请求被中断也一样），它就不存在。
+    // 而登录后的整页渲染要逐张取探索卡标签，缺了它就是整页渲染失败，异常还会显示在
+    // 登录框里（提交处理把错误写进 authMessage），于是看起来像「一登录就报错」。
+    // 这里保留一份语义完全一致的本地实现兜底：模块缺失时探索面板退化成默认标签，而不是
+    // 让整页渲染崩掉。改 assets/exploration-card-rules.js 时这两份要同步；
+    // tests/exploration-rules-fallback.test.cjs 会逐项比对它们的行为。
+    // #region exploration-rules-fallback
+    const explorationRulesFallback = (function () {
+      function normalizeTag(entry = {}) {
+        const removal = entry.removal === "permanent"
+          ? "permanent"
+          : (entry.removal === "remove" ? "remove" : "keep");
+        return {
+          removal,
+          draw: removal !== "keep" || entry.draw === "chain" ? "chain" : "single",
+        };
+      }
+
+      function drawTwoPiles(drawPile, getTag, makeRecord) {
+        const remaining = [...drawPile];
+        const piles = [[], []];
+        for (let pileIndex = 0; pileIndex < 2; pileIndex += 1) {
+          while (remaining.length) {
+            const cardId = remaining.shift();
+            const tag = normalizeTag(getTag(cardId));
+            piles[pileIndex].push(makeRecord(cardId, tag, pileIndex));
+            if (tag.draw === "single") break;
+          }
+        }
+        return {
+          drawPile: remaining,
+          piles,
+          incompletePiles: piles.filter((pile) => !pile.length || pile[pile.length - 1]?.draw !== "single").length,
+        };
+      }
+
+      function settlePiles(piles) {
+        const returnIds = [];
+        const temporaryRemoved = [];
+        const permanentIds = [];
+        piles.flat().forEach((entry) => {
+          const tag = normalizeTag(entry);
+          if (tag.removal === "permanent") permanentIds.push(entry.id);
+          else if (tag.removal === "remove") temporaryRemoved.push(entry);
+          else returnIds.push(entry.id);
+        });
+        return { returnIds, temporaryRemoved, permanentIds };
+      }
+
+      function createReplacementPlan(fromIds, toIds) {
+        const sourceIds = Array.isArray(fromIds) ? fromIds.filter(Boolean) : [];
+        const targetIds = Array.isArray(toIds) ? toIds.filter(Boolean) : [];
+        const pairCount = Math.min(sourceIds.length, targetIds.length);
+        return {
+          replacements: new Map(
+            sourceIds.slice(0, pairCount).map((sourceId, index) => [sourceId, targetIds[index]])
+          ),
+          removedIds: new Set(sourceIds.slice(pairCount)),
+          addedIds: targetIds.slice(pairCount),
+        };
+      }
+
+      function applyReplacementPlan(ids, plan, includeAdded = false) {
+        const result = (Array.isArray(ids) ? ids : []).flatMap((id) => {
+          if (plan.removedIds.has(id)) return [];
+          return [plan.replacements.get(id) || id];
+        });
+        if (includeAdded) result.push(...plan.addedIds);
+        return [...new Set(result)];
+      }
+
+      return { normalizeTag, drawTwoPiles, settlePiles, createReplacementPlan, applyReplacementPlan };
+    })();
+    // #endregion exploration-rules-fallback
+
+    function explorationRules() {
+      return window.ATO_EXPLORATION_RULES || explorationRulesFallback;
+    }
+
     function getExplorationCardTag(cardId) {
       const cycleId = currentCycleConfig().id;
       state.exploration = normalizeExploration(state.exploration);
       const entry = state.exploration.cardTagsByCycle?.[cycleId]?.[cardId]
         || window.ATO_EXPLORATION_CARD_TAGS?.cards?.[`${cycleId}:${cardId}`]
         || {};
-      return window.ATO_EXPLORATION_RULES.normalizeTag(entry);
+      return explorationRules().normalizeTag(entry);
     }
 
     function normalizeExplorationRecord(entry, pile = 0) {
@@ -4927,7 +5063,7 @@
       // "已结算" marks must not silence the button for the same card today.
       clearExplorationSettlements(currentCycleConfig().id);
 
-      const result = window.ATO_EXPLORATION_RULES.drawTwoPiles(
+      const result = explorationRules().drawTwoPiles(
         drawState.drawPile,
         getExplorationCardTag,
         (cardId, tag, pileIndex) => {
@@ -4958,7 +5094,7 @@
       const drawState = ensureExplorationDrawState();
       const drawn = drawState.activePiles.flat();
       if (!drawn.length) return;
-      const result = window.ATO_EXPLORATION_RULES.settlePiles(drawState.activePiles);
+      const result = explorationRules().settlePiles(drawState.activePiles);
       drawState.temporaryRemoved.push(...result.temporaryRemoved);
       if (result.permanentIds.length) {
         const permanentIds = new Set(result.permanentIds);
@@ -6824,9 +6960,15 @@
       return summary;
     }
 
+    // R&R 的第二格（追踪标上带 * 与段号的框）和第一格共用 rr 表，键用 `<编号>-goto`
+    // 区分，这样按 id 统计「已勾 R&R」和当前 R&R 目标的逻辑都不受影响。
+    function surveyRrBoxKey(itemId, boxId) {
+      return boxId && boxId !== itemId ? boxId : itemId;
+    }
+
     function surveyConstantChecked(groupId, itemId, boxId) {
       ensureTodaySurveyConstants();
-      if (groupId === "rr") return Boolean(state.surveyConstants.rr?.[itemId]);
+      if (groupId === "rr") return Boolean(state.surveyConstants.rr?.[surveyRrBoxKey(itemId, boxId)]);
       return Boolean(state.surveyConstants.hubs?.[itemId]?.[boxId]);
     }
 
@@ -6834,13 +6976,18 @@
       ensureTodaySurveyConstants();
       state.surveyConstantsTouchedDay = surveyConstantsDayKey();
       if (groupId === "rr") {
+        const key = surveyRrBoxKey(itemId, boxId);
         if (checked) {
-          state.surveyConstants.rr[itemId] = true;
-          state.surveyConstants.activeRr = { itemId };
+          state.surveyConstants.rr[key] = true;
+          if (key === itemId) state.surveyConstants.activeRr = { itemId };
         } else {
-          delete state.surveyConstants.rr[itemId];
-          if (state.surveyConstants.activeRr?.itemId === itemId) {
-            state.surveyConstants.activeRr = firstCheckedSurveyRrTarget(getCurrentSurveyConstantData());
+          delete state.surveyConstants.rr[key];
+          if (key === itemId) {
+            // 追踪标写的是「若已标记，标记第二个框」：取消第一格时第二格不再成立，一并清掉。
+            delete state.surveyConstants.rr[`${itemId}-goto`];
+            if (state.surveyConstants.activeRr?.itemId === itemId) {
+              state.surveyConstants.activeRr = firstCheckedSurveyRrTarget(getCurrentSurveyConstantData());
+            }
           }
         }
       } else {
@@ -6895,11 +7042,17 @@
 
       const boxes = document.createElement("div");
       boxes.className = "survey-constant-boxes";
-      item.boxes.forEach(([boxId, roll, label, tag]) => {
+      item.boxes.forEach(([boxId, roll, label, tag, boxOptions]) => {
         const row = document.createElement("label");
         const input = document.createElement("input");
         input.type = "checkbox";
         input.checked = surveyConstantChecked(groupId, item.id, boxId);
+        if (boxOptions?.requiresFirst) {
+          // 追踪标的第二个框里写着跳转段号，段号本身就是剧透：第一格没勾（这一格也没勾过）
+          // 时整行不渲染，勾上第一格重新绘制后这一格才出现。
+          const firstBoxId = item.boxes[0]?.[0];
+          if (!surveyConstantChecked(groupId, item.id, firstBoxId) && !input.checked) return;
+        }
         input.addEventListener("change", () => setSurveyConstant(groupId, item.id, boxId, input.checked));
         const rollText = document.createElement("span");
         rollText.className = "survey-constant-roll";
@@ -6951,11 +7104,14 @@
       rrGroup.innerHTML = '<div class="survey-constant-heading">R&R 冒险</div>';
       const rrGrid = document.createElement("div");
       rrGrid.className = "survey-constant-grid";
-      data.rr.forEach(([id, title]) => {
+      data.rr.forEach(([id, title, extra]) => {
+        const rrBoxes = [[id, id, title]];
+        // 追踪标上这几条 R&R 还有第二个框（框内是跳转段号）：勾了第一格才出现，避免剧透。
+        if (extra?.goTo) rrBoxes.push([`${id}-goto`, "*", `前往 ${extra.goTo}`, null, { requiresFirst: true }]);
         rrGrid.appendChild(createSurveyConstantCard({
           id,
           title,
-          boxes: [[id, id, title]],
+          boxes: rrBoxes,
         }, "rr"));
       });
       rrGroup.appendChild(rrGrid);
@@ -7971,6 +8127,11 @@
       return `./technology/index.html?cycle=${encodeURIComponent(config.id)}`;
     }
 
+    function getBriefingHref() {
+      const config = currentCycleConfig();
+      return `./briefing/index.html?cycle=${encodeURIComponent(config.id)}`;
+    }
+
     function getRecordHref() {
       const config = currentCycleConfig();
       const action = latestAdventureRecordAction();
@@ -8001,6 +8162,9 @@
       });
       document.querySelectorAll('a[href^="./technology/index.html"], .technology-card-link').forEach((anchor) => {
         anchor.href = getTechnologyHref();
+      });
+      document.querySelectorAll('a[href^="./briefing/index.html"], .briefing-card-link').forEach((anchor) => {
+        anchor.href = getBriefingHref();
       });
     }
 
@@ -9068,6 +9232,17 @@
         window.setTimeout(() => { elements.copySecondScreenButton.textContent = "复制网址"; }, 1200);
       } catch {
         elements.secondScreenUrl.select();
+        document.execCommand("copy");
+      }
+    });
+    elements.copyLanConsoleButton.addEventListener("click", async () => {
+      if (!elements.lanConsoleUrl.value) return;
+      try {
+        await navigator.clipboard.writeText(elements.lanConsoleUrl.value);
+        elements.copyLanConsoleButton.textContent = "已复制";
+        window.setTimeout(() => { elements.copyLanConsoleButton.textContent = "复制网址"; }, 1200);
+      } catch {
+        elements.lanConsoleUrl.select();
         document.execCommand("copy");
       }
     });

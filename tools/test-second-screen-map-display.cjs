@@ -41,13 +41,14 @@ const context = vm.createContext({
 vm.runInContext(`
   const cycleIds = ['c1'];
   const tokenAssetById = { AG: {} };
+  const mapData = { cycles: [{ id: 'c1', tiles: [{ id: '001' }] }] };
   const edgeDirections = ['up'];
   const campaignStorageUrl = '/api/campaign-state.php';
   let secondScreenFingerprint = '', secondScreenLoadInFlight = false, state, renders = 0;
   function normalizeTokens(value) { return value?.tokens || {}; }
   function focusArgoAfterNextRender() {}
   function render() { renders++; }
-  ${['isPlainObject', 'defaultCycleState', 'createDefaultState', 'normalizeTitanXTrackPosition', 'normalizeState', 'normalizeMapZoom', 'loadSecondScreenMapState'].map(extract).join('\n')}
+  ${['isPlainObject', 'defaultCycleState', 'createDefaultState', 'argoTileId', 'tokenAvailableInCycle', 'normalizeTitanXTrackPosition', 'normalizeState', 'normalizeMapZoom', 'loadSecondScreenMapState'].map(extract).join('\n')}
 `, context);
 
 (async () => {

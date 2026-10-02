@@ -62,19 +62,34 @@ button {
   padding: 40px clamp(20px, 4vw, 56px) 32px;
 }
 
-.app button {
+.app button,
+.app a.secondary {
   border-radius: 0;
   font-weight: 600;
   transition: background-color 140ms ease, color 140ms ease;
 }
 
-.app button.secondary {
+/* 「战役简报」是链接，但要和前几个按钮长得完全一样：这里补齐按钮的基础几何
+   （基础 button 规则在 index.html 的内联样式里，链接拿不到）。 */
+.app a.secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 14px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.app button.secondary,
+.app a.secondary {
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--accent);
 }
 
-.app button.secondary:hover {
+.app button.secondary:hover,
+.app a.secondary:hover {
   border-color: var(--accent);
   background: var(--accent-soft);
   color: var(--accent-strong);
@@ -169,11 +184,13 @@ button {
 
 .archive-actions {
   display: grid;
-  grid-template-columns: max-content max-content minmax(0, 1fr);
+  /* 四个格子：导出状态、导入状态、切换为官方翻译，末尾是「战役简报」入口（链接，样式同按钮）。 */
+  grid-template-columns: max-content max-content minmax(0, 1fr) max-content;
+  align-items: center;
   gap: 6px;
 }
 
-.app .archive-actions button {
+.app .archive-actions :is(button, a) {
   min-width: 0;
   padding-inline: 8px;
   font-size: 12px;
