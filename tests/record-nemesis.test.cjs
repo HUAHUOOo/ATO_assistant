@@ -22,11 +22,20 @@ function element() {
     appendChild(node) { this.children.push(node); },
     setAttribute(key, value) { this.attributes[key] = value; },
     addEventListener(type, handler) { this.listeners[type] = handler; },
+    focus() {},
+    contains() { return true; },
   };
 }
 function harness(saved = {}) {
   const ctx = vm.createContext({
-    state: null, document: { createElement: element }, elements: { enemyTracks: element() },
+    state: null,
+    document: {
+      createElement: element,
+      addEventListener(type, handler) { this.listeners[type] = handler; },
+      removeEventListener() {},
+      listeners: {},
+    },
+    elements: { enemyTracks: element() },
     makeTrackTitle: (zh, en) => Object.assign(element(), { zh, en }), queueSave() {}, renderResources() {},
     atomicMergePaths: new Set(['crewBoxes', 'maxUnlocked']),
   });
@@ -40,7 +49,7 @@ function harness(saved = {}) {
     'currentCycle', 'currentNemesis', 'selectNemesis', 'currentResources', 'resourceStorageKey',
     'getEvolutionStage', 'evolutionStages', 'getEvolutionStageKey', 'isEvolutionStageActive',
     'toggleEvolutionStage', 'clearEvolutionTrack', 'hasEvolutionProgress', 'renderObjectTrack',
-    'makeNemesisTrackTitle', 'renderEnemyTracks', 'mergeRecordChanges', 'mergeLogText',
+    'makeNemesisTrackTitle', 'makeNemesisSwitch', 'renderEnemyTracks', 'mergeRecordChanges', 'mergeLogText',
   ];
   vm.runInContext(functions.map(name => fn(source, name)).join('\n'), ctx);
   ctx.state = ctx.normalizeState(clone(saved));
@@ -49,11 +58,14 @@ function harness(saved = {}) {
 }
 const row = ctx => ctx.elements.enemyTracks.children.at(-1);
 const chips = ctx => row(ctx).children[1].children;
-const select = ctx => row(ctx).children[0].children.at(-1).children[1];
+// 宿敌行是 [标题][等级格][切换按钮 + 候选菜单]，按钮独占最右一列。
+const switcher = ctx => row(ctx).children[2];
+const button = ctx => switcher(ctx).children[0];
+const menu = ctx => switcher(ctx).children[1];
+const selected = ctx => (menu(ctx).children.find(item => item.className.includes('active')) || {}).value;
 const keys = ctx => Array.from(ctx.currentResources(), resource => resource.key);
 const choose = (ctx, key) => {
-  select(ctx).value = key;
-  select(ctx).listeners.change();
+  menu(ctx).children.find(item => item.value === key).listeners.click();
 };
 
 test('each cycle exposes only its allowed nemeses and uses the requested default', () => {
@@ -65,9 +77,12 @@ test('each cycle exposes only its allowed nemeses and uses the requested default
     const ctx = harness({ cycle });
     ctx.renderEnemyTracks();
     assert.equal(ctx.elements.enemyTracks.children.length, 4);
-    assert.deepEqual(select(ctx).children.map(item => item.value), options);
-    assert.equal(select(ctx).value, options[0]);
-    assert.equal(select(ctx).disabled, options.length === 1);
+    assert.equal(row(ctx).children.length, 3, '宿敌行要有第三列专门放「切换」按钮');
+    assert.match(row(ctx).children[2].className, /nemesis-switch/);
+    assert.equal(menu(ctx).hidden, true, '候选菜单默认为收起状态');
+    assert.deepEqual(menu(ctx).children.map(item => item.value), options);
+    assert.equal(selected(ctx), options[0]);
+    assert.equal(button(ctx).disabled, options.length === 1);
     assert.equal(ctx.selectNemesis('invalid'), false);
     assert.equal(ctx.currentNemesis().key, options[0]);
   }
@@ -95,7 +110,7 @@ test('switching changes the whole track and restores marks for each nemesis acro
 
   ctx.state.cycle = 'c3';
   ctx.renderEnemyTracks();
-  assert.equal(select(ctx).value, 'adversary');
+  assert.equal(selected(ctx), 'adversary');
   assert.ok(chips(ctx)[1].className.includes('active'));
   choose(ctx, 'dahaka');
   assert.ok(chips(ctx)[8].className.includes('active'));
@@ -107,7 +122,7 @@ test('switching changes the whole track and restores marks for each nemesis acro
   assert.ok(chips(ctx)[5].className.includes('active'));
   ctx.state.cycle = 'c2';
   ctx.renderEnemyTracks();
-  assert.equal(select(ctx).value, 'adversary', 'selection is remembered separately for each cycle');
+  assert.equal(selected(ctx), 'adversary', 'selection is remembered separately for each cycle');
 });
 
 test('legacy cycle marks and scalar tracks migrate without losing progress or reviving cleared marks', () => {
@@ -244,4 +259,63 @@ test('nemesis loot writes to the active allowed cycle and uses the displayed pur
   assert.equal(ctx.recordCycleForLoot('DAHAKA', { cycle: 'c5' }), 'c4');
   assert.equal(ctx.recordCycleForLoot('DAHAKA', { cycle: 'c4' }, 'c2'), 'c2');
   assert.equal(vm.runInContext('APOSTLE_RECORD_CORE_KEY.HERMESIAN_PURSUER', ctx), 'core-pursuer');
+});
+
+/*
+ * 「切换」按钮的摆放回归（记录表 敌人 面板的宿敌行）。
+ *
+ * 原来的写法是按钮塞在标题列里、下拉挂在这行下沿：
+ *   .nemesis-switch select { top: calc(100% + 5px); }   // 宿敌行是面板最后一行
+ * 宿敌行是 .panel 里最后一行，面板的 overflow: hidden（给 8px 圆角裁边用）会把挂在下沿的
+ * 下拉从面板底边裁掉；按钮又在标题列里，标题列最窄压到 124px 时会被右边的等级格盖住。
+ * 所以这里钉住修法本身：按钮独立占最右一列，候选列表贴着按钮左缘向左弹出。
+ * 真机验证（无头 Chrome，420/660/1180/1920px 四个宽度量按钮、列表和面板的盒子）见
+ * tmp/nemesis-switch-check/measure-nemesis-switch.mjs。
+ */
+const css = read('record/record.css');
+function ruleBody(selector) {
+  const pattern = new RegExp('^\\s*' + selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{([^}]*)\\}', 'm');
+  const match = css.match(pattern);
+  assert.ok(match, `record.css 缺少 CSS 规则 ${selector}`);
+  return match[1];
+}
+
+test('切换按钮独占宿敌行最右一列，不再和标题挤在一格里', () => {
+  const rowRule = ruleBody('.track-row.nemesis-row');
+  assert.match(rowRule, /grid-template-columns:\s*minmax\(124px,\s*max-content\)\s+minmax\(0,\s*1fr\)\s+auto/,
+    '标题 / 等级格 / 按钮三列：按钮那列必须是 auto，才不会被挤掉');
+  assert.match(ruleBody('.nemesis-switch'), /justify-self:\s*end/, '按钮要靠这一列的右边');
+});
+
+test('候选列表贴着按钮左缘向左弹出，不再挂在行下沿被面板裁掉', () => {
+  const menuRule = ruleBody('.nemesis-switch-menu');
+  assert.match(menuRule, /position:\s*absolute/);
+  assert.match(menuRule, /right:\s*calc\(100%\s*\+\s*6px\)/, '右缘要贴住按钮左缘，列表才向左展开');
+  assert.doesNotMatch(menuRule, /top:\s*calc\(100%/, '不能再挂在按钮下方：宿敌行是最后一行，会被 .panel 的 overflow: hidden 裁掉');
+  assert.match(menuRule, /z-index:\s*\d+/, '浮层要压在等级格上面');
+  assert.match(menuRule, /flex-wrap:\s*wrap/, '窄面板里候选要能换行，不能顶穿面板左沿');
+  assert.match(ruleBody('.nemesis-switch-menu[hidden]'), /display:\s*none/, '收起时必须真的不占位');
+  assert.match(ruleBody('.nemesis-switch-option.active'), /background:\s*var\(--accent-strong\)/, '当前宿敌要在候选里高亮');
+});
+
+test('窄屏（index.html 把 .track-row 压成一列）时宿敌行跟着回到一列', () => {
+  const narrow = css.slice(css.indexOf('@media (max-width: 640px)'));
+  assert.match(narrow, /\.track-row\.nemesis-row\s*\{\s*grid-template-columns:\s*minmax\(0,\s*1fr\);?\s*\}/,
+    '640px 以下三列要一起让开，否则标题、等级格、按钮还挤在一行');
+});
+
+test('点「切换」弹出候选、选中后换宿敌并收起', () => {
+  const ctx = harness({ cycle: 'c2' });
+  ctx.renderEnemyTracks();
+  assert.equal(menu(ctx).hidden, true);
+  button(ctx).listeners.click();
+  assert.equal(menu(ctx).hidden, false, '点一下要弹出候选');
+  assert.equal(button(ctx).attributes['aria-expanded'], 'true');
+  button(ctx).listeners.click();
+  assert.equal(menu(ctx).hidden, true, '再点一下要收起');
+  button(ctx).listeners.click();
+  choose(ctx, 'dahaka');
+  assert.equal(ctx.currentNemesis().key, 'dahaka');
+  assert.equal(selected(ctx), 'dahaka');
+  assert.equal(menu(ctx).hidden, true, '换完宿敌这一行会重建，菜单要回到收起状态');
 });

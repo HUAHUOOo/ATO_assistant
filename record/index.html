@@ -1478,7 +1478,7 @@
     }
   </style>
   <link rel="stylesheet" href="../cycle-theme.css">
-  <link rel="stylesheet" href="./record.css?v=20261003-nemesis">
+  <link rel="stylesheet" href="./record.css?v=20261003-nemesis-right">
   <script src="../assets/theme.js?v=20261001" defer></script>
 </head>
 <body>
@@ -3843,8 +3843,10 @@
     }
 
     function renderObjectTrack(container, zh, en, values, group, key, options = {}) {
+      const nemesis = Boolean(options.nemesis);
       const row = document.createElement("div");
-      row.className = "track-row";
+      // 宿敌行比普通行多一列：切换按钮独占最右一列（见 makeNemesisSwitch）。
+      row.className = nemesis ? "track-row nemesis-row" : "track-row";
       const chips = document.createElement("div");
       chips.className = "chips";
       const normalizedValues = group === "enemies" ? evolutionStages(values) : values;
@@ -3937,7 +3939,8 @@
         });
         chips.appendChild(button);
       });
-      row.append(options.nemesis ? makeNemesisTrackTitle() : makeTrackTitle(zh, en), chips);
+      row.append(nemesis ? makeNemesisTrackTitle() : makeTrackTitle(zh, en), chips);
+      if (nemesis) row.appendChild(makeNemesisSwitch());
       container.appendChild(row);
     }
 
@@ -3970,6 +3973,16 @@
       const enemy = currentNemesis();
       const title = makeTrackTitle(enemy.zh, enemy.en);
       title.className = "track-name nemesis-track-name";
+      return title;
+    }
+
+    /* 「切换」按钮独占宿敌行的最右一列，候选从按钮左边弹出（见 record.css 的
+     * .nemesis-switch-menu）。以前按钮塞在标题里：标题列最窄会压到 124px，按钮就被
+     * 右邻的等级格盖住；下拉又贴在这行的下沿，正好被 .panel 的 overflow: hidden 裁掉。
+     * 现在按钮在最右、列表向左展开，两者都不会再被挡。 */
+    function makeNemesisSwitch() {
+      const enemy = currentNemesis();
+      const options = nemesisOptionsByCycle[state.cycle];
       const controls = document.createElement("div");
       controls.className = "nemesis-switch";
       const button = document.createElement("button");
@@ -3977,40 +3990,67 @@
       button.className = "nemesis-switch-button";
       button.textContent = "切换";
       button.setAttribute("aria-expanded", "false");
-      const select = document.createElement("select");
-      select.setAttribute("aria-label", "切换宿敌");
-      const options = nemesisOptionsByCycle[state.cycle];
-      options.forEach((key) => {
-        const option = document.createElement("option");
-        option.value = key;
-        option.textContent = nemesisByKey[key].zh;
-        select.appendChild(option);
-      });
-      select.value = enemy.key;
-      select.disabled = options.length === 1;
+      button.setAttribute("aria-haspopup", "true");
       button.disabled = options.length === 1;
       button.title = button.disabled ? "当前循环的宿敌固定" : "切换宿敌";
-      select.hidden = true;
-      button.addEventListener("click", () => {
-        select.hidden = !select.hidden;
-        button.setAttribute("aria-expanded", String(!select.hidden));
-        if (!select.hidden) select.focus();
-      });
-      select.addEventListener("keydown", (event) => {
-        if (event.key !== "Escape") return;
-        select.hidden = true;
+      const menu = document.createElement("div");
+      menu.className = "nemesis-switch-menu";
+      menu.setAttribute("role", "menu");
+      menu.setAttribute("aria-label", "切换宿敌");
+      menu.hidden = true;
+      const optionButtons = [];
+      // 换宿敌会重建这一行，所以全局监听只在菜单打开期间挂着，关了立刻摘掉。
+      function closeOnOutsideClick(event) {
+        if (controls.contains(event.target)) return;
+        closeMenu();
+      }
+      function closeMenu() {
+        menu.hidden = true;
         button.setAttribute("aria-expanded", "false");
+        document.removeEventListener("pointerdown", closeOnOutsideClick, true);
+      }
+      options.forEach((key) => {
+        const option = document.createElement("button");
+        option.type = "button";
+        const active = key === enemy.key;
+        option.className = ["nemesis-switch-option", active ? "active" : ""].filter(Boolean).join(" ");
+        option.value = key;
+        option.textContent = nemesisByKey[key].zh;
+        option.setAttribute("role", "menuitemradio");
+        option.setAttribute("aria-checked", String(active));
+        option.addEventListener("click", () => {
+          closeMenu();
+          if (!selectNemesis(key)) return;
+          renderEnemyTracks();
+          renderResources();
+          queueSave();
+        });
+        optionButtons.push(option);
+        menu.appendChild(option);
+      });
+      function openMenu() {
+        menu.hidden = false;
+        button.setAttribute("aria-expanded", "true");
+        document.addEventListener("pointerdown", closeOnOutsideClick, true);
+        const current = optionButtons.find((option) => option.className.includes("active"));
+        (current || optionButtons[0]).focus();
+      }
+      button.addEventListener("click", () => {
+        if (menu.hidden) openMenu();
+        else closeMenu();
+      });
+      menu.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape") return;
+        closeMenu();
         button.focus();
       });
-      select.addEventListener("change", () => {
-        if (!selectNemesis(select.value)) return;
-        renderEnemyTracks();
-        renderResources();
-        queueSave();
+      // 焦点落在按钮上时也要能按 Esc 收起，和焦点在候选里一样。
+      button.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape" || menu.hidden) return;
+        closeMenu();
       });
-      controls.append(button, select);
-      title.appendChild(controls);
-      return title;
+      controls.append(button, menu);
+      return controls;
     }
 
     function renderEnemyTracks() {
