@@ -199,3 +199,29 @@ test('category and cycle filters combine with Chinese, English and ID searches',
   c.arsenalPartFilter = ''; c.arsenalCycleFilter = 'c2';
   assert.equal(c.arsenalItemMatchesFilters(gear, ''), false);
 });
+
+test('gear production list shows the current cycle, later cycles and persistent adversary techs', () => {
+  const c = context(['productionCycleRank', 'isAdversaryProduction', 'shouldShowProductionForCycle'], {
+    PERSISTENT_ADVERSARY_PRODUCTION_IDS: new Set(['CA1595']),
+  });
+  const normal = cycle => ({ techId: 'XX0001', cycle });
+  const adversary = cycle => ({ techId: 'CA1595', cycle });
+
+  assert.equal(c.shouldShowProductionForCycle(normal('CYCLE_02'), 'CYCLE_02'), true, '本循环必须显示');
+  // 提前解锁后续循环的生产科技是本轮修掉的 bug：必须显示，否则拿到的科技卡造不出装备。
+  assert.equal(c.shouldShowProductionForCycle(normal('CYCLE_03'), 'CYCLE_02'), true, '后续循环必须显示');
+  assert.equal(c.shouldShowProductionForCycle(normal('CYCLE_05'), 'CYCLE_01'), true, '隔几个循环也要显示');
+  assert.equal(c.shouldShowProductionForCycle(normal('CYCLE_01'), 'CYCLE_03'), false, '更早的普通生产科技不显示');
+  assert.equal(c.shouldShowProductionForCycle(adversary('CYCLE_01'), 'CYCLE_03'), true, '更早的持续宿敌生产科技仍显示');
+  assert.equal(c.shouldShowProductionForCycle(adversary('CYCLE_04'), 'CYCLE_02'), true, '后续的宿敌生产科技同样显示');
+  assert.equal(c.shouldShowProductionForCycle(normal(''), 'CYCLE_02'), false, '认不出循环的条目不显示');
+
+  // 真实数据：C1 期间提前解锁 C4 的 DA2162 也要出现在装备制造里。
+  const production = require('../technology/ato_gear_production.json');
+  const c4Entry = production.techProduction.find(item => item.techId === 'DA2162');
+  assert.equal(c4Entry.cycle, 'CYCLE_04');
+  assert.equal(c.shouldShowProductionForCycle(c4Entry, 'CYCLE_01'), true);
+
+  // 筛选开关必须说明它包含后续循环，否则玩家会以为后面的循环被藏了。
+  assert.match(source, /只显示本循环及以后装备/);
+});

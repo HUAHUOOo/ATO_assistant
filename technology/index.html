@@ -785,6 +785,18 @@ button.gear-group-name:hover {
 .gear-item-main .gear-craft-panel {
   pointer-events: auto;
 }
+/* 提前解锁的后续循环装备：在名称后面标出它属于哪个循环。 */
+.gear-cycle-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #fdf1d8;
+  color: #8a6100;
+  font-size: 10px;
+  font-weight: 800;
+  vertical-align: middle;
+}
 .gear-item-cost {
   display: flex; flex-wrap: wrap; gap: 4px 6px;
   font-size: 11px; color: var(--muted); font-weight: 600;
@@ -1571,8 +1583,13 @@ function productionCycleRank(cycle) {
 }
 function shouldShowProductionForCycle(entry, productionCycle) {
   if (entry?.cycle === productionCycle) return true;
-  return isAdversaryProduction(entry)
-    && productionCycleRank(entry?.cycle) < productionCycleRank(productionCycle);
+  const entryRank = productionCycleRank(entry?.cycle);
+  const currentRank = productionCycleRank(productionCycle);
+  // 提前解锁的后续循环生产科技同样要能制造：玩家可能在进入那个循环之前就拿到了科技卡，
+  // 制造费用照旧按它自己所属循环的资源记账（craftPlanForGear 用的是 entry.cycle）。
+  if (Number.isFinite(entryRank) && Number.isFinite(currentRank) && entryRank > currentRank) return true;
+  // 更早的循环只保留「持续存在的宿敌」生产科技：它们在整个战役里都还能用。
+  return isAdversaryProduction(entry) && entryRank < currentRank;
 }
 function currentRecordCycleForGear() {
   return productionRecordCycle(currentProductionCycle());
@@ -1702,7 +1719,7 @@ function showGearTechCard(techId) {
 }
 function gearFilterBarHtml(visibleCount, totalCount) {
   return `<div class="gear-filter-bar">
-    <label class="gear-filter-option"><input type="checkbox" data-gear-filter="cycle" ${gearOnlyCurrentCycle ? 'checked' : ''}>只显示本循环装备</label>
+    <label class="gear-filter-option"><input type="checkbox" data-gear-filter="cycle" ${gearOnlyCurrentCycle ? 'checked' : ''}>只显示本循环及以后装备</label>
     <label class="gear-filter-option"><input type="checkbox" data-gear-filter="craftable" ${gearOnlyCraftable ? 'checked' : ''}>只显示可制造装备</label>
     <label class="gear-filter-option"><input type="checkbox" data-gear-filter="part" ${gearGroupByPart ? 'checked' : ''}>分部位显示</label>
     <span class="gear-search-hint" style="margin:0 0 0 auto">显示 ${visibleCount}/${totalCount} 件</span>
@@ -1712,6 +1729,12 @@ function gearItemHtml(entry, gear) {
   const gearName = getGearName(gear.gearId);
   const isTitan = String(gear.gearId).startsWith('T:tt_');
   const imgSrc = gearImageSrc(gear.gearId);
+  // 提前解锁的后续循环科技会出现在本循环的列表里：把它的所属循环标出来，
+  // 否则玩家看不懂这件装备为什么在这里、要扣的是哪一套资源。
+  const entryRecordCycle = productionRecordCycle(entry?.cycle);
+  const cycleBadge = entryRecordCycle && entryRecordCycle !== currentRecordCycleForGear()
+    ? `<span class="gear-cycle-badge">循环 ${esc(String(entryRecordCycle).replace(/[^0-9]/g, '') || entryRecordCycle)}</span>`
+    : '';
   let html = `<div class="gear-item" data-gear-id="${esc(gear.gearId)}" data-search-text="${esc(gearName.toLowerCase())}">`;
   if (imgSrc) {
     const fallback = isTitan
@@ -1723,7 +1746,7 @@ function gearItemHtml(entry, gear) {
   } else {
     html += `<div class="gear-card-thumb empty">${esc(gear.gearId)}</div>`;
   }
-  html += `<div class="gear-item-main"><div class="gear-item-name">${esc(gearName)}</div><div class="gear-item-cost">`;
+  html += `<div class="gear-item-main"><div class="gear-item-name">${esc(gearName)}${cycleBadge}</div><div class="gear-item-cost">`;
   for (const c of gear.cost) {
     const formatted = formatCost(c);
     if (formatted._or) {

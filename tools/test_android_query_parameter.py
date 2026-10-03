@@ -23,6 +23,7 @@
 from __future__ import annotations
 
 import pathlib
+import re
 import urllib.parse
 
 BLOCKED_ACTIONS = {"login", "register", "logout"}
@@ -144,6 +145,29 @@ if '"/index.html"' not in source:
     failures.append("局域网入口的 / 应当打开主控台 index.html")
 if 'path = "/ss/"' in source:
     failures.append("/ 不应再被改写到第二屏（/ss/ 仍可显式访问）")
+
+# 方法可用性：应用声明的最低系统是 API 24（app/build.gradle.kts 的 minSdk），而
+# URLDecoder.decode(String, Charset) 与 URLEncoder.encode(String, Charset) 是 API 33 才加入的
+# 重载。写成新重载编译期能过，旧手机运行到那一行却会抛 NoSuchMethodError；这段代码跑在
+# 线程池里，handle() 只 catch IOException，未捕获的 Error 会直接结束整个应用。
+# 所以这里钉住：这两个类只能用 API 1 起就存在的 (String, String) 重载。
+gradle_source = (server_source.parents[6] / 'build.gradle.kts').read_text(encoding='utf-8')
+if 'minSdk = 24' not in gradle_source:
+    failures.append("app/build.gradle.kts 的 minSdk 变了：请确认新最低版本是否已支持 (String, Charset) 重载")
+if re.search(r"URL(?:Decoder|Encoder)\.(?:decode|encode)\([^;{]*StandardCharsets\.", source):
+    failures.append("URLDecoder/URLEncoder 的 (String, Charset) 重载是 API 33 才有的，不能使用")
+if 'URLDecoder.decode(value, "UTF-8")' not in source:
+    failures.append('查询串解码必须走 decode(String, "UTF-8") 旧重载（见 decodeQueryPart）')
+
+# 上面这条改动最容易犯的错是漏 import：CI 里只有 Android 工程真的用 javac 编译一次才会发现
+# （本机没有 Android SDK，跑不了）。这里把用到的 JDK 类型和 import 钉在一起。
+for symbol, import_line in (
+    ('UnsupportedEncodingException', 'import java.io.UnsupportedEncodingException;'),
+    ('StandardCharsets', 'import java.nio.charset.StandardCharsets;'),
+    ('URLDecoder', 'import java.net.URLDecoder;'),
+):
+    if symbol in source and import_line not in source:
+        failures.append(f'用到了 {symbol} 却没有 {import_line}')
 
 if failures:
     print("局域网转发边界校验失败：")

@@ -381,6 +381,37 @@ test('逐日简报按「封面+索引」加每天一页排版', async () => {
 
 // ---------- 导出面与入口 ----------
 
+test('逐日 PDF 包含两张卡面及其数量，并容忍图片缺失', async () => {
+  const makeTrack = (name, progress, doom) => ({ known: true, progress, doom, preview: false, card: { label: '1B', name, image: './assets/' + name + '.jpg' } });
+  const days = [{ present: true, title: '第 1 天', cards: { story: makeTrack('故事图', 3, 0), doom: makeTrack('灾祸图', 2, 5) } }];
+  days[0].progress = { inward: { known: true, position: 7, progress: 2 }, hubs: { known: true, done: 1, total: 7, rows: [{ name: '宿命的谜题', done: 1, boxes: Array(7), active: true }] } };
+  const { doc, reportApi } = loadModules();
+  const loaded = [];
+  await reportApi.buildDailyPdf({ days, document: doc,
+    loadImage: async (src) => { loaded.push(src); return { width: 4807, height: 3296 }; },
+    toJpeg: async () => new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
+  });
+  assert.deepEqual(loaded.sort(), ['../assets/故事图.jpg', '../assets/灾祸图.jpg'].sort());
+  assert.equal(doc.canvases[1]._ctx.draws.length, 2);
+  const [left, right] = doc.canvases[1]._ctx.draws;
+  assert.equal(left.x + left.w, right.x, '故事和灾祸卡应无缝拼接');
+  assert.equal(left.h, right.h, '两张卡图应按相同比例高度拼接');
+  assert.ok(doc.canvases[1]._ctx.texts.includes('进展 3'));
+  assert.ok(doc.canvases[1]._ctx.texts.includes('进展 2 · 灾祸 5'));
+  assert.ok(doc.canvases[1]._ctx.texts.includes('阿尔戈号知识等级 7 · 进展 2'));
+  assert.ok(doc.canvases[1]._ctx.texts.includes('宿命的谜题 1/7 · 当前中枢'));
+  assert.equal(doc.canvases.length, 4, '封面、日页和两张缩略图');
+  assert.ok(doc.canvases.slice(2).every((canvas) => canvas.width <= 508 && canvas.height <= 334), '缓存缩略图应按 PDF 显示尺寸缩小');
+  const missing = loadModules();
+  const pages = await missing.reportApi.buildDailyPdf({ days, document: missing.doc,
+    loadImage: async () => { throw new Error('missing asset'); },
+    toJpeg: async () => new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
+  });
+  assert.equal(pages.length, 2);
+  assert.ok(missing.doc.canvases[1]._ctx.texts.includes('本地卡图尚未安装'));
+  assert.ok(missing.doc.canvases[1]._ctx.texts.includes('进展 2 · 灾祸 5'));
+});
+
 test('简报页只保留 GIF / PDF 导出，离线 HTML 导出与模块都已移除', () => {
   const html = fs.readFileSync(path.join(root, 'briefing', 'index.html'), 'utf8');
   assert.match(html, /id="exportFilesButton"/, 'GIF / PDF 导出按钮要留着');

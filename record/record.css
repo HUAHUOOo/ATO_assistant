@@ -66,6 +66,41 @@ textarea { background: var(--bg); }
 .track-row:last-child, .diplomacy-row:last-child { border-bottom: 0; }
 .track-name strong { color: var(--accent-strong); font-weight: 600; }
 .track-name span { font-weight: 400; }
+.nemesis-track-name { display: flex; align-items: center; min-width: 0; }
+/* 宿敌行开第三列放「切换」按钮：按钮永远在最右，标题列再窄也压不到它。
+   原来按钮在标题里，标题列被压到 124px 时按钮就被右边的等级格盖住。 */
+.track-row.nemesis-row { grid-template-columns: minmax(124px, max-content) minmax(0, 1fr) auto; }
+.nemesis-switch { position: relative; flex-shrink: 0; justify-self: end; }
+.nemesis-switch-button { min-height: 26px; padding: 3px 9px; font-size: 12px; color: var(--muted); background: transparent; border: 1px solid var(--line); }
+.nemesis-switch-button:disabled { opacity: .45; cursor: default; }
+.nemesis-switch-button[aria-expanded="true"] { color: var(--accent-strong); border-color: var(--accent); }
+/* 候选列表从按钮左侧弹出：右缘贴着按钮，向左展开盖在等级格上，仍留在这行的高度里，
+   所以既不会遮住按钮，也不会像原来那样被 .panel 的 overflow: hidden 从下沿裁掉。
+   width: max-content 不能省：定位包含块就是这个 26px 高的「切换」按钮，只给 right
+   的话收缩宽度按包含块算（约 50px），每个候选会被压成一行一个、叠成三行。 */
+.nemesis-switch-menu {
+  position: absolute;
+  right: calc(100% + 6px);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  width: max-content;
+  /* 只给 width: max-content 的话，候选一多就往面板左沿外顶、被 overflow: hidden 裁掉；
+     上限压在 320px（比最窄的桌面双栏面板里按钮左侧的余量还小），超了换行。 */
+  max-width: min(60vw, 320px);
+  padding: 4px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: 0 6px 16px rgba(36, 33, 29, .14);
+}
+.nemesis-switch-menu[hidden] { display: none; }
+.nemesis-switch-option { min-height: 26px; padding: 2px 9px; font-size: 12px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); white-space: nowrap; }
+.nemesis-switch-option:hover { color: var(--accent-strong); background: var(--accent-soft); border-color: var(--accent); }
+.nemesis-switch-option.active { color: #fff; background: var(--accent-strong); border-color: var(--accent-strong); }
 .chip, .adventure-box, .pygmalion-cell, .track-extra-box, .crew-counter { border-radius: 0; }
 .chip:not(.active), .adventure-box:not(.active), .pygmalion-cell:not(.active) { background: var(--bg); border-color: var(--line); color: var(--ink); }
 .chip.active, .adventure-box.active, .pygmalion-cell.active { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
@@ -115,6 +150,9 @@ textarea { background: var(--bg); }
   .panel-body { padding: 12px; }
   .identity-grid { justify-content: stretch; }
   .check-card { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  /* index.html 在这一档把 .track-row 压成一列，宿敌行的三列要一起让开，
+     否则标题、等级格、切换按钮还会硬挤在一行里。 */
+  .track-row.nemesis-row { grid-template-columns: minmax(0, 1fr); }
   .diplomacy-row { grid-template-columns: minmax(0, 1fr); }
   .summon-controls { grid-template-columns: minmax(0, 1fr); }
 }

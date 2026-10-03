@@ -11,6 +11,10 @@ const state = {
   loading: true,
   saving: false,
   error: "",
+  // 服务端文件版本号：每次保存都要带上，用来发现「另一个页面/另一个用户已经改过」。
+  revision: 0,
+  // 非 null 表示上一次保存因为版本冲突被拒绝：本页改动仍在，等用户选载入还是覆盖。
+  conflict: null,
 };
 
 const elements = {
@@ -36,6 +40,10 @@ const elements = {
   reviewedToggle: document.querySelector("#reviewedToggle"),
   rawPreview: document.querySelector("#rawPreview"),
   fileMeta: document.querySelector("#fileMeta"),
+  conflictBar: document.querySelector("#conflictBar"),
+  conflictText: document.querySelector("#conflictText"),
+  conflictReload: document.querySelector("#conflictReload"),
+  conflictOverwrite: document.querySelector("#conflictOverwrite"),
 };
 
 const tagDefinitionDefaults = [
@@ -94,19 +102,24 @@ function ensureEntry(cycleId, tileId) {
 }
 
 function normalizeData(data) {
+  // 从原对象出发再覆盖已知字段：这份文件里还有编辑器不认识的键（板块的 factions /
+  // factionUpdatedAt、标签定义的 cycles 等），从零拼新对象会让它们在下一次保存时消失。
   const normalized = {
+    ...(isPlainObject(data) ? data : {}),
     version: Number.isFinite(Number(data?.version)) ? Number(data.version) : 1,
     source: String(data?.source || "map/map-data.js"),
     updatedAt: String(data?.updatedAt || new Date().toISOString()),
     tagDefinitions: [],
     tiles: {},
   };
+  delete normalized.revision; // 版本号单独放在 state.revision，不混进要提交的数据里
 
   const defs = Array.isArray(data?.tagDefinitions) ? data.tagDefinitions : tagDefinitionDefaults;
   normalized.tagDefinitions = defs
     .map((definition) => {
       if (!isPlainObject(definition) || !definition.id) return null;
       return {
+        ...definition,
         id: String(definition.id),
         label: String(definition.label || definition.id),
         shortcut: definition.shortcut == null ? "" : String(definition.shortcut),
@@ -123,6 +136,7 @@ function normalizeData(data) {
     if (!cycleId || !tileId) return;
     const tags = Array.isArray(entry.tags) ? [...new Set(entry.tags.map((tag) => String(tag).trim()).filter(Boolean))] : [];
     normalized.tiles[tileKey(cycleId, tileId)] = {
+      ...entry,
       cycleId,
       tileId,
       reviewed: Boolean(entry.reviewed),
@@ -141,28 +155,82 @@ async function loadTagData() {
   const payload = await response.json();
   if (!payload.ok) throw new Error(payload.error || "读取失败");
   state.tagData = normalizeData(payload.data);
+  state.revision = Number.isFinite(Number(payload.revision)) ? Number(payload.revision) : 0;
+  state.conflict = null;
 }
 
-async function saveTagData() {
+async function saveTagData(options = {}) {
+  const force = Boolean(options.force);
   state.saving = true;
   renderStatus();
   const payload = { data: state.tagData };
+  // 带上「我基于哪个版本改的」：服务器在写锁里比对，别人已经改过就回 409 而不是覆盖。
+  // force 用于用户在冲突提示里明确选择「用本页覆盖」。
+  if (!force) payload.expectedRevision = state.revision;
   const response = await fetch("../api/map-tile-tags.php", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  const result = await response.json();
-  if (!result.ok) throw new Error(result.error || "保存失败");
+  const result = await response.json().catch(() => null);
+  if (response.status === 409 && result?.code === "SAVE_CONFLICT") {
+    // 不抛异常：调用方的 catch 会把它当成普通失败，而这里需要的是让用户选择。
+    state.saving = false;
+    state.dirty = true;
+    state.conflict = {
+      revision: Number.isFinite(Number(result.revision)) ? Number(result.revision) : state.revision,
+      updatedAt: String(result.updatedAt || ""),
+    };
+    state.error = "";
+    renderStatus();
+    return false;
+  }
+  if (!response.ok) throw new Error(result?.error || `HTTP ${response.status}`);
+  if (!result?.ok) throw new Error(result.error || "保存失败");
   state.tagData = normalizeData(result.data);
+  state.revision = Number.isFinite(Number(result.revision)) ? Number(result.revision) : state.revision;
   state.dirty = false;
   state.saving = false;
+  state.conflict = null;
+  state.error = "";
   renderStatus();
+  return true;
+}
+
+async function resolveConflict(mode) {
+  if (!state.conflict) return;
+  if (mode === "reload") {
+    // 放弃本页改动，载入服务器上的最新版本
+    try {
+      state.error = "";
+      await loadTagData();
+      state.dirty = false;
+      render();
+    } catch (error) {
+      state.error = String(error.message || error);
+      renderStatus();
+    }
+    return;
+  }
+  try {
+    state.error = "";
+    const saved = await saveTagData({ force: true });
+    if (saved) render();
+  } catch (error) {
+    state.error = String(error.message || error);
+    state.saving = false;
+    state.dirty = true;
+    renderStatus();
+  }
 }
 
 function queueSave() {
   state.dirty = true;
+  if (state.conflict) {
+    // 版本冲突未解决前不再自动重试，否则每 260ms 就打一次服务器并被拒一次。
+    renderStatus();
+    return;
+  }
   clearTimeout(state.saveTimer);
   state.saveTimer = setTimeout(() => {
     saveTagData().catch((error) => {
@@ -277,6 +345,16 @@ function updateSavePill() {
   }
 }
 
+function renderConflict() {
+  if (!elements.conflictBar) return;
+  const conflict = state.conflict;
+  elements.conflictBar.hidden = !conflict;
+  if (!conflict) return;
+  const stamp = conflict.updatedAt ? `，服务器更新时间 ${conflict.updatedAt}` : "";
+  elements.conflictText.textContent =
+    `这份标签文件已被其他页面或用户改动（服务器版本 ${conflict.revision}${stamp}）。本次保存没有写入，本页改动还在。`;
+}
+
 function renderStatus() {
   const cycle = getCurrentCycle();
   const tiles = currentTileList();
@@ -286,17 +364,24 @@ function renderStatus() {
 
   elements.statusText.textContent = state.loading
     ? "正在加载标签文件"
-    : state.error
-      ? "保存失败"
-      : `Cycle ${cycle?.label || cycle?.id || "?"}`;
+    : state.conflict
+      ? "保存被拒绝：文件已被改动"
+      : state.error
+        ? "保存失败"
+        : `Cycle ${cycle?.label || cycle?.id || "?"}`;
   elements.statusMeta.textContent = state.loading
     ? "请稍候。"
-    : state.error
-      ? state.error
-      : `${cycle?.tiles?.length || 0} 块 / 已核对 ${done} / 已打标 ${tagged} / 当前筛选 ${tiles.length}`;
+    : state.conflict
+      ? "本页改动还在，请选择：载入服务器版本，或用本页覆盖。"
+      : state.error
+        ? state.error
+        : `${cycle?.tiles?.length || 0} 块 / 已核对 ${done} / 已打标 ${tagged} / 当前筛选 ${tiles.length}`;
   elements.tileCount.textContent = `${tiles.length} 张`;
-  elements.fileMeta.textContent = state.tagData ? `更新时间 ${state.tagData.updatedAt || "-"}` : "";
+  elements.fileMeta.textContent = state.tagData
+    ? `更新时间 ${state.tagData.updatedAt || "-"} · 版本 ${state.revision}`
+    : "";
   updateSavePill();
+  renderConflict();
 
   if (tile) {
     elements.tileTitle.textContent = `${tile.label} · ${cycle.label}`;
@@ -506,6 +591,18 @@ function bindEvents() {
   elements.nextButton.addEventListener("click", () => {
     goNext();
   });
+
+  if (elements.conflictReload) {
+    elements.conflictReload.addEventListener("click", () => {
+      void resolveConflict("reload");
+    });
+  }
+
+  if (elements.conflictOverwrite) {
+    elements.conflictOverwrite.addEventListener("click", () => {
+      void resolveConflict("overwrite");
+    });
+  }
 
   window.addEventListener("keydown", (event) => {
     if (["INPUT", "TEXTAREA", "SELECT"].includes(event.target?.tagName)) return;

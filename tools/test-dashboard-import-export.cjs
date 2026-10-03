@@ -6,7 +6,8 @@
 //   1. 导出前先 flush，并且 dashboard / 顶层 profiles / legacyDashboard 三份必须
 //      来自同一份快照；
 //   2. flush 失败时改用内存快照，但三份仍必须一致，并标出 pendingLocalChanges；
-//   3. 导入部分失败必须报错，绝不提示「导入完成」，也不推进保存基线与 revision；
+//   3. 导入必须一次请求交全部模块（服务端整份校验、整份写入），失败时绝不提示
+//      「导入完成」、不推进保存基线与 revision、也不切换本页档案；
 //   4. 导入全部成功仍然提示成功，并推进 revision 与保存基线；
 //   5. 备份必须带全 7 个 section（含 aibp / story），导出与导入两侧都如此；
 //   6. 主控台地图命令遇到 409 必须读回最新状态再重放本次改动，同字段冲突则拒绝写入。
@@ -157,9 +158,13 @@ async function main() {
       currentCycle: () => ({ state: {} }),
       archive: {},
       state: {},
+      campaignSaveTimer: null,
+      clearTimeout() {},
+      flushCampaignSave: async () => true,
       campaignSectionRevision: 4,
       campaignSectionExists: true,
       campaignSectionBaseline: {},
+      campaignServerBaseline: {},
       cloneJson: (value) => JSON.parse(JSON.stringify(value)),
       campaignSyncChannel: null,
       syncInputs() {}, renderProfiles() {}, renderCycles() {}, renderFlow() {}, renderDateTrack() {},
@@ -176,12 +181,12 @@ async function main() {
           }
         : extra.fetch,
     });
-    vm.runInContext(between('async function saveImportedCampaignSection(', 'async function downloadJsonPayload(')
+    vm.runInContext(between('async function importCampaignSections(', 'async function downloadJsonPayload(')
       + backupPrelude + between('function importStateFile(', 'function clearState('), ctx);
     return ctx;
   }
 
-  // --- 导入部分/全部失败：不得报成功，不得推进基线 ---
+  // --- 导入失败：不得报成功，不得推进基线，也不得切换本页档案 ---
   await check('导入失败不报成功且不推进基线', async () => {
     const ctxImport = importContext({
       campaignSectionBaseline: { untouched: true },
@@ -189,17 +194,38 @@ async function main() {
     });
     ctxImport.importStateFile({ sections });
     await Reader.last.done;
-    assert.equal(postCount, 5, '五个 section 仍应各发一次请求');
-    assert.match(alertText, /未写入服务器/, `导入失败必须报错，实际提示：${alertText}`);
+    assert.equal(postCount, 1, '整份导入只能发一次请求');
+    assert.match(alertText, /没有写入/, `导入失败必须说清服务器没有被改动，实际提示：${alertText}`);
     assert.doesNotMatch(alertText, /导入完成/);
     assert.deepEqual(ctxImport.campaignSectionBaseline, { untouched: true }, '失败时不得推进保存基线');
     assert.equal(ctxImport.campaignSectionRevision, 4, '失败时不得推进 revision');
+    assert.deepEqual(ctxImport.archive, {}, '失败时本页档案不得切换成导入内容');
+  });
+
+  // --- 导入版本冲突：服务端整份拒绝，界面必须说明哪些模块被别处改过 ---
+  await check('导入版本冲突整份拒绝并列出冲突模块', async () => {
+    const ctxImport = importContext({
+      fetch: async () => ({
+        ok: false, status: 409,
+        json: async () => ({
+          ok: false, code: 'SAVE_CONFLICT',
+          error: 'Some sections were changed in another page. Nothing was written.',
+          sections: { heroes: { expected: 0, revision: 2 } },
+        }),
+      }),
+    });
+    ctxImport.importStateFile({ sections });
+    await Reader.last.done;
+    assert.match(alertText, /heroes/, `冲突提示必须点名模块，实际提示：${alertText}`);
+    assert.match(alertText, /没有写入/);
+    assert.doesNotMatch(alertText, /导入完成/);
+    assert.equal(ctxImport.campaignSectionRevision, 4, '冲突时不得推进 revision');
   });
 
   // --- 导入全部成功：仍然提示成功，并推进 revision 与保存基线 ---
   await check('导入成功提示成功并推进基线', async () => {
     const ctxImport = importContext({
-      fetch: async () => { postCount += 1; return { ok: true, status: 200, json: async () => ({ ok: true, revision: 9 }) }; },
+      fetch: async () => { postCount += 1; return { ok: true, status: 200, json: async () => ({ ok: true, sections: { dashboard: 9 } }) }; },
     });
     ctxImport.importStateFile({ sections });
     await Reader.last.done;
@@ -208,24 +234,34 @@ async function main() {
     assert.deepEqual(ctxImport.campaignSectionBaseline, sections.dashboard, '成功导入必须把保存基线推进到导入后的档案');
   });
 
-  // --- 带 aibp / story 的备份必须一并写回（7 个 section） ---
-  await check('导入写回含 aibp/story 的 7 个 section', async () => {
-    const postedSections = [];
+  // --- 带 aibp / story 的备份必须一并写回（7 个 section，一次请求） ---
+  await check('导入一次写回含 aibp/story 的 7 个 section', async () => {
+    const posted = [];
     const ctxImport = importContext({
       fetch: async (url, options) => {
         postCount += 1;
         const body = JSON.parse(options.body);
-        postedSections.push(body.section);
-        assert.equal(typeof body.expectedRevision, 'number', `${body.section} 必须带 expectedRevision`);
+        posted.push(body);
+        assert.match(url, /action=import-sections/, '导入必须走整份导入接口');
         assert.equal(body.expectedAccountId, 'account');
-        return { ok: true, status: 200, json: async () => ({ ok: true, revision: 11 }) };
+        Object.entries(body.expectedRevisions).forEach(([section, revision]) => {
+          assert.equal(typeof revision, 'number', `${section} 必须带数字 expectedRevision`);
+        });
+        assert.equal(body.expectedRevisions.dashboard, 4);
+        assert.equal(body.expectedRevisions.heroes, 0);
+        return { ok: true, status: 200, json: async () => ({ ok: true, sections: { dashboard: 11 } }) };
       },
     });
     ctxImport.importStateFile({ sections: { ...sections, aibp: { mirror: 'imported battle' }, story: { bookId: 'imported story' } } });
     await Reader.last.done;
     assert.equal(alertText, '导入完成。');
-    assert.equal(postCount, 7, '含 aibp / story 的备份应写回 7 个 section');
-    assert.deepEqual(postedSections.sort(), ['aibp', 'dashboard', 'heroes', 'map', 'record', 'story', 'technology']);
+    assert.equal(postCount, 1, '七个模块必须在同一次请求里提交');
+    assert.equal(posted.length, 1);
+    assert.deepEqual(
+      Object.keys(posted[0].sections).sort(),
+      ['aibp', 'dashboard', 'heroes', 'map', 'record', 'story', 'technology']
+    );
+    assert.equal(posted[0].sections.aibp.mirror, 'imported battle');
     assert.equal(ctxImport.campaignSectionRevision, 11);
   });
 
@@ -233,19 +269,19 @@ async function main() {
     const posted = [];
     const ctxImport = importContext({ fetch: async (url, options) => {
       posted.push(JSON.parse(options.body));
-      return { ok: true, status: 200, json: async () => ({ ok: true, revision: 12 }) };
+      return { ok: true, status: 200, json: async () => ({ ok: true, sections: { dashboard: 12 } }) };
     } });
     ctxImport.importStateFile({ app: 'ATO Campaign Save Package', version: 3,
       sections: { dashboard: sections.dashboard, heroes: null, map: null } });
     await Reader.last.done;
     assert.equal(alertText, '导入完成。');
-    assert.deepEqual(posted.map(p => [p.section, p.state]), [
+    assert.deepEqual(Object.entries(posted[0].sections), [
       ['dashboard', sections.dashboard], ['map', null], ['heroes', null],
     ]);
     posted.length = 0;
     ctxImport.importStateFile({ sections: { dashboard: sections.dashboard, heroes: null } });
     await Reader.last.done;
-    assert.deepEqual(posted.map(p => p.section), ['dashboard']);
+    assert.deepEqual(Object.keys(posted[0].sections), ['dashboard']);
   });
 
   // --- 主控台地图命令：409 必须读回最新状态再重放本次改动 ---
@@ -313,7 +349,7 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  console.log('主控台导入/导出回归测试通过：导出先 flush 且三份快照一致、flush 失败仍一致、导入失败不报成功也不推进基线、成功导入推进基线、7 个 section 往返、地图命令 409 变基且同字段冲突拒绝覆盖');
+  console.log('主控台导入/导出回归测试通过：导出先 flush 且三份快照一致、flush 失败仍一致、导入整份提交且失败不报成功也不推进基线、冲突点名模块、成功导入推进基线、7 个 section 一次往返、地图命令 409 变基且同字段冲突拒绝覆盖');
 }
 
 main().catch((error) => { console.error(error); process.exitCode = 1; });

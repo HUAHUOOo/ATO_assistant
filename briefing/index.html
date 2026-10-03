@@ -6,7 +6,7 @@
 <title>ATO 战役简报</title>
 <link rel="stylesheet" href="../cycle-theme.css">
 <link rel="stylesheet" href="../assets/theme.css?v=20261001">
-<link rel="stylesheet" href="briefing.css?v=20261003-console">
+<link rel="stylesheet" href="briefing.css?v=20261003-progress2">
 <script src="../assets/theme.js?v=20261001" defer></script>
 </head>
 <body data-cycle="c1" data-theme-module="briefing">
@@ -23,6 +23,8 @@
       <div><dt>已记录</dt><dd><span id="recordedCount">—</span><small>天</small></dd></div>
       <div><dt>已探索</dt><dd><span id="exploredCount">—</span><small>格</small></dd></div>
       <div><dt>已点亮</dt><dd><span id="unlockedCount">—</span><small>项科技</small></dd></div>
+      <div><dt>故事进展</dt><dd><span id="storyProgressCount">—</span><small>枚</small></dd></div>
+      <div><dt>灾祸进展</dt><dd><span id="doomProgressCount">—</span><small>枚</small></dd></div>
     </dl>
   </div>
 </header>
@@ -74,10 +76,56 @@
     </div>
 
     <div class="panes">
+      <div class="campaign-overview">
+      <section class="pane pane-cards" aria-label="故事与灾祸卡面">
+        <header class="pane-head">
+          <h3>故事与灾祸</h3>
+          <span class="pane-sub">卡面随日期回放 · 点击图片放大</span>
+        </header>
+        <div class="card-spread">
+          <article class="card-half pane-story-card">
+            <header class="card-strip"><h4>故事卡</h4><span id="storyCardSummary">—</span></header>
+            <div class="card-canvas">
+              <button type="button" class="card-image-button" id="storyCardButton" aria-label="放大故事卡" hidden>
+                <img id="storyCardImage" alt="故事卡面" decoding="async">
+                <span class="card-side-badge" id="storyCardSide"></span>
+                <span class="card-progress-badge" id="storyCardProgress"></span>
+              </button>
+              <p class="card-empty" id="storyCardEmpty">这份备份没有故事卡记录。</p>
+            </div>
+            <footer class="pane-foot"><span id="storyCardName"></span><span id="storyCardNote"></span></footer>
+          </article>
+          <article class="card-half pane-doom-card">
+            <header class="card-strip"><h4>灾祸卡</h4><span id="doomCardSummary">—</span></header>
+            <div class="card-canvas">
+              <button type="button" class="card-image-button" id="doomCardButton" aria-label="放大灾祸卡" hidden>
+                <img id="doomCardImage" alt="灾祸卡面" decoding="async">
+                <span class="card-side-badge" id="doomCardSide"></span>
+                <span class="card-progress-badge" id="doomCardProgress"></span>
+              </button>
+              <p class="card-empty" id="doomCardEmpty">这份备份没有灾祸卡记录。</p>
+            </div>
+            <footer class="pane-foot"><span id="doomCardName"></span><span id="doomCardNote"></span></footer>
+          </article>
+        </div>
+      </section>
+      <aside class="pane pane-progress" aria-label="内蕴奥德赛与冒险中枢进度">
+        <section class="inward-progress">
+          <div class="progress-heading"><h3>内蕴奥德赛</h3><span>阿尔戈号知识</span></div>
+          <div class="inward-readout"><strong id="inwardPosition">—</strong><span id="inwardProgress">无记录</span></div>
+        </section>
+        <section class="hub-progress">
+          <div class="progress-heading"><h3>冒险中枢 <small>AHUB</small></h3><span id="hubProgressSummary">—</span></div>
+          <div class="hub-progress-list" id="hubProgressList"></div>
+        </section>
+        <p class="progress-source" id="progressSource">进度随日期回放</p>
+      </aside>
+      </div>
       <article class="pane pane-map">
         <header class="pane-head">
           <h3><span class="pane-number" aria-hidden="true">01</span>地图进展</h3>
           <span class="pane-sub" id="mapSummary"></span>
+          <div class="zoom-controls" role="group" aria-label="地图缩放"><button type="button" data-zoom="map" data-step="-0.2" aria-label="缩小地图">−</button><output id="mapZoom">120%</output><button type="button" data-zoom="map" data-step="0.2" aria-label="放大地图">+</button><button type="button" data-zoom="map" data-fit="true">全图</button></div>
         </header>
         <div class="pane-canvas map-canvas" id="mapCanvas">
           <div class="map-stage" id="mapStage"></div>
@@ -89,12 +137,14 @@
         <header class="pane-head">
           <h3><span class="pane-number" aria-hidden="true">02</span>科技树点亮</h3>
           <span class="pane-sub" id="techSummary"></span>
+          <div class="zoom-controls" role="group" aria-label="科技树缩放"><button type="button" data-zoom="tech" data-step="-0.2" aria-label="缩小科技树">−</button><output id="techZoom">160%</output><button type="button" data-zoom="tech" data-step="0.2" aria-label="放大科技树">+</button><button type="button" data-zoom="tech" data-fit="true">全图</button></div>
         </header>
         <div class="pane-canvas tech-canvas" id="techCanvas">
           <svg class="tech-svg" id="techSvg" role="img" aria-label="科技树点亮过程"></svg>
         </div>
         <footer class="pane-foot" id="techNewList"></footer>
       </article>
+
     </div>
   </section>
 
@@ -118,19 +168,27 @@
 </section>
 </div>
 
+<dialog class="card-preview-dialog" id="cardPreviewDialog" aria-labelledby="cardPreviewTitle">
+  <header><h2 id="cardPreviewTitle">卡面预览</h2><button type="button" class="ghost-button" id="cardPreviewClose" aria-label="关闭卡面预览">×</button></header>
+  <p id="cardPreviewProgress"></p>
+  <img id="cardPreviewImage" alt="卡面预览">
+</dialog>
+
 <!-- 地图与科技树复用仓库里现成的布局代码，简报自己只负责「按日期回放」。 -->
 <script src="../assets/vendor/gifenc.js?v=20261002-day1"></script>
 <script src="../assets/campaign-session.js?v=20260917"></script>
 <script src="../assets/cycle-symbols.js?v=20260918"></script>
+<script src="../assets/story-doom-card-data.js?v=20260918"></script>
 <script src="../map/map-data.js?v=20260926"></script>
 <script src="../map/nemesis-path.js?v=20260926"></script>
 <script src="../technology/tech-page-layout.js?v=20261003-hekaton-row1"></script>
 <script src="../technology/tech-tree.js?v=20261001-c4-gutters"></script>
-<script src="briefing-core.js?v=20261002-square"></script>
-<script src="briefing-map.js?v=20261002-day1"></script>
-<script src="briefing-tech.js?v=20261002-square"></script>
-<script src="briefing-gif.js?v=20261002-day1"></script>
-<script src="briefing-report.js?v=20261002-day1"></script>
-<script src="briefing-app.js?v=20261003-console"></script>
+<script src="briefing-core.js?v=20261003-focus"></script>
+<script src="briefing-progress-data.js?v=20261003-progress"></script>
+<script src="briefing-map.js?v=20261003-focus"></script>
+<script src="briefing-tech.js?v=20261003-focus"></script>
+<script src="briefing-gif.js?v=20261003-focus"></script>
+<script src="briefing-report.js?v=20261003-progress2"></script>
+<script src="briefing-app.js?v=20261003-focus"></script>
 </body>
 </html>

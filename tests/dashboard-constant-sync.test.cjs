@@ -76,7 +76,11 @@ function renderedRecord(cycle, record) {
   const names = ['currentCycle', 'renderAdventures', 'normalizeState', 'normalizeCycleStats', 'normalizeCrewCounters',
     'normalizeResources', 'migrateSharedResourceKey', 'normalizeCount', 'normalizeSummonSelection',
     'normalizeTitanList', 'normalizeTitanLimit', 'migrateTitanLimit', 'normalizeMatrix', 'normalizeMatrixKey',
-    'defaultDayForCycle', 'normalizeCycleDay', 'isPlainObject', 'cloneJson', 'migrateEnemyStages', 'getBindValue', 'getCycleStat', 'currentCycleStats'];
+    'defaultDayForCycle', 'normalizeCycleDay', 'isPlainObject', 'cloneJson', 'migrateEnemyStages', 'getBindValue', 'getCycleStat', 'currentCycleStats',
+    // normalizeState() 还依赖这些（记录表加入按循环选择宿敌、进化阶段之后）：漏掉就会
+    // ReferenceError，让整组用例在 record 侧加字段时莫名其妙地红掉。
+    'normalizeNemesisSelections', 'migrateNemesisProgress', 'normalizeNemesisResourceHistory',
+    'evolutionStages', 'getEvolutionStage'];
   vm.runInContext(recordSource.slice(recordSource.indexOf('    const cycleData = '), recordSource.indexOf('    const elements = '))
     + '\n' + names.map(name => extract(recordSource, name)).join('\n'), c);
   c.state = c.normalizeState(c.state);

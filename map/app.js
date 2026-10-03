@@ -2005,6 +2005,22 @@ function clearPendingAdversarySpawn() {
 }
 
 async function triggerAdversaryBattle(recordUndo = false) {
+  const cycleId = state.activeCycleId;
+  const profileId = mapStateProfileId;
+  let battleUrl;
+  try {
+    battleUrl = await adversaryBattleUrl(cycleId, profileId);
+    if (state.activeCycleId !== cycleId || mapStateProfileId !== profileId) {
+      throw new Error("地图档案或循环已切换，请在当前地图重新执行宿敌战斗。");
+    }
+  } catch (error) {
+    // Keep the movement that caused this encounter, so a failed record read
+    // does not leave the new AG/AD positions unsaved.
+    if (state.activeCycleId === cycleId && mapStateProfileId === profileId) saveState();
+    render();
+    window.alert(`读取记录表宿敌失败：${error.message || error}`);
+    return;
+  }
   const cycleState = activeCycleState();
   if (recordUndo) pushUndo();
   cycleState.tokens.AD = "";
@@ -2019,7 +2035,6 @@ async function triggerAdversaryBattle(recordUndo = false) {
     return;
   }
 
-  const battleUrl = adversaryBattleUrl();
   if (battleUrl) {
     window.alert("仇敌与阿尔戈号同板块：移除仇敌，并打开对应战斗。");
     window.location.href = battleUrl;
@@ -2029,8 +2044,14 @@ async function triggerAdversaryBattle(recordUndo = false) {
   window.alert("仇敌与阿尔戈号同板块：移除仇敌，并在当前步骤结束时结算仇敌战斗。");
 }
 
-function adversaryBattleUrl() {
-  const target = adversaryBattleByCycle[state.activeCycleId];
+async function adversaryBattleUrl(cycleId = state.activeCycleId, profileId = mapStateProfileId) {
+  const response = await fetch(`${campaignStorageUrl}?section=record`, { cache: "no-store" });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const payload = campaignSession.accept(await response.json());
+  if (!payload?.ok) throw new Error(payload?.error || "读取记录表失败");
+  const section = payload.state;
+  const record = section?.users ? section.users[profileId] : section;
+  const target = window.ATO_NEMESIS_BATTLE.targetFor(cycleId, record, adversaryBattleByCycle);
   if (!target) return "";
 
   const params = new URLSearchParams();

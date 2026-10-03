@@ -291,6 +291,9 @@
     const techInfo = entry.tech || null;
     const newTech = (techInfo && techInfo.new) || [];
     if (entry.objective) sections.push(['目标', entry.objective]);
+    const progress = entry.progress;
+    if (progress?.inward?.known) sections.push(['内蕴奥德赛', `阿尔戈号知识等级 ${progress.inward.position} · 进展 ${progress.inward.progress}`]);
+    if (progress?.hubs?.known) sections.push(['冒险中枢 AHUB', `已勾选 ${progress.hubs.done} / ${progress.hubs.total} 分支\n` + progress.hubs.rows.map((hub) => `${hub.name} ${hub.done}/${hub.boxes.length}${hub.active ? ' · 当前中枢' : ''}`).join('\n')]);
     if (entry.story && (entry.story.section || entry.story.title)) {
       sections.push(['故事', [entry.story.section, entry.story.title].filter(Boolean).join(' · ')]);
     }
@@ -324,6 +327,83 @@
     return sections;
   }
 
+  // 卡面与数量一同进入逐日 PDF；没有安装图片时仍保留文字记录。
+  async function writeCardSnapshots(writer, cards, imageCache, options) {
+    if (!cards || !['story', 'doom'].some((kind) => cards[kind] && cards[kind].known)) return;
+    const gap = 0;
+    const width = (PAGE_PX_WIDTH - MARGIN * 2 - gap) / 2;
+    const thumbnailHeight = 350;
+    const views = await Promise.all(['story', 'doom'].map(async (kind) => {
+      const track = cards[kind];
+      const path = track && track.card && track.card.image;
+      let image = null;
+      if (path) {
+        const src = '../' + path.replace(/^\.\//, '');
+        if (!imageCache.has(src)) {
+          const promise = options.loadImage
+            ? Promise.resolve().then(() => options.loadImage(src))
+            : new Promise((resolve) => {
+              const node = new Image();
+              node.onload = () => resolve(node);
+              node.onerror = () => resolve(null);
+              node.src = src;
+            });
+          imageCache.set(src, promise.then((original) => {
+            if (!original) return null;
+            // 原始卡图可达数千万像素，缓存 PDF 实际使用的小图避免保留整副牌的解码内存。
+            const iw = original.naturalWidth || original.width || width;
+            const ih = original.naturalHeight || original.height || thumbnailHeight;
+            const scale = Math.min(1, (width - 16) / iw, (thumbnailHeight - 16) / ih);
+            const thumbnail = writer.doc.createElement('canvas');
+            thumbnail.width = Math.max(1, Math.round(iw * scale));
+            thumbnail.height = Math.max(1, Math.round(ih * scale));
+            thumbnail.getContext('2d').drawImage(original, 0, 0, thumbnail.width, thumbnail.height);
+            return thumbnail;
+          }).catch(() => null));
+        }
+        image = await imageCache.get(src);
+      }
+      return { kind, track, image };
+    }));
+    const ratios = views.map(({ image }) => image ? image.width / image.height : 1.46);
+    const fullWidth = PAGE_PX_WIDTH - MARGIN * 2;
+    const imageHeight = Math.min(900, fullWidth / (ratios[0] + ratios[1]));
+    const joinedWidth = imageHeight * (ratios[0] + ratios[1]);
+    const rowHeight = imageHeight + 100;
+    writer.ensure(rowHeight);
+    const ctx = writer.page.ctx;
+    const top = writer.page.y;
+    views.forEach(({ kind, track, image }, index) => {
+      const columnWidth = imageHeight * ratios[index];
+      const x = MARGIN + (fullWidth - joinedWidth) / 2 + (index ? imageHeight * ratios[0] : 0);
+      const card = track && track.card;
+      ctx.fillStyle = '#5f341b';
+      ctx.font = 'bold 21px ' + FONT;
+      ctx.textAlign = 'left';
+      ctx.fillText((kind === 'story' ? '故事卡' : '灾祸卡') + (card ? ' · ' + card.label : ''), x, top);
+      ctx.font = '18px ' + FONT;
+      const counts = track && track.known
+        ? (track.preview ? '未开始 · 下张预览 · ' : '') + '进展 ' + track.progress + (kind === 'doom' ? ' · 灾祸 ' + track.doom : '')
+        : '这份备份没有卡片记录';
+      ctx.fillText(counts, x, top + 32);
+      ctx.fillStyle = '#f6f0eb';
+      ctx.fillRect(x, top + 48, columnWidth, imageHeight);
+      if (image) {
+        ctx.drawImage(image, x, top + 48, columnWidth, imageHeight);
+      } else {
+        ctx.fillStyle = '#706a60';
+        ctx.font = '17px ' + FONT;
+        ctx.fillText(card ? '本地卡图尚未安装' : '无对应卡面', x + 16, top + 90);
+      }
+      if (card) {
+        ctx.fillStyle = '#706a60';
+        ctx.font = '16px ' + FONT;
+        ctx.fillText(wrapText(ctx, card.name, columnWidth)[0], x, top + imageHeight + 74);
+      }
+    });
+    writer.page.y += rowHeight;
+  }
+
   /** 逐日简报：封面 + 索引 + 每天一页，返回 [{ jpeg, width, height }]。 */
   async function buildDailyPdf(options) {
     const doc = options.document || document;
@@ -335,6 +415,7 @@
     const cycleLabel = (payload.cycle && payload.cycle.label) || '战役';
     const recorded = days.filter((entry) => entry.present);
     const writer = createDocWriter(doc);
+    const cardImageCache = new Map();
 
     // 封面 / 索引
     writer.startPage('');
@@ -362,7 +443,9 @@
     });
 
     // 每天一页
-    recorded.forEach((entry, index) => {
+    for (let index = 0; index < recorded.length; index += 1) {
+      const entry = recorded[index];
+      writer.header = '战役简报 · ' + cycleLabel + ' · ' + entry.title;
       writer.startPage('战役简报 · ' + cycleLabel);
       writer.page.y = MARGIN + 30;
       writeBlock(writer, { text: entry.title, size: 30, bold: true, gap: 4 });
@@ -371,12 +454,13 @@
         entry.location ? '位置 ' + entry.location : '',
       ].filter(Boolean).join(' · ');
       if (meta) writeBlock(writer, { text: meta, size: 17, color: '#706a60', gap: 16 });
+      await writeCardSnapshots(writer, entry.cards, cardImageCache, options);
       daySectionTexts(entry, techNames).forEach(([title, body]) => {
         writeBlock(writer, { text: title, size: 21, bold: true, color: '#7f4b26', gap: 2 });
         writeBlock(writer, { text: body, size: 18, indent: 18, gap: 14 });
       });
       if (options.onProgress) options.onProgress(index + 1, recorded.length);
-    });
+    }
 
     const pages = [];
     for (let index = 0; index < writer.pages.length; index += 1) {
@@ -475,6 +559,7 @@
       days,
       document: doc,
       toJpeg: options.toJpeg,
+      loadImage: options.loadImage,
       onProgress: (done, total) => onStatus('正在排版逐日简报 PDF… ' + done + '/' + total + ' 页'),
     });
     entries.push({

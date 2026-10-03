@@ -19,14 +19,18 @@
   function create(options) {
     const svg = options.svg;
     const canvas = options.canvas;
+    const autoFocus = options.autoFocus !== false;
     // 日期轴上的先后关系：节点存的是「首次点亮的日期名」，回放时要把名字换算成序号才能比大小。
     const dayIndex = new Map();
     (options.timeline || []).forEach((entry) => {
       const index = Number(entry.index);
       if (Number.isFinite(index)) dayIndex.set(String(entry.day), index);
     });
-    const pages = (options.pages || []).map((page) => buildPage(page, dayIndex));
+    const pages = core.replayTechPages(options.pages, options.timeline).map((page) => buildPage(page, dayIndex));
     const rendered = pages.filter((entry) => entry.layout);
+    let scale = 1.6;
+    let overview = false;
+    let focusPoint = null;
 
     function fit() {
       if (!rendered.length) return;
@@ -35,10 +39,14 @@
       // 让最宽的一页正好铺满；纵向超出时容器自己滚动，字号保持可读。
       const widest = Math.max(...rendered.map((entry) => entry.layout.width));
       const tallest = Math.max(...rendered.map((entry) => entry.layout.height));
-      const scale = Math.min(1.35, available / widest);
-      svg.setAttribute('width', String(Math.round(widest * scale)));
-      svg.setAttribute('height', String(Math.round(tallest * scale)));
-      svg.setAttribute('viewBox', `0 0 ${Math.round(widest)} ${Math.round(tallest)}`);
+      if (overview) scale = Math.min(1.6, available / widest);
+      // 四周留半个视口，让位于图纸边缘的节点也能真正居中。
+      const padWidth = autoFocus && !overview ? canvas.clientWidth : 0;
+      const padHeight = autoFocus && !overview ? canvas.clientHeight || 0 : 0;
+      svg.setAttribute('width', String(widest * scale + padWidth));
+      svg.setAttribute('height', String(tallest * scale + padHeight));
+      svg.setAttribute('viewBox', `${-padWidth / (2 * scale)} ${-padHeight / (2 * scale)} ${widest + padWidth / scale} ${tallest + padHeight / scale}`);
+      if (autoFocus && !overview) core.focusViewport(canvas, focusPoint, scale, true);
     }
 
     function render(day) {
@@ -50,6 +58,7 @@
       svg.textContent = '';
       let unlockedCount = 0;
       let total = 0;
+      let focusCandidate = null;
 
       pages.forEach((entry) => {
         total += entry.nodes.length;
@@ -80,6 +89,10 @@
             if (!position) return;
             const state = stateOf(node.id);
             if (state.unlocked) unlockedCount += 1;
+            if (state.unlocked) {
+              const rank = entry.firstDayIndex.get(node.id);
+              if (!focusCandidate || rank >= focusCandidate.rank) focusCandidate = { rank, x: position.x + position.width / 2, y: position.y + position.height / 2 };
+            }
             group.appendChild(renderNode(node, position, state));
           });
         }
@@ -87,13 +100,16 @@
         svg.appendChild(group);
       });
 
+      focusPoint = focusCandidate;
       fit();
       return { unlocked: unlockedCount, total, pages: pages.length };
     }
 
     function resize() { fit(); }
+    function setZoom(value) { overview = false; scale = Math.max(0.5, Math.min(3, value)); fit(); }
+    function fitView() { overview = true; fit(); }
 
-    return { render, resize };
+    return { render, resize, setZoom, fitView, zoom: () => scale };
   }
 
   function buildPage(page, dayIndex) {
@@ -182,7 +198,7 @@
     label.setAttribute('x', position.width / 2);
     label.setAttribute('y', position.height / 2 + 3.5);
     label.setAttribute('text-anchor', 'middle');
-    label.textContent = clip(displayNameOf(node), Math.floor(position.width / 9));
+    label.textContent = clip(displayNameOf(node), Math.floor((position.width - 12) / 10));
     group.appendChild(label);
 
     if (state.today) {

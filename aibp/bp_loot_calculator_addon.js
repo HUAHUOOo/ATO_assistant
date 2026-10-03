@@ -163,7 +163,7 @@ Add these script tags after the main viewer script:
   const APOSTLE_RECORD_CORE_KEY = {
     HEKATON: "core-hekaton",
     LABYRINTHAUROS: "core-labyrinthauros",
-    HERMESIAN_PURSUER: "core-hermesian-pursuer",
+    HERMESIAN_PURSUER: "core-pursuer",
     ALPHA_TEMENOS: "core-alpha-temenos",
     CHIMERA_METASTASIOS: "core-chimera",
     CYCLONUS: "core-cyclonus",
@@ -222,6 +222,12 @@ Add these script tags after the main viewer script:
     MEDUKETOS: { cycle: "c5", key: "meduketos" },
     UR_FLEECE: { cycle: "c5", key: "urFleece" },
     TITAN_X: { cycle: "c5", key: "titanX" }
+  };
+  const RECORD_NEMESIS_CYCLES = {
+    HERMESIAN_PURSUER: ["c1", "c2"],
+    THE_BURDEN: ["c2", "c3"],
+    DAHAKA: ["c2", "c3", "c4"],
+    TITAN_X: ["c5"],
   };
   const RECORD_STAGE_LEVELS = {
     hekaton: { "0": 0, "1a": 1, "1b": 1, "2a": 2, "2b": 2, "2c": 3, "3": 3, "4a": 4, "4b": 4, "4c": 4 },
@@ -661,9 +667,17 @@ Add these script tags after the main viewer script:
     const cycle = apostle === BURDEN_APOSTLE && currentCycle === "c3" ? "c3" : config.cycle;
     const trackKey = config.key;
     const levels = [];
+    const nemesis = Boolean(RECORD_NEMESIS_CYCLES[apostle]);
+    const nemesisPrefix = `nemesis:${trackKey}:`;
+    const hasSharedNemesis = nemesis && Object.keys(record.enemies).some((key) => key.startsWith(nemesisPrefix));
 
     Object.entries(record.enemies).forEach(([key, value]) => {
-      if (!value || !key.startsWith(`${cycle}:`)) return;
+      if (!value) return;
+      if (hasSharedNemesis) {
+        if (key.startsWith(nemesisPrefix)) levels.push(recordStageLevel(trackKey, key.slice(nemesisPrefix.length)));
+        return;
+      }
+      if (!key.startsWith(`${cycle}:`) && !(nemesis && /^c[1-5]:/.test(key))) return;
       const parts = key.split(":");
       if (parts[1] === trackKey) {
         levels.push(recordStageLevel(trackKey, parts[2]));
@@ -675,7 +689,7 @@ Add these script tags after the main viewer script:
     });
 
     const legacyValue = record.enemies[trackKey];
-    if (legacyValue !== undefined && legacyValue !== true && legacyValue !== false) {
+    if (!hasSharedNemesis && legacyValue !== undefined && legacyValue !== true && legacyValue !== false) {
       levels.push(recordStageLevel(trackKey, legacyValue));
     }
 
@@ -1111,7 +1125,7 @@ Add these script tags after the main viewer script:
       : ["c1", "c2", "c3", "c4", "c5"].includes(record?.cycle)
         ? record.cycle
         : "";
-    if (apostle === BURDEN_APOSTLE && activeCycle === "c3") return "c3";
+    if (RECORD_NEMESIS_CYCLES[apostle]?.includes(activeCycle)) return activeCycle;
     return APOSTLE_RECORD_CYCLE[apostle] || activeCycle || RECORD_DEFAULT_CYCLE;
   }
 

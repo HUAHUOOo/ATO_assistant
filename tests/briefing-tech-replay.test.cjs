@@ -89,8 +89,9 @@ function render(svg, renderer, day) {
 
 function newRenderer(pages, timeline) {
   const svg = new FakeElement('svg');
-  const renderer = tech.create({ svg, canvas: { clientWidth: 800 }, pages, timeline });
-  return { svg, renderer };
+  const canvas = { clientWidth: 800, clientHeight: 500 };
+  const renderer = tech.create({ svg, canvas, pages, timeline });
+  return { svg, renderer, canvas };
 }
 
 test('科技节点从首次点亮那天起一直亮着（跨日期累积，而不是只在当天亮）', () => {
@@ -121,10 +122,12 @@ test('科技节点从首次点亮那天起一直亮着（跨日期累积，而�
   assert.equal(d3.litToday.length, 0);
 
   const summary = render(svg, renderer, timelineFor(days)[3]).result;
-  assert.equal(summary.total, 3, '三个节点都要画出来（未点亮的画成灰底）');
+  assert.equal(summary.total, 2, '只显示最后一份备份已点亮的两项科技');
+  assert.equal(d0.nodes.length, 2, '后续会点亮的科技在早期回放中仍保留');
+  assert.ok(d0.nodes.some((node) => node.classes.includes('locked')), '早期尚未点亮的乙保持灰底');
 });
 
-test('未点亮的节点保持灰底，且不会因为回放被算成点亮', () => {
+test('直到最后一天仍未点亮和日期轴之外的节点全部隐藏', () => {
   const days = [
     { day: 'T0', unlocked: [], newKeys: [] },
     { day: 'T1', unlocked: [], newKeys: [] },
@@ -136,7 +139,7 @@ test('未点亮的节点保持灰底，且不会因为回放被算成点亮', ()
   const { svg, renderer } = newRenderer([page], timelineFor(days));
   const rendered = render(svg, renderer, timelineFor(days)[1]);
   assert.equal(rendered.result.unlocked, 0);
-  assert.equal(rendered.nodes.length, 3);
+  assert.equal(rendered.nodes.length, 0);
   assert.equal(rendered.unlocked.length, 0);
   const titles = rendered.nodes.map((node) => {
     const title = node.querySelector('title');
@@ -213,5 +216,40 @@ test('渲染器只画传进来的页面（页面挑选由调用方负责）', ()
 
   const filtered = newRenderer(core.selectTechPages(pages, 'c1'), timeline);
   assert.equal(render(filtered.svg, filtered.renderer, timeline[0]).result.pages, 1, '过滤后只画一页');
-  assert.equal(render(filtered.svg, filtered.renderer, timeline[0]).result.total, 3, '只统计当前循环的节点');
+  assert.equal(render(filtered.svg, filtered.renderer, timeline[0]).result.total, 1, '只统计当前循环最终点亮的节点');
+});
+
+test('科技树切换日期、缩放和调整窗口后保持最新点亮节点居中', () => {
+  const days = timelineFor([{ day: 'T0', unlocked: ['alpha'], newKeys: ['alpha'] }, { day: 'T2', unlocked: ['alpha', 'beta'], newKeys: ['beta'] }]);
+  const { svg, renderer, canvas } = newRenderer([miniPage()], days);
+  canvas.clientWidth = 120;
+  canvas.clientHeight = 80;
+  const today = render(svg, renderer, days[1]).litToday[0];
+  const [, x, y] = today.getAttribute('transform').match(/translate\(([^,]+),([^\)]+)\)/);
+  const rect = today.children.find((child) => child.tagName === 'rect');
+  const center = { x: Number(x) + Number(rect.getAttribute('width')) / 2, y: Number(y) + Number(rect.getAttribute('height')) / 2 };
+  const check = (scale) => {
+    assert.equal(canvas.scrollLeft, center.x * scale);
+    assert.equal(canvas.scrollTop, center.y * scale);
+  };
+  check(1.6);
+  renderer.setZoom(2);
+  check(2);
+  canvas.clientWidth = 240;
+  renderer.resize();
+  check(2);
+  const previousTop = canvas.scrollTop;
+  render(svg, renderer, days[0]);
+  assert.notEqual(canvas.scrollTop, previousTop, '退回早期日期应聚焦到甲');
+});
+
+test('GIF 离屏科技树应用隐藏规则，但不加入屏幕聚焦留白', () => {
+  const timeline = timelineFor([{ day: 'T0', unlocked: ['alpha'], newKeys: ['alpha'] }]);
+  const svg = new FakeElement('svg');
+  const canvas = { clientWidth: 100000, clientHeight: 100000 };
+  const renderer = tech.create({ svg, canvas, pages: [miniPage()], timeline, autoFocus: false });
+  assert.equal(render(svg, renderer, timeline[0]).nodes.length, 1);
+  assert.ok(Number(svg.getAttribute('width')) < 10000, '离屏图不能加入巨大的虚拟视口留白');
+  assert.match(svg.getAttribute('viewBox'), /^0 0 /);
+  assert.equal(canvas.scrollLeft, undefined, '导出只生成整幅图，不执行屏幕滚动');
 });

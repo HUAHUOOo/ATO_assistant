@@ -361,6 +361,7 @@
     const offscreen = techApi.create({
       svg,
       canvas: { clientWidth: 100000, clientHeight: 100000 },
+      autoFocus: false,
       pages: options.pages || [],
       timeline: options.timeline || options.days || [],
     });

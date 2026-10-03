@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -300,6 +301,20 @@ final class LocalSecondScreenServer {
     return new String(raw.toString().getBytes(StandardCharsets.ISO_8859_1), StandardCharsets.UTF_8);
   }
 
+  // URLDecoder.decode(String, Charset) 是 Android 13（API 33）才加入的重载，而本项目
+  // 最低支持 API 24（见 app/build.gradle.kts）。用新重载能让编译通过，旧手机运行到这一行
+  // 却会抛 NoSuchMethodError；这里是后台线程，只 catch IOException 的 handle() 拦不住它，
+  // 未捕获异常会把整个应用结束掉。固定走 API 1 起就存在的 decode(String, String) 重载。
+  private static String decodeQueryPart(String value) {
+    try {
+      return URLDecoder.decode(value, "UTF-8");
+    } catch (UnsupportedEncodingException error) {
+      // UTF-8 是 JDK 规定必须支持的编码，正常到不了这里；转成调用方已处理的
+      // IllegalArgumentException，避免把受检异常扩散到整个请求处理链路。
+      throw new IllegalArgumentException("Unsupported encoding: UTF-8", error);
+    }
+  }
+
   // rawQuery 是已编码的查询串（不含 '?'），可能为 null。
   private static String queryParameter(String rawQuery, String name) {
     if (rawQuery == null || rawQuery.isEmpty()) return null;
@@ -307,9 +322,9 @@ final class LocalSecondScreenServer {
       if (pair.isEmpty()) continue;
       int separator = pair.indexOf('=');
       String key = separator < 0 ? pair : pair.substring(0, separator);
-      if (!name.equals(URLDecoder.decode(key, StandardCharsets.UTF_8))) continue;
+      if (!name.equals(decodeQueryPart(key))) continue;
       String value = separator < 0 ? "" : pair.substring(separator + 1);
-      return URLDecoder.decode(value, StandardCharsets.UTF_8);
+      return decodeQueryPart(value);
     }
     return null;
   }

@@ -48,5 +48,71 @@
     return withNodes.length ? withNodes : all;
   }
 
-  return { nodeState, selectTechPages };
+  /** 回放只保留最后一份备份仍已点亮、且能定位到首次点亮日期的节点。 */
+  function replayTechPages(pages, timeline) {
+    const days = (timeline || []).filter((day) => day.present);
+    const last = days[days.length - 1];
+    const unlocked = new Set(last?.tech?.unlocked || []);
+    const dates = new Set(days.map((day) => String(day.day)));
+    return (pages || []).map((page) => ({ ...page, nodes: (page.nodes || []).filter((node) => unlocked.has(node.key) && node.firstDay != null && node.firstDay !== '' && dates.has(String(node.firstDay))) }));
+  }
+
+  /** 只滚动图面自身，避免回放把整页带走。 */
+  function focusViewport(canvas, point, scale, centeredPadding = false) {
+    if (!point || !canvas.clientWidth || !canvas.clientHeight) return;
+    canvas.scrollLeft = Math.max(0, point.x * scale - (centeredPadding ? 0 : canvas.clientWidth / 2));
+    canvas.scrollTop = Math.max(0, point.y * scale - (centeredPadding ? 0 : canvas.clientHeight / 2));
+  }
+
+  /** 与主控台一致：v1 的实体卡位置换成 A 面步骤，v2 直接使用 A/B 步骤。 */
+  function resolveCardTracks(snapshot, cycleData) {
+    const source = snapshot || {};
+    const tracks = source.cardTracks || {};
+    const counters = source.cardCounters || {};
+    const count = (value) => Number.isFinite(Number(value)) ? Math.max(0, Math.floor(Number(value))) : 0;
+    const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+    const result = {};
+    ['story', 'doom'].forEach((kind) => {
+      const raw = tracks[kind] || {};
+      const known = own(tracks, kind) || own(counters, kind) || own(counters, `${kind}Count`);
+      const deck = (cycleData && cycleData[`${kind}Steps`]) || [];
+      let position = count(raw.position ?? counters[kind] ?? counters[`${kind}Count`]);
+      let progress = count(raw.progress);
+      if (source.cardTracks && Number(source.cardTracksVersion) !== 2 && position > 0) position = (position - 1) * 2 + 1;
+      if (deck.length && position > deck.length) { position = deck.length; progress = 0; }
+      const card = known ? deck[position > 0 ? position - 1 : 0] || null : null;
+      result[kind] = { known, position, progress, doom: count(raw.doom), card, total: deck.length, preview: known && position === 0 };
+    });
+    return result;
+  }
+
+  /** 缺口日沿用前一份已知状态，明确指出来自哪一天，避免凭空补记录。 */
+  function cardStateAt(days, index) {
+    const selected = days[index];
+    if (!selected) return { cards: null, sourceDay: '', gap: false };
+    let entry = selected;
+    if (!selected.present) {
+      entry = days.slice(0, index).reverse().find((day) => day.present) || null;
+    }
+    return { cards: entry && entry.cards || null, progress: entry && entry.progress || null, sourceDay: entry && entry.title || '', gap: !selected.present };
+  }
+
+  function resolveCampaignProgress(snapshot, cycleId, hubs) {
+    const source = snapshot || {};
+    const raw = source.cardTracks?.inwardOdyssey;
+    const legacy = source.cardCounters || {};
+    const known = raw != null || legacy.inwardOdyssey != null || legacy.inwardOdysseyCount != null;
+    const count = (value) => Number.isFinite(Number(value)) ? Math.max(0, Math.floor(Number(value))) : 0;
+    const start = { c1: 1, c2: 20, c3: 40, c4: 60, c5: 80 }[cycleId] || 0;
+    const inward = { known, position: known ? count(raw?.position ?? legacy.inwardOdyssey ?? legacy.inwardOdysseyCount) || start : 0, progress: count(raw?.progress) };
+    const data = source.adventureHubs;
+    const rows = (hubs || []).map((hub) => {
+      const checked = new Set(data?.checked?.[hub.id] || []);
+      const boxes = hub.boxes.map(([id, label]) => ({ id, label, checked: checked.has(id), active: data?.activeHub === hub.id && data?.activeBox === id }));
+      return { ...hub, boxes, done: boxes.filter((box) => box.checked).length, active: data?.activeHub === hub.id };
+    });
+    return { inward, hubs: { known: data != null, rows, done: rows.reduce((sum, row) => sum + row.done, 0), total: rows.reduce((sum, row) => sum + row.boxes.length, 0) } };
+  }
+
+  return { nodeState, selectTechPages, replayTechPages, focusViewport, resolveCardTracks, cardStateAt, resolveCampaignProgress };
 });

@@ -895,6 +895,86 @@ if ($section !== null && !in_array($section, $allowedSections, true)) {
 
 $saveFile = user_campaign_file($dataDir, $user['id']);
 
+// 整份存档导入：客户端一次交出多个模块，服务端在同一把写锁里「全部校验通过才全部写入」。
+// 以前客户端是逐个模块 POST 的：七个请求里只要有一个失败（版本冲突 / 网络中断 / 500），
+// 已经成功的模块就留在服务器上，界面却只报「导入失败」，于是地图、英雄、资源可能分别
+// 属于两份不同的存档，而且没有任何地方记录哪几个成功了。
+if ($action === 'import-sections') {
+  if ($method !== 'POST') respond(405, ['ok' => false, 'error' => 'This action requires POST.']);
+  $payload = json_decode((string) file_get_contents('php://input'), true);
+  if (!is_array($payload)) respond(400, ['ok' => false, 'error' => 'Request body must be JSON.']);
+
+  $incoming = $payload['sections'] ?? null;
+  if (!is_array($incoming) || $incoming === []) {
+    respond(400, ['ok' => false, 'error' => 'Missing sections.']);
+  }
+  foreach (array_keys($incoming) as $name) {
+    if (!is_string($name) || !in_array($name, $allowedSections, true)) {
+      respond(400, ['ok' => false, 'error' => 'Unknown section: ' . (is_string($name) ? $name : '?')]);
+    }
+  }
+  $expectedRevisions = $payload['expectedRevisions'] ?? [];
+  if (!is_array($expectedRevisions)) {
+    respond(400, ['ok' => false, 'error' => 'expectedRevisions must be an object.']);
+  }
+  foreach ($expectedRevisions as $name => $revision) {
+    if (!is_string($name) || !in_array($name, $allowedSections, true)) {
+      respond(400, ['ok' => false, 'error' => 'Unknown section in expectedRevisions.']);
+    }
+    if (!is_int($revision) && !(is_string($revision) && ctype_digit($revision))) {
+      respond(400, ['ok' => false, 'error' => 'expectedRevisions values must be integers.']);
+    }
+  }
+
+  lock_store($saveFile, 'Could not lock the save file.');
+  $campaign = read_campaign($saveFile);
+
+  $expectedAccountId = payload_expected_account_id($payload);
+  if ($expectedAccountId !== null && $expectedAccountId !== (string) $user['id']) {
+    respond(409, [
+      'ok' => false,
+      'code' => 'ACCOUNT_MISMATCH',
+      'error' => 'This page was loaded for another account. Reload it before importing.',
+    ]);
+  }
+
+  // 校验放在写入之前：只要有一个模块的版本对不上，就整份拒绝，绝不留下一半新一半旧。
+  $conflicts = [];
+  foreach (array_keys($incoming) as $name) {
+    if (!array_key_exists($name, $expectedRevisions)) continue; // 没给期望版本 = 明确要求覆盖
+    $currentRevision = (int) ($campaign['sectionRevisions'][$name] ?? 0);
+    if ((int) $expectedRevisions[$name] !== $currentRevision) {
+      $conflicts[$name] = ['expected' => (int) $expectedRevisions[$name], 'revision' => $currentRevision];
+    }
+  }
+  if ($conflicts) {
+    respond(409, [
+      'ok' => false,
+      'code' => 'SAVE_CONFLICT',
+      'error' => 'Some sections were changed in another page. Nothing was written.',
+      'sections' => $conflicts,
+      'updatedAt' => $campaign['updatedAt'],
+    ]);
+  }
+
+  $currentCampaign = $campaign;
+  $applied = [];
+  foreach ($incoming as $name => $state) {
+    $campaign = update_campaign_section($campaign, $name, $state, payload_user_id($payload));
+    $campaign['sectionRevisions'][$name] = (int) ($currentCampaign['sectionRevisions'][$name] ?? 0) + 1;
+    $applied[$name] = $campaign['sectionRevisions'][$name];
+  }
+  // 备份和落盘都只做一次：要么整份进入新状态，要么保持导入前的原样。
+  prepare_campaign_backups($saveFile, $currentCampaign, $campaign, $backupCount);
+  write_campaign($saveFile, $campaign);
+  respond(200, [
+    'ok' => true,
+    'sections' => $applied,
+    'updatedAt' => $campaign['updatedAt'],
+    'user' => public_user($user),
+  ]);
+}
+
 if ($action === 'restore-previous-day') {
   if ($method !== 'POST') respond(405, ['ok' => false, 'error' => 'This action requires POST.']);
   $payload = json_decode((string) file_get_contents('php://input'), true);
