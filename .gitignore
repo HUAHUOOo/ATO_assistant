@@ -111,6 +111,9 @@ error_log
 # 一次性排查草稿，不随源码发布
 /tmp/
 api/.ato-update-*
+# 隔离用例在源码树里留下的临时目录（简报 API / 战役 API 的合成分账号数据）
+/api/tmp/
+/briefing/tmp/
 
 # Local TTS credentials (copy from tools/xfyun-long-tts.config.example.json)
 /tools/xfyun-long-tts.config.json
