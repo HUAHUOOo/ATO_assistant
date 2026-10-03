@@ -50,6 +50,8 @@ $allowedPaths = @(
   'assets/exploration-card-resource-rules.js',
   'assets/exploration-card-resources.js',
   'assets/exploration-card-tags.js',
+  'assets/jsave-import.js',
+  'assets/jsave-tables.js',
   'assets/page-focus-router.js',
   'assets/story-doom-card-data.js',
   'assets/term-language.js',
