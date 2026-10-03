@@ -25,7 +25,7 @@ function recordContext() {
     'isPlainObject', 'cloneJson', 'jsonEqual', 'migrateEnemyStages', 'normalizeState', 'normalizeCycleStats', 'normalizeCrewCounters',
     'normalizeNemesisSelections', 'migrateNemesisProgress', 'normalizeNemesisResourceHistory', 'evolutionStages', 'getEvolutionStage',
     'normalizeResources', 'migrateSharedResourceKey', 'normalizeCount', 'normalizeSummonSelection',
-    'normalizeTitanList', 'normalizeTitanLimit', 'migrateTitanLimit', 'normalizeMatrix', 'normalizeMatrixKey',
+    'normalizeTitanList', 'normalizeTitanLimit', 'normalizeDeadTitans', 'migrateTitanLimit', 'normalizeMatrix', 'normalizeMatrixKey',
     'defaultDayForCycle', 'normalizeCycleDay', 'renderCycleFields', 'currentCycle', 'currentCycleStats',
     'getCycleStat', 'syncSummonUsedCounts', 'getNymphCharges', 'hasNymphLimit', 'getNymphLimit',
     'mergeRecordChanges', 'mergeLogText',

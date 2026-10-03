@@ -1,0 +1,2913 @@
+{
+  "dashboard": {
+    "activeProfileId": "default",
+    "profiles": {
+      "default": {
+        "id": "default",
+        "name": "默认用户",
+        "activeCycleId": "c5",
+        "cycles": {
+          "c5": {
+            "id": "c5",
+            "state": {
+              "day": 80,
+              "dateNotes": {
+                "15": "正念分离 oleander",
+                "19": "布道",
+                "26": "布道\n血条",
+                "29": "哈皮泰坦、喷火泰坦、迷宫泰坦",
+                "31": "影舞者",
+                "33": "布道",
+                "39": "游戏改变者",
+                "40": "血条",
+                "42": "布道",
+                "43": "影舞",
+                "49": "4x通用泰坦",
+                "51": "传教",
+                "53": "交易cd",
+                "57": "影舞者",
+                "58": "飞蛾扑火",
+                "59": "4x通用泰坦",
+                "60": "交易cd",
+                "65": "c d",
+                "67": "x决战",
+                "68": "2407",
+                "71": "cd",
+                "72": "万事皆休All Good Things",
+                "73": "收获泰坦x3\ncd",
+                "75": "关闭培养系统"
+              },
+              "cardTracks": {
+                "story": {
+                  "position": 7,
+                  "progress": 0,
+                  "doom": 0
+                },
+                "doom": {
+                  "position": 5,
+                  "progress": 1,
+                  "doom": 0
+                },
+                "inwardOdyssey": {
+                  "position": 80,
+                  "progress": 0,
+                  "doom": 0
+                }
+              },
+              "cardTracksVersion": 2,
+              "nextBattleTerrain": null
+            }
+          }
+        }
+      }
+    }
+  },
+  "record": {
+    "users": {
+      "default": {
+        "profileName": "阿尔戈号记录",
+        "cycle": "c5",
+        "day": "80",
+        "location": "",
+        "storyCard": "7",
+        "doomCard": "5",
+        "mapTiles": "",
+        "counters": "必要之恶 2\n线索b 3\n线索a 1\n孤苦无依 9\n务实 1\n损耗 1\n传承 1\n未知提洛斯 14\n必要 1\n殉道 1",
+        "notes": "每次有泰坦死亡其他泰坦可以获得加一愤怒\nsea hai\ni am is musi give yongqi up1\nyongjiuhuode 山羊xiaoguo shi agro fate 阀值1\n不能获得和使用西西弗斯之泪\n水跳蚤扫描难度永久-4\nF4 buyaobuaoji\nJ7 不知道\nW11 .sow\nAA12 船坞\nBB9 L 圈起来的谎言\nCC12 l\n──────── 官方存档未导入项（由 .jsave 导入生成，勿手改） ────────\n战役 UID：496311329\n战役开始时间：12/25/2024 03:51:22\n战役名：Can toe\n战斗记录（1 条）：{id:0, lvl:0, outcome:true, ko:0}\n忆识剧场 boss 轨道（11）：[0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1]\n忆识剧场泪珠/登升核心：tears=[1,0,0,0,0] cores=[0,0,0,0,0] KO=0\n忆识剧场笔记（0 条）：（空）\n密语语言：已解译 centi 16/16、babyl 21/58；wiped=true；cent_lang=[2, 9, 4, 13, 8, 0, 15, 12, …]（共 16 项）；siren_lang/babyl_lang 各 7 项；translations centi/siren/babyl=0/0/5 条\n配装（3 套）：「Loadout 3」Titan 1=2 件；「Loadout 3 Copy」Titan 1=2 件；「Loadout 3」→ Titan 1/Titan 2/Titan 3/Titan 4（gear_ids 均为空）（另有 gear_card_prefs/notes 2 组非空，未展开）\n时间回环（81 格）：全 false（未使用）\n传送门目标：-1\n属性上限无落点（15 项）：AFATE=0, AKNOW=0, STRANGERS=0, REFUGEES=0, CAPTIVES=0, HUMANITY=0, DEFECTORS=0, CRIPPLED_TITANS=0, …（共 15 项）；另 6 项有对位字段但值为 0（写了会清空既有值，故未写）：CREW、HULL、AABILITY、SUMMON_LIMIT、TITAN_LIMIT、OXYGEN\n属性值无落点（5 项）：AKNOW=101, REFUGEES=0, CAPTIVES=0, CRIPPLED_TITANS=0, TIME_SILO=0\n轮次步骤：9（语义未定，未导入）\n皮格马利翁（单整数）：2（粒度不同，未导入）\n下战斗笔记（2 条）：强攻、hope\n资源无对应行（3 项）：UMBRAL_COUNT=0, STRING_WISH=1, STRING_WISH_PICK=60\n地图格笔记（0 条）：（空）\n──────── 官方存档未导入项 结束 ────────",
+        "adventures": {
+          "c5-0-alpha": true,
+          "c5-0-mid1": true,
+          "c5-0-mid2": true,
+          "c5-0-omega": true,
+          "c5-1-alpha": true,
+          "c5-1-mid1": true,
+          "c5-1-mid2": true,
+          "c5-1-mid3": true,
+          "c5-1-omega": true,
+          "c5-2-alpha": true,
+          "c5-2-mid1": true,
+          "c5-2-mid2": true,
+          "c5-3-alpha": true,
+          "c5-3-mid1": true,
+          "c5-4-alpha": true,
+          "c5-4-mid1": true,
+          "c5-4-mid2": true,
+          "c5-4-omega": true,
+          "c5-5-alpha": true,
+          "c5-5-mid1": true,
+          "c5-6-alpha": true,
+          "c5-6-mid1": true,
+          "c5-6-mid2": true,
+          "c5-6-omega": true
+        },
+        "diplomacy": {
+          "c5-outcastVanguard": "10",
+          "c5-followersOfArete": "10",
+          "c5-cycladeanProtectorate": "10"
+        },
+        "resources": {
+          "c1-monument": 23,
+          "c1-armament": 21,
+          "c2-warTrireme": 48,
+          "c2-relief": 25,
+          "c2-warMachine": 9,
+          "c3-sirenshell": 11,
+          "c3-hyperboreanAlloy": 23,
+          "c3-daedalusMakina": 10,
+          "c1-rawAmbrosia": 10,
+          "c1-muscleCluster": 7,
+          "c1-calcifiedKnuckle": 12,
+          "c1-fleshyMantle": 27,
+          "mazeFragment": 13,
+          "grotesqueBeak": 9,
+          "powderedMatter": 11,
+          "c2-violentAmbrosia": 2,
+          "c2-blackChain": 5,
+          "supersolidReliefMass": 19,
+          "skinOfMalice": 2,
+          "retractableMechanism": 115,
+          "reliefshellFragment": 101,
+          "c3-frozenAmbrosia": 16,
+          "c3-clothflesh": 15,
+          "c3-eyesCluster": 31,
+          "c3-razorclaw": 11,
+          "c3-icarianFeather": 25,
+          "c3-writhingTentacle": 29,
+          "c3-sunburnedSkull": 40,
+          "priests": 12,
+          "pygmalionStones": 9,
+          "echoesOfRecollection": 7,
+          "c1-core-labyrinthauros": 2,
+          "c1-core-temenos": 1,
+          "c2-core-cyclonus": 5,
+          "c2-core-chimera": 4,
+          "c3-core-sunDescendant": 1,
+          "c1-core-pursuer": 1,
+          "stringWish": 1,
+          "c4-cursedDerelict": 26,
+          "c4-imperialScroll": 3,
+          "c4-babylonianContraption": 74,
+          "c4-mutableAmbrosia": 12,
+          "c4-livingGold": 20,
+          "c4-cursedBloatsack": 9,
+          "c4-oldIremFragment": 4,
+          "c4-wishEmbryo": 12,
+          "promisedFuturesCarcass": 18,
+          "blackTaintedStepfinger": 16,
+          "c4-onyxDust": 24,
+          "c4-ireEssence": 1,
+          "c4-blackenedHalo": 6,
+          "c4-core-midascore": 1,
+          "c4-core-demidjinn": 4,
+          "c4-core-babelianLunacy": 2,
+          "c4-core-dahaka": 1,
+          "stringWishPick": 60,
+          "c5-atlanteanTekne": 10,
+          "c5-orichalcumChunk": 18,
+          "c5-liquidAether": 75,
+          "c5-oxidizedAmbrosia": 29,
+          "c5-hydradynamicScales": 12,
+          "c5-amygdalanExtract": 18,
+          "c5-photophobicFlesh": 16,
+          "c5-microwaveCell": 12,
+          "c5-blackWoolStrand": 14,
+          "c5-fadingLightConstruct": 5,
+          "c5-orichalcumAlloy": 2,
+          "c5-core-dragonOfPhobos": 1,
+          "c5-core-urFleece": 2,
+          "rare": "srx3\nantediluvian sirenshellx1\nbaise vxunhziyuanx1\njinzhix1\ngolden bough rarex4\nundead silver rarex7\npotential argonautx1"
+        },
+        "matrix": {
+          "A1": true,
+          "A2": true,
+          "A8": true,
+          "A10": true,
+          "B3": true,
+          "B9": true,
+          "B11": true,
+          "C2": true,
+          "C4": true,
+          "C10": true,
+          "D4": true,
+          "E2": true,
+          "E9": true,
+          "E12": true,
+          "F1": true,
+          "F6": true,
+          "F9": true,
+          "G3": true,
+          "G5": true,
+          "G6": true,
+          "G7": true,
+          "G9": true,
+          "G10": true,
+          "H4": true,
+          "H6": true,
+          "H7": true,
+          "H10": true,
+          "H11": true,
+          "H12": true,
+          "I4": true,
+          "I6": true,
+          "I10": true,
+          "J3": true,
+          "K2": true,
+          "K4": true,
+          "K6": true,
+          "K7": true,
+          "K12": true,
+          "L3": true,
+          "L9": true,
+          "L10": true,
+          "L11": true,
+          "M3": true,
+          "M7": true,
+          "M9": true,
+          "N5": true,
+          "N8": true,
+          "O2": true,
+          "O3": true,
+          "P1": true,
+          "P2": true,
+          "P3": true,
+          "P4": true,
+          "P8": true,
+          "P10": true,
+          "P12": true,
+          "Q3": true,
+          "Q7": true,
+          "R3": true,
+          "R6": true,
+          "R7": true,
+          "S4": true,
+          "S7": true,
+          "S12": true,
+          "T5": true,
+          "T8": true,
+          "T9": true,
+          "U9": true,
+          "U12": true,
+          "V1": true,
+          "W9": true,
+          "W11": "L",
+          "X1": true,
+          "X8": "L",
+          "X11": true,
+          "Y1": true,
+          "Y2": true,
+          "Y6": true,
+          "Y8": true,
+          "Y9": true,
+          "Y10": true,
+          "Z1": true,
+          "Z6": true,
+          "AA2": true,
+          "AA4": "L",
+          "AA5": "L",
+          "AA6": "T",
+          "AA11": "T",
+          "AA12": true,
+          "BB7": "L",
+          "BB8": "L",
+          "BB9": "circleL",
+          "CC3": true,
+          "CC4": "L",
+          "CC6": "T",
+          "CC8": "L",
+          "CC9": "T",
+          "CC10": true,
+          "CC12": "T",
+          "DD1": "T",
+          "DD2": "L",
+          "DD3": "T",
+          "DD6": "T",
+          "DD7": "T",
+          "DD9": "circle",
+          "DD12": true,
+          "EE2": "T",
+          "EE3": "T",
+          "FF1": "L",
+          "FF4": true,
+          "FF8": "L"
+        },
+        "titans": [
+          {
+            "id": "titan-1042608655",
+            "name": "WK",
+            "count": 1,
+            "limit": 1,
+            "crippled": false
+          },
+          {
+            "id": "titan-1042608655-1",
+            "name": "撼地者泰坦",
+            "count": 1,
+            "limit": 1,
+            "crippled": false
+          },
+          {
+            "id": "titan-1042608655-2",
+            "name": "喷火泰坦",
+            "count": 1,
+            "limit": 1,
+            "crippled": false
+          },
+          {
+            "id": "titan-1042608655-3",
+            "name": "尼采泰坦",
+            "count": 1,
+            "limit": 1,
+            "crippled": false
+          },
+          {
+            "id": "titan-1042608655-4",
+            "name": "Executioner Titan",
+            "count": 1,
+            "limit": 1,
+            "crippled": false
+          },
+          {
+            "id": "titan-1042608655-5",
+            "name": "迷宫泰坦",
+            "count": 1,
+            "limit": 1,
+            "crippled": false
+          },
+          {
+            "id": "titan-1042608655-6",
+            "name": "游戏改变",
+            "count": 1,
+            "limit": 1,
+            "crippled": false
+          },
+          {
+            "id": "titan-1042608655-7",
+            "name": "哈皮泰坦",
+            "count": 1,
+            "limit": 1,
+            "crippled": false
+          },
+          {
+            "id": "titan-1042608655-8",
+            "name": "Helldiver Titan",
+            "count": 1,
+            "limit": 1,
+            "crippled": false
+          },
+          {
+            "id": "titan-1042608655-9",
+            "name": "影舞者",
+            "count": 1,
+            "limit": 1,
+            "crippled": false
+          },
+          {
+            "id": "titan-1042608655-10",
+            "name": "Feareater Titan",
+            "count": 1,
+            "limit": 1,
+            "crippled": false
+          },
+          {
+            "id": "titan-1042608655-11",
+            "name": "executioner",
+            "count": 1,
+            "limit": 1,
+            "crippled": false
+          },
+          {
+            "id": "titan-1042608655-12",
+            "name": "Trespasser Titan",
+            "count": 1,
+            "limit": 1,
+            "crippled": false
+          },
+          {
+            "id": "titan-1042608655-13",
+            "name": "Cycladian Dreamwalker",
+            "count": 1,
+            "limit": 1,
+            "crippled": false
+          },
+          {
+            "id": "titan-1042608655-14",
+            "name": "Cycladian Dreamwalker",
+            "count": 1,
+            "limit": 1,
+            "crippled": false
+          },
+          {
+            "id": "titan-1042608655-15",
+            "name": "不朽真相",
+            "count": 1,
+            "limit": 1,
+            "crippled": false
+          }
+        ],
+        "arsenal": {
+          "AJ0169": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "AJ0165": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "AJ0171": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0163": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0160": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0175": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0156": {
+            "quantity": 4,
+            "manufactured": 0
+          },
+          "AJ0239": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0235": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0195": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0187": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0217": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "AJ0199": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "AJ0273": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0264": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0281": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0243": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "BJ0966": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0261": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "BJ0965": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "BJ0859": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0260": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0259": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0266": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "BJ0829": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "BJ0858": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0274": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "BJ0968": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0215": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0167": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0179": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0191": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0173": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0271": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0228": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0251": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0222": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0226": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0247": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "AJ0220": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "BJ0837": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "BJ0864": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "BJ0827": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "BJ0839": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "BJ0860": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "BJ0862": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "BJ0869": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "BJ0868": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "BJ0866": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "BJ0911": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "BJ0967": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "BJ0921": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "BJ0913": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "BJ0930": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "BJ0932": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "CJ1429": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "CJ1435": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1405": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "CJ1421": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1439": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1395": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "CJ1415": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "CJ1413": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1517": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1419": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "CJ1425": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1458": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "CJ1403": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "CJ1401": {
+            "quantity": 4,
+            "manufactured": 0
+          },
+          "CJ1456": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "CJ1409": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1452": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1454": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1437": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "CJ1445": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "CJ1472": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1476": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1427": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1474": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1441": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1443": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1480": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1538": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1447": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "BJ0925": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1479": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1477": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1450": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "CJ1470": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "CJ1537": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1462": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1536": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1494": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "CJ1508": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "CJ1488": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1482": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1514": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "CJ1496": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1389": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1391": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1393": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1397": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1399": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1407": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1542": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1544": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1500": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1525": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "CJ1519": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2225": {
+            "quantity": 4,
+            "manufactured": 0
+          },
+          "DJ2259": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "DJ2257": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "DJ2267": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2274": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "DJ2265": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "DJ2276": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "DJ2302": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "DJ2326": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2299": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "BJ0909": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "BJ0906": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2288": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2298": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2284": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "DJ2377": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2353": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "DJ2375": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2290": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2323": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2322": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2362": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2369": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2345": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "DJ2347": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2321": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2317": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2319": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "DJ2376": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2360": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2371": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2229": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "DJ2235": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2237": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2239": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2233": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2249": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2243": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2300": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2333": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2313": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2311": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2349": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2329": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2335": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2350": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2827": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "DJ2296": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "DJ2292": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "EJ2825": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "EJ2795": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "EJ2823": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2799": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2801": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2819": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2840": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "EJ2807": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2868": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "EJ2866": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "EJ2862": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2844": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "EJ2833": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2872": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2912": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "EJ2850": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2880": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2914": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "EJ2916": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2860": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2906": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2874": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "EJ2892": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2959": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "EJ2954": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2986": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2967": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2920": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "EJ2910": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "EJ2896": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2979": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2968": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2958": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2978": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2984": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "EJ2988": {
+            "quantity": 1,
+            "manufactured": 0
+          },
+          "EJ2926": {
+            "quantity": 2,
+            "manufactured": 0
+          },
+          "EJ2950": {
+            "quantity": 1,
+            "manufactured": 0
+          }
+        },
+        "crew": "4",
+        "hull": "3",
+        "fate": "0",
+        "aaLimit": "5",
+        "strangers": "0",
+        "humanity": "0",
+        "renegade": "0",
+        "paradox": "0",
+        "frozenTime": "0",
+        "loopLength": "0",
+        "summonLimit": "3",
+        "titanLimit": "20",
+        "babelianDebt": "0",
+        "paranoia": "1",
+        "oxygenCurrent": "3",
+        "supply": "8",
+        "cycleStats": {
+          "c5": {
+            "crew": "4",
+            "hull": "3",
+            "fate": "0",
+            "aaLimit": "5",
+            "strangers": "0",
+            "humanity": "0",
+            "renegade": "0",
+            "paradox": "0",
+            "frozenTime": "0",
+            "loopLength": "0",
+            "babelianDebt": "0",
+            "paranoia": "1",
+            "oxygenCurrent": "3",
+            "supply": "8",
+            "storyCard": "7",
+            "doomCard": "5",
+            "mapTiles": "",
+            "counters": "必要之恶 2\n线索b 3\n线索a 1\n孤苦无依 9\n务实 1\n损耗 1\n传承 1\n未知提洛斯 14\n必要 1\n殉道 1",
+            "notes": "每次有泰坦死亡其他泰坦可以获得加一愤怒\nsea hai\ni am is musi give yongqi up1\nyongjiuhuode 山羊xiaoguo shi agro fate 阀值1\n不能获得和使用西西弗斯之泪\n水跳蚤扫描难度永久-4\nF4 buyaobuaoji\nJ7 不知道\nW11 .sow\nAA12 船坞\nBB9 L 圈起来的谎言\nCC12 l\n──────── 官方存档未导入项（由 .jsave 导入生成，勿手改） ────────\n战役 UID：496311329\n战役开始时间：12/25/2024 03:51:22\n战役名：Can toe\n战斗记录（1 条）：{id:0, lvl:0, outcome:true, ko:0}\n忆识剧场 boss 轨道（11）：[0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1]\n忆识剧场泪珠/登升核心：tears=[1,0,0,0,0] cores=[0,0,0,0,0] KO=0\n忆识剧场笔记（0 条）：（空）\n密语语言：已解译 centi 16/16、babyl 21/58；wiped=true；cent_lang=[2, 9, 4, 13, 8, 0, 15, 12, …]（共 16 项）；siren_lang/babyl_lang 各 7 项；translations centi/siren/babyl=0/0/5 条\n配装（3 套）：「Loadout 3」Titan 1=2 件；「Loadout 3 Copy」Titan 1=2 件；「Loadout 3」→ Titan 1/Titan 2/Titan 3/Titan 4（gear_ids 均为空）（另有 gear_card_prefs/notes 2 组非空，未展开）\n时间回环（81 格）：全 false（未使用）\n传送门目标：-1\n属性上限无落点（15 项）：AFATE=0, AKNOW=0, STRANGERS=0, REFUGEES=0, CAPTIVES=0, HUMANITY=0, DEFECTORS=0, CRIPPLED_TITANS=0, …（共 15 项）；另 6 项有对位字段但值为 0（写了会清空既有值，故未写）：CREW、HULL、AABILITY、SUMMON_LIMIT、TITAN_LIMIT、OXYGEN\n属性值无落点（5 项）：AKNOW=101, REFUGEES=0, CAPTIVES=0, CRIPPLED_TITANS=0, TIME_SILO=0\n轮次步骤：9（语义未定，未导入）\n皮格马利翁（单整数）：2（粒度不同，未导入）\n下战斗笔记（2 条）：强攻、hope\n资源无对应行（3 项）：UMBRAL_COUNT=0, STRING_WISH=1, STRING_WISH_PICK=60\n地图格笔记（0 条）：（空）\n──────── 官方存档未导入项 结束 ────────",
+            "boons": "",
+            "afflictions": "",
+            "syncLog": ""
+          }
+        },
+        "cycleDays": {},
+        "godforms": [
+          "zeus",
+          "poseidon",
+          "demeter",
+          "hephaestus",
+          "hermes",
+          "ares",
+          "hades",
+          "poseidon-exalted"
+        ],
+        "nymphCards": [],
+        "godformUsedCards": [],
+        "nymphUsedCards": [],
+        "pygmalion": {
+          "echoes-progress-0": false,
+          "echoes-progress-1": false,
+          "echoes-progress-2": false
+        },
+        "maxUnlocked": {},
+        "enemies": {
+          "nemesis:titanX:1": true,
+          "nemesis:titanX:2": true,
+          "nemesis:titanX:3": true,
+          "nemesis:titanX:4": true,
+          "nemesis:titanX:5": true,
+          "nemesis:titanX:6": true,
+          "nemesis:titanX:7": true,
+          "nemesis:titanX:8": true,
+          "nemesis:titanX:9": true,
+          "c5:dragonOfPhobos:1a": true,
+          "c5:dragonOfPhobos:1b": true,
+          "c5:dragonOfPhobos:2a": true,
+          "c5:dragonOfPhobos:2b": true,
+          "c5:dragonOfPhobos:3a": true,
+          "c5:dragonOfPhobos:3b": true,
+          "c5:dragonOfPhobos:4a": true,
+          "c5:dragonOfPhobos:4b": true,
+          "c5:dragonOfPhobos:4c": true
+        },
+        "nemesisSelections": {
+          "c5": "titanX"
+        },
+        "deadTitans": "76"
+      }
+    }
+  },
+  "map": {
+    "users": {
+      "default": {
+        "activeCycleId": "c5",
+        "cycles": {
+          "c5": {
+            "tokens": {
+              "AG": "057",
+              "AD": "070",
+              "markers": {
+                "021": {
+                  "last_city": true
+                }
+              }
+            },
+            "tileVariants": {
+              "002": "alternate",
+              "003": "alternate",
+              "013": "alternate",
+              "021": "alternate",
+              "022": "alternate",
+              "024": "alternate",
+              "026": "alternate",
+              "027": "alternate",
+              "028": "alternate",
+              "032": "alternate",
+              "038": "alternate",
+              "043": "alternate",
+              "044": "alternate",
+              "048": "alternate",
+              "053": "alternate",
+              "054": "alternate",
+              "055": "alternate",
+              "057": "alternate",
+              "058": "alternate",
+              "062": "alternate",
+              "068": "alternate"
+            }
+          }
+        }
+      }
+    }
+  },
+  "technology": {
+    "users": {
+      "default": {
+        "currentCycle": "cycle5",
+        "unlocked": [
+          "primordial dawn",
+          "titanogenesis",
+          "antikratos project",
+          "last tome",
+          "argo works",
+          "trireme weapons",
+          "trireme armor",
+          "trireme ranged weapons",
+          "arrow barrage",
+          "siren armor",
+          "advanced trireme weapons",
+          "forced kratos reaction",
+          "pursuer sighting",
+          "specialized trireme weapons",
+          "hekaton sighting",
+          "trireme reach weapons",
+          "pursuer protocol",
+          "crisis protocol",
+          "basic support equipment",
+          "smelted gear",
+          "hekaton autopsy",
+          "fate sink",
+          "labyrinthauros live study",
+          "labyrinthauros sighting",
+          "teleresuscitation",
+          "hekaton live study",
+          "deeply embedded spies",
+          "trading solutions",
+          "rhetoric",
+          "titan hunting",
+          "titan rearing",
+          "anti-indoctrination philosophy",
+          "minoan investigations",
+          "diplomatic relations",
+          "advanced trading solutions",
+          "crew expansion",
+          "shallows navigation",
+          "hope logic",
+          "argo onboarding",
+          "pursuer problem",
+          "excursion propylon ii",
+          "superior trading solutions",
+          "temenos sighting",
+          "bronze lair",
+          "archeolinguistics",
+          "strange alliance",
+          "advanced support equipment",
+          "labyrinthauros autopsy",
+          "advanced crew expansion",
+          "forgotten knowledge",
+          "argo’s mission",
+          "argo works ii",
+          "titanomorphosis",
+          "temenos project",
+          "mnestis thesis",
+          "spark of the dead gods",
+          "temenos armor",
+          "lakonian support equipment",
+          "temenos weapons",
+          "nietzschean sighting",
+          "trireme ballista fire",
+          "cyclonus sighting",
+          "temenos advanced gear",
+          "reflex priming",
+          "chimera metastasios sighting",
+          "13th muse grand cannon",
+          "hephaestan oxybeles",
+          "experimental gear",
+          "canal reconnaissance",
+          "wartime protocols",
+          "ambrosia containment",
+          "relief gear",
+          "transport trireme",
+          "cyclonus autopsy",
+          "cyclonus live study",
+          "nietzschean meeting study",
+          "war support equipment",
+          "chimera metastasios autopsy",
+          "metal weapons",
+          "chimera metastasios live study",
+          "temenos support equipment",
+          "hyperadrenaline infusion",
+          "first tome",
+          "argo’s destiny",
+          "abyss expedition",
+          "argo works iii",
+          "delphian investigations",
+          "ultimate trading solutions",
+          "titanoaristia",
+          "advanced titan breeding",
+          "spartan weapons",
+          "spartan advanced weapons",
+          "cyclopean gear",
+          "cyclopean advanced gear",
+          "burden sighting",
+          "triskelion power boost",
+          "forced kratos cooldown",
+          "pursuer order",
+          "rendezvous trireme",
+          "mnestis theater",
+          "nymph studies",
+          "war propylon",
+          "titan breeding",
+          "grand stoa",
+          "titan training",
+          "trauma growth",
+          "time solutions",
+          "temporal aegis",
+          "surviving the loop",
+          "argo timeline security",
+          "trespass protocol",
+          "temporal support equipment",
+          "telehealing",
+          "possibility matrix",
+          "nietzschean armor",
+          "reverse timeflow",
+          "fate converter",
+          "nietzschean weapons",
+          "nietzschean reach weapons",
+          "hypertime oracle sighting",
+          "icarian harpy sighting",
+          "delphian siren armor",
+          "delphian siren weapons",
+          "quantum armory",
+          "sun descendant sighting",
+          "advanced transforming weapons",
+          "chronosphere warning system",
+          "opportunity freeze",
+          "argoline transforming weapons",
+          "black ice armor",
+          "atemporal support equipment",
+          "icarian harpy autopsy",
+          "hypertime oracle autopsy",
+          "monomythological support",
+          "cryptex technology",
+          "transient death",
+          "sun descendant partial autopsy",
+          "time wounds",
+          "icebreaker protocol",
+          "advanced time solutions",
+          "extinction contingency",
+          "sun shielding",
+          "stasis theory",
+          "burden autopsy",
+          "time dilation",
+          "delphian diplomatic relations",
+          "hypertime oracle live study",
+          "sun descendant live study",
+          "time skip",
+          "extinction protocols",
+          "helios fanatics equipment",
+          "helios fanatics light weapons",
+          "apostate armor",
+          "apostate weapons",
+          "delphi peoples’ support",
+          "icarian harpy live study",
+          "argo academy",
+          "law mora",
+          "argo’s curse",
+          "argo wonders",
+          "curse exchange",
+          "mortal mapmakers",
+          "titanosyntrofia",
+          "superior titan breeding",
+          "cryptex technology",
+          "monomythological support",
+          "titan care",
+          "titan genetic memory",
+          "quantum propylon",
+          "awakening studies",
+          "curse economy basics",
+          "persian investigations",
+          "sustainable oasis",
+          "cinder weapons",
+          "imperial deprived armorer",
+          "cinder support",
+          "irem protocols",
+          "cinder ranged weapons",
+          "wish deflector",
+          "cinder armor",
+          "gold transmogrifier",
+          "imperial deprived stockpile",
+          "midascore sighting",
+          "true value of life",
+          "archeohistorians",
+          "imperial deprived outfitter",
+          "archimedean ballista",
+          "babelian lunacy sighting",
+          "demidjinn sighting",
+          "dahaka sighting",
+          "argo cloud operations",
+          "old irem excavation",
+          "plutocratic diplomacy",
+          "plutocratic agents",
+          "merchants of the waste",
+          "sandstorm navigation",
+          "sandstorm sailing",
+          "salvage operations",
+          "imperial contact",
+          "dahaka phasing",
+          "bankers of the waste",
+          "insolvency bulwark",
+          "dahaka autopsy",
+          "midascore autopsy",
+          "demidjinn live study",
+          "tekne restorers",
+          "old irem dig",
+          "cloud support fleet",
+          "divine deals",
+          "demidjinn autopsy",
+          "highrise projects",
+          "curse resistor",
+          "odyssey training",
+          "old irem composite shop",
+          "cloud scout fleet",
+          "midascore live study",
+          "djinn fundhoard",
+          "ascension protocols",
+          "grassroot projects",
+          "sharing the knowledge",
+          "argo crew rebuilding",
+          "scientific debunking",
+          "voyage home",
+          "underwater scouting",
+          "shared fates",
+          "ultimate titan breeding",
+          "the future of the argo",
+          "grassroots diplomacy",
+          "the last wish",
+          "cryptex technology",
+          "monomythological support",
+          "curse shapers",
+          "kiss of mnemosyne",
+          "ropeseller theorem",
+          "the work is never done",
+          "adyton completion",
+          "babelian armor",
+          "abyss armor",
+          "kintsukuroi pharos",
+          "babelian support",
+          "babelian weapons",
+          "calculate statistical certainty",
+          "babelian ranged weapons",
+          "ur-fleece sighting",
+          "underwater support fleet",
+          "dragon of phobos autopsy",
+          "improved submergence",
+          "abyss weapons",
+          "drag it back!",
+          "new oikos",
+          "the peace mission",
+          "cyclades commerce",
+          "mortal alliance",
+          "abyss support",
+          "oxygen tubes",
+          "cyclades information circulation",
+          "moirai rebellion",
+          "atlantean weapons",
+          "titan x sighting",
+          "argo philosophy",
+          "cyclades intelligence",
+          "spiral theory",
+          "meduketos sighting",
+          "flash backstep",
+          "argo initiative",
+          "fresher start",
+          "phobian psychology",
+          "meduketos live study",
+          "silvered armor",
+          "triskelion override",
+          "atlantean armor",
+          "followers of areté gear",
+          "tight-spaces navigation",
+          "atlantean docking procedures",
+          "titan x investigation",
+          "atlantean investigations",
+          "painkiller shot",
+          "inner light",
+          "vanguard gear",
+          "atlantean maintenance procedures",
+          "gaia’s stepchildren",
+          "atlantean support",
+          "meduketos autopsy",
+          "silvered weapons",
+          "dragon of phobos live study",
+          "soulbalm",
+          "superior submergence",
+          "anchor drop pod",
+          "pattern deciphering",
+          "silvered support",
+          "cycladean protectorate"
+        ],
+        "unimportant": [],
+        "conditions": []
+      }
+    }
+  },
+  "heroes": {
+    "heroes": [
+      {
+        "id": "hero-1042608656",
+        "argonaut": "orphan",
+        "customName": "ORPHAN OF D’MT",
+        "playerName": "liangnv",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 1,
+          "cunning": 2,
+          "endurance": 1,
+          "fury": 0,
+          "will": 0,
+          "wisdom": 1
+        },
+        "mnemos": {
+          "c1": [
+            "c1_01"
+          ],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": [
+            "c5_02"
+          ]
+        },
+        "mnemosProgress": {
+          "c1_01": 4,
+          "c5_02": 7
+        },
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": [
+            "fm_c5_08"
+          ]
+        },
+        "fatedProgress": {
+          "fm_c5_08": 3
+        },
+        "triskelion": {
+          "danger": 3,
+          "fury": 1,
+          "fate": 2
+        },
+        "abilities": "",
+        "notes": "当你获得mind状态卡时-1fate、当你命中时要抽取bp前猜测at值猜对-1fate"
+      },
+      {
+        "id": "hero-1042608656-1",
+        "argonaut": "aster",
+        "customName": "ASTER",
+        "playerName": "ch",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 0,
+          "cunning": 0,
+          "endurance": 1,
+          "fury": 2,
+          "will": 2,
+          "wisdom": 0
+        },
+        "mnemos": {
+          "c1": [],
+          "c2": [
+            "c2_03"
+          ],
+          "c3": [],
+          "c4": [],
+          "c5": [
+            "c5_04"
+          ]
+        },
+        "mnemosProgress": {
+          "c2_03": 5,
+          "c5_04": 5
+        },
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": [
+            "fm_c5_09"
+          ]
+        },
+        "fatedProgress": {
+          "fm_c5_09": 3
+        },
+        "triskelion": {
+          "danger": 8,
+          "fury": 2,
+          "fate": 3
+        },
+        "abilities": "",
+        "notes": "永久恩惠：对reinforce cryptex加一伤害（剧场无效）、痛苦抗性1、当你一次抽三张或者更多硬币时失去一点fate、在你的回合开始时你可以用一个攻击行动翻转一张状态卡、永久获得：战斗开始时获得一个氧气和三个苦痛指示物、收养了只猫+1 fury-1wisdom"
+      },
+      {
+        "id": "hero-1042608656-2",
+        "argonaut": "aster",
+        "customName": "ASTER",
+        "playerName": "liangnv",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 2,
+          "cunning": 0,
+          "endurance": 1,
+          "fury": -1,
+          "will": 1,
+          "wisdom": 0
+        },
+        "mnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [
+            "c3_02"
+          ],
+          "c4": [
+            "c4_00"
+          ],
+          "c5": []
+        },
+        "mnemosProgress": {
+          "c3_02": 10,
+          "c4_00": 7
+        },
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [],
+          "c4": [
+            "fm_c4_06",
+            "fm_c4_01",
+            "fm_c4_04",
+            "fm_c4_09"
+          ],
+          "c5": []
+        },
+        "fatedProgress": {
+          "fm_c4_06": 3,
+          "fm_c4_01": 3,
+          "fm_c4_04": 1,
+          "fm_c4_09": 1
+        },
+        "triskelion": {
+          "danger": 3,
+          "fury": 4,
+          "fate": 3
+        },
+        "abilities": "开局获得1苦痛token 硬币投掷-1",
+        "notes": "juexingtouzhitiaozheng erwai+1、获得燃烧加一阿尔戈命运忽略、当你弃置或者转换至少一个Midas token -1fate、当你在你的回合觉醒或者召唤时-1fate、希腊任务"
+      },
+      {
+        "id": "hero-1042608656-3",
+        "argonaut": "oleander",
+        "customName": "OLEANDER",
+        "playerName": "liangnv",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 2,
+          "cunning": 0,
+          "endurance": 0,
+          "fury": 1,
+          "will": 1,
+          "wisdom": 1
+        },
+        "mnemos": {
+          "c1": [],
+          "c2": [
+            "c2_06"
+          ],
+          "c3": [],
+          "c4": [],
+          "c5": [
+            "c5_05"
+          ]
+        },
+        "mnemosProgress": {
+          "c5_05": 5,
+          "c2_06": 9
+        },
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "fatedProgress": {},
+        "triskelion": {
+          "danger": 0,
+          "fury": 3,
+          "fate": 1
+        },
+        "abilities": "",
+        "notes": "每场战斗一次获得2绝望：精准、和小球合体获得精度1和无视灵魂融合"
+      }
+    ],
+    "activeHeroId": "hero-1042608656",
+    "graveyard": [
+      {
+        "id": "hero-1042608656-4",
+        "argonaut": "odys",
+        "customName": "ODYS ZERO",
+        "playerName": "222",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 1,
+          "cunning": 0,
+          "endurance": 0,
+          "fury": 0,
+          "will": 0,
+          "wisdom": 0
+        },
+        "mnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "mnemosProgress": {},
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "fatedProgress": {},
+        "triskelion": {
+          "danger": 0,
+          "fury": 0,
+          "fate": 0
+        },
+        "abilities": "",
+        "notes": "",
+        "retiredAt": "",
+        "retireReason": "（官方存档 death_note 为空）",
+        "katharsisCode": ""
+      },
+      {
+        "id": "hero-1042608656-5",
+        "argonaut": "olympia",
+        "customName": "OLYMPIA",
+        "playerName": "ch",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 3,
+          "cunning": 1,
+          "endurance": 1,
+          "fury": 1,
+          "will": 2,
+          "wisdom": 1
+        },
+        "mnemos": {
+          "c1": [
+            "c1_09",
+            "c1_01"
+          ],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "mnemosProgress": {
+          "c1_09": 1,
+          "c1_01": 4
+        },
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [
+            "fm_c1_06"
+          ],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "fatedProgress": {
+          "fm_c1_06": 3
+        },
+        "triskelion": {
+          "danger": 0,
+          "fury": 0,
+          "fate": 0
+        },
+        "abilities": "",
+        "notes": "bellynaut zaiduziligongjiqiangdujia 1",
+        "retiredAt": "",
+        "retireReason": "（官方存档 death_note 为空）",
+        "katharsisCode": ""
+      },
+      {
+        "id": "hero-1042608656-6",
+        "argonaut": "custom05",
+        "customName": "1",
+        "playerName": "PH",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 2,
+          "cunning": 0,
+          "endurance": 1,
+          "fury": 1,
+          "will": 0,
+          "wisdom": -1
+        },
+        "mnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [
+            "c3_02"
+          ],
+          "c4": [],
+          "c5": []
+        },
+        "mnemosProgress": {
+          "c3_02": 3
+        },
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [
+            "fm_c3_08",
+            "fm_c3_08"
+          ],
+          "c4": [],
+          "c5": []
+        },
+        "fatedProgress": {
+          "fm_c3_08": 3
+        },
+        "triskelion": {
+          "danger": 0,
+          "fury": 0,
+          "fate": 0
+        },
+        "abilities": "",
+        "notes": "wuqi ：master work、ambrosia up 2、jia yi fury",
+        "retiredAt": "",
+        "retireReason": "（官方存档 death_note 为空）",
+        "katharsisCode": ""
+      },
+      {
+        "id": "hero-1042608656-7",
+        "argonaut": "telebac",
+        "customName": "TELEBACCHUS",
+        "playerName": "ch",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 0,
+          "cunning": 1,
+          "endurance": 1,
+          "fury": 1,
+          "will": 1,
+          "wisdom": 1
+        },
+        "mnemos": {
+          "c1": [],
+          "c2": [
+            "c2_08",
+            "c2_04"
+          ],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "mnemosProgress": {
+          "c2_08": 6,
+          "c2_04": 4
+        },
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [],
+          "c2": [
+            "fm_c2_03"
+          ],
+          "c3": [
+            "fm_c3_02"
+          ],
+          "c4": [],
+          "c5": []
+        },
+        "fatedProgress": {
+          "fm_c2_03": 3,
+          "fm_c3_02": 3
+        },
+        "triskelion": {
+          "danger": 0,
+          "fury": 0,
+          "fate": 0
+        },
+        "abilities": "",
+        "notes": "jiayi ager fate wushi burn",
+        "retiredAt": "",
+        "retireReason": "（官方存档 death_note 为空）",
+        "katharsisCode": ""
+      },
+      {
+        "id": "hero-1042608656-8",
+        "argonaut": "aster",
+        "customName": "ASTER",
+        "playerName": "liangnv",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 0,
+          "cunning": 1,
+          "endurance": 0,
+          "fury": 1,
+          "will": 1,
+          "wisdom": 0
+        },
+        "mnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [
+            "c3_07"
+          ],
+          "c4": [],
+          "c5": []
+        },
+        "mnemosProgress": {
+          "c3_07": 3
+        },
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "fatedProgress": {},
+        "triskelion": {
+          "danger": 0,
+          "fury": 0,
+          "fate": 0
+        },
+        "abilities": "",
+        "notes": "",
+        "retiredAt": "",
+        "retireReason": "（官方存档 death_note 为空）",
+        "katharsisCode": ""
+      },
+      {
+        "id": "hero-1042608656-9",
+        "argonaut": "oleander",
+        "customName": "OLEANDER",
+        "playerName": "liangnv",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 0,
+          "cunning": 1,
+          "endurance": 0,
+          "fury": 0,
+          "will": 1,
+          "wisdom": 1
+        },
+        "mnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [
+            "c3_01"
+          ],
+          "c4": [],
+          "c5": []
+        },
+        "mnemosProgress": {
+          "c3_01": 1
+        },
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [
+            "fm_c3_07",
+            "fm_c3_04"
+          ],
+          "c4": [],
+          "c5": []
+        },
+        "fatedProgress": {
+          "fm_c3_07": 3,
+          "fm_c3_04": 3
+        },
+        "triskelion": {
+          "danger": 0,
+          "fury": 0,
+          "fate": 0
+        },
+        "abilities": "",
+        "notes": "",
+        "retiredAt": "",
+        "retireReason": "（官方存档 death_note 为空）",
+        "katharsisCode": ""
+      },
+      {
+        "id": "hero-1042608656-10",
+        "argonaut": "orphan",
+        "customName": "ORPHAN OF D’MT",
+        "playerName": "liangnv",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 2,
+          "cunning": -1,
+          "endurance": 0,
+          "fury": 2,
+          "will": 1,
+          "wisdom": 0
+        },
+        "mnemos": {
+          "c1": [],
+          "c2": [
+            "c2_06"
+          ],
+          "c3": [
+            "c3_03"
+          ],
+          "c4": [],
+          "c5": []
+        },
+        "mnemosProgress": {
+          "c2_06": 5,
+          "c3_03": 1
+        },
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [
+            "fm_c3_01",
+            "fm_c3_03"
+          ],
+          "c4": [],
+          "c5": []
+        },
+        "fatedProgress": {
+          "fm_c3_01": 3,
+          "fm_c3_03": 0
+        },
+        "triskelion": {
+          "danger": 0,
+          "fury": 0,
+          "fate": 0
+        },
+        "abilities": "moyisi de shiwu\nposui",
+        "notes": "",
+        "retiredAt": "",
+        "retireReason": "（官方存档 death_note 为空）",
+        "katharsisCode": ""
+      },
+      {
+        "id": "hero-1042608656-11",
+        "argonaut": "phenelope",
+        "customName": "PHENELOPE",
+        "playerName": "PH",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 0,
+          "cunning": 2,
+          "endurance": 1,
+          "fury": 1,
+          "will": 1,
+          "wisdom": -1
+        },
+        "mnemos": {
+          "c1": [
+            "c1_10",
+            "c1_01"
+          ],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "mnemosProgress": {
+          "c1_10": 5,
+          "c1_01": 8
+        },
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [
+            "fm_c1_07"
+          ],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "fatedProgress": {
+          "fm_c1_07": 0
+        },
+        "triskelion": {
+          "danger": 0,
+          "fury": 0,
+          "fate": 0
+        },
+        "abilities": "",
+        "notes": "",
+        "retiredAt": "",
+        "retireReason": "（官方存档 death_note 为空）",
+        "katharsisCode": ""
+      },
+      {
+        "id": "hero-1042608656-12",
+        "argonaut": "raz",
+        "customName": "RAZ",
+        "playerName": "liangnv",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 4,
+          "cunning": 0,
+          "endurance": 0,
+          "fury": 1,
+          "will": 0,
+          "wisdom": 1
+        },
+        "mnemos": {
+          "c1": [
+            "c1_09",
+            "c1_07"
+          ],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "mnemosProgress": {
+          "c1_09": 10,
+          "c1_07": 1
+        },
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [
+            "fm_c1_06"
+          ],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "fatedProgress": {
+          "fm_c1_06": 3
+        },
+        "triskelion": {
+          "danger": 0,
+          "fury": 0,
+          "fate": 0
+        },
+        "abilities": "",
+        "notes": "",
+        "retiredAt": "",
+        "retireReason": "Minuosi",
+        "katharsisCode": ""
+      },
+      {
+        "id": "hero-1042608656-13",
+        "argonaut": "circe",
+        "customName": "CIRCEGARD",
+        "playerName": "222",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 1,
+          "cunning": 1,
+          "endurance": 1,
+          "fury": 0,
+          "will": 0,
+          "wisdom": 2
+        },
+        "mnemos": {
+          "c1": [
+            "c1_03",
+            "c1_04"
+          ],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "mnemosProgress": {
+          "c1_03": 4,
+          "c1_04": 8
+        },
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [
+            "fm_c1_08"
+          ],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "fatedProgress": {
+          "fm_c1_08": 3
+        },
+        "triskelion": {
+          "danger": 0,
+          "fury": 0,
+          "fate": 1
+        },
+        "abilities": "",
+        "notes": "",
+        "retiredAt": "",
+        "retireReason": "（官方存档 death_note 为空）",
+        "katharsisCode": ""
+      },
+      {
+        "id": "hero-1042608656-14",
+        "argonaut": "telebac",
+        "customName": "TELEBACCHUS",
+        "playerName": "PH",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 1,
+          "cunning": 1,
+          "endurance": 1,
+          "fury": 1,
+          "will": 1,
+          "wisdom": 1
+        },
+        "mnemos": {
+          "c1": [
+            "c1_06",
+            "c1_05"
+          ],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "mnemosProgress": {
+          "c1_06": 3,
+          "c1_05": 10
+        },
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "fatedProgress": {},
+        "triskelion": {
+          "danger": 0,
+          "fury": 0,
+          "fate": 0
+        },
+        "abilities": "",
+        "notes": "give 1 precision",
+        "retiredAt": "",
+        "retireReason": "（官方存档 death_note 为空）",
+        "katharsisCode": "1"
+      },
+      {
+        "id": "hero-1042608656-15",
+        "argonaut": "leocules",
+        "customName": "LEOCULES",
+        "playerName": "ch",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 0,
+          "cunning": 0,
+          "endurance": 0,
+          "fury": 0,
+          "will": 2,
+          "wisdom": 0
+        },
+        "mnemos": {
+          "c1": [
+            "c1_02"
+          ],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "mnemosProgress": {
+          "c1_02": 7
+        },
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [],
+          "c2": [
+            "fm_c2_08"
+          ],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "fatedProgress": {
+          "fm_c2_08": 0
+        },
+        "triskelion": {
+          "danger": 0,
+          "fury": 0,
+          "fate": 0
+        },
+        "abilities": "all hero in obol live .fate lost 1",
+        "notes": "",
+        "retiredAt": "",
+        "retireReason": "（官方存档 death_note 为空）",
+        "katharsisCode": ""
+      },
+      {
+        "id": "hero-1042608656-16",
+        "argonaut": "leocules",
+        "customName": "LEOCULES",
+        "playerName": "liangnv",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 1,
+          "cunning": 0,
+          "endurance": 0,
+          "fury": 0,
+          "will": 2,
+          "wisdom": 1
+        },
+        "mnemos": {
+          "c1": [
+            "c1_05"
+          ],
+          "c2": [
+            "c2_01"
+          ],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "mnemosProgress": {
+          "c2_01": 5,
+          "c1_05": 5
+        },
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [
+            "fm_c3_09"
+          ],
+          "c4": [],
+          "c5": []
+        },
+        "fatedProgress": {
+          "fm_c3_09": 0
+        },
+        "triskelion": {
+          "danger": 0,
+          "fury": 0,
+          "fate": 0
+        },
+        "abilities": "2",
+        "notes": "",
+        "retiredAt": "",
+        "retireReason": "（官方存档 death_note 为空）",
+        "katharsisCode": ""
+      },
+      {
+        "id": "hero-1042608656-17",
+        "argonaut": "hypatia",
+        "customName": "HYPATIA",
+        "playerName": "liangnv",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 3,
+          "cunning": 0,
+          "endurance": 1,
+          "fury": 3,
+          "will": 1,
+          "wisdom": 0
+        },
+        "mnemos": {
+          "c1": [],
+          "c2": [
+            "c2_03",
+            "c2_02"
+          ],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "mnemosProgress": {
+          "c2_03": 10,
+          "c2_02": 4
+        },
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [],
+          "c2": [
+            "fm_c2_06",
+            "fm_c2_01"
+          ],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "fatedProgress": {
+          "fm_c2_06": 3,
+          "fm_c2_01": 3
+        },
+        "triskelion": {
+          "danger": 0,
+          "fury": 0,
+          "fate": 0
+        },
+        "abilities": "",
+        "notes": "have one precision、efi jia 1 courage、opening 1",
+        "retiredAt": "",
+        "retireReason": "（官方存档 death_note 为空）",
+        "katharsisCode": ""
+      },
+      {
+        "id": "hero-1042608656-18",
+        "argonaut": "orphan",
+        "customName": "ORPHAN OF D’MT",
+        "playerName": "222",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 1,
+          "cunning": 1,
+          "endurance": 1,
+          "fury": 0,
+          "will": 0,
+          "wisdom": 0
+        },
+        "mnemos": {
+          "c1": [
+            "c1_01"
+          ],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "mnemosProgress": {
+          "c1_01": 1
+        },
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "fatedProgress": {},
+        "triskelion": {
+          "danger": 0,
+          "fury": 0,
+          "fate": 0
+        },
+        "abilities": "",
+        "notes": "",
+        "retiredAt": "",
+        "retireReason": "u12",
+        "katharsisCode": ""
+      },
+      {
+        "id": "hero-1042608656-19",
+        "argonaut": "oleander",
+        "customName": "OLEANDER",
+        "playerName": "liangnv",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 0,
+          "cunning": 0,
+          "endurance": 0,
+          "fury": 0,
+          "will": 0,
+          "wisdom": 1
+        },
+        "mnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "mnemosProgress": {},
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "fatedProgress": {},
+        "triskelion": {
+          "danger": 0,
+          "fury": 0,
+          "fate": 0
+        },
+        "abilities": "",
+        "notes": "",
+        "retiredAt": "",
+        "retireReason": "（官方存档 death_note 为空）",
+        "katharsisCode": ""
+      },
+      {
+        "id": "hero-1042608656-20",
+        "argonaut": "orphan",
+        "customName": "ORPHAN OF D’MT",
+        "playerName": "222",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 0,
+          "cunning": 0,
+          "endurance": 1,
+          "fury": 0,
+          "will": 1,
+          "wisdom": 1
+        },
+        "mnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [],
+          "c4": [
+            "c4_02",
+            "c4_07"
+          ],
+          "c5": []
+        },
+        "mnemosProgress": {
+          "c4_02": 10,
+          "c4_07": 5
+        },
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [],
+          "c4": [
+            "fm_c4_03",
+            "fm_c4_05",
+            "fm_c4_01",
+            "fm_c4_08"
+          ],
+          "c5": []
+        },
+        "fatedProgress": {
+          "fm_c4_03": 3,
+          "fm_c4_05": 3,
+          "fm_c4_01": 1,
+          "fm_c4_08": 1
+        },
+        "triskelion": {
+          "danger": 0,
+          "fury": 0,
+          "fate": 0
+        },
+        "abilities": "",
+        "notes": "每次战斗一次 获得愿望热情可以第二次机会、活得加一阿尔戈命运以忽略燃烧、当你是泰坦轮最后一个行动你洗了bp卡堆-1fate、当你站起来、回归、泄气时-1fate、希腊任务",
+        "retiredAt": "",
+        "retireReason": "楼梯谁会赢呢",
+        "katharsisCode": "m12"
+      },
+      {
+        "id": "hero-1042608656-21",
+        "argonaut": "telebac",
+        "customName": "TELEBACCHUS",
+        "playerName": "PH",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 1,
+          "cunning": 0,
+          "endurance": 2,
+          "fury": 3,
+          "will": 1,
+          "wisdom": 0
+        },
+        "mnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": [
+            "c5_00",
+            "c5_06"
+          ]
+        },
+        "mnemosProgress": {
+          "c5_00": 3,
+          "c5_06": 3
+        },
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [],
+          "c4": [],
+          "c5": []
+        },
+        "fatedProgress": {},
+        "triskelion": {
+          "danger": 0,
+          "fury": 0,
+          "fate": 0
+        },
+        "abilities": "",
+        "notes": "攻击reinforced cryptex获得加一强度、+1fury、绝望耐性➕1",
+        "retiredAt": "",
+        "retireReason": "（官方存档 death_note 为空）",
+        "katharsisCode": ""
+      },
+      {
+        "id": "hero-1042608656-22",
+        "argonaut": "telebac",
+        "customName": "TELEBACCHUS",
+        "playerName": "ch",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 1,
+          "cunning": 2,
+          "endurance": 1,
+          "fury": 0,
+          "will": 0,
+          "wisdom": 0
+        },
+        "mnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [],
+          "c4": [
+            "c4_03",
+            "c4_06"
+          ],
+          "c5": []
+        },
+        "mnemosProgress": {
+          "c4_03": 10,
+          "c4_06": 5
+        },
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [],
+          "c4": [
+            "fm_c4_04",
+            "fm_c4_07",
+            "fm_c4_03"
+          ],
+          "c5": [
+            "fm_c5_04"
+          ]
+        },
+        "fatedProgress": {
+          "fm_c4_04": 3,
+          "fm_c4_07": 3,
+          "fm_c4_03": 3,
+          "fm_c5_04": 0
+        },
+        "triskelion": {
+          "danger": 0,
+          "fury": 0,
+          "fate": 0
+        },
+        "abilities": "注定失败的真相：full miss get 神浆token，crit miss 获得绝望token 本场战斗所有bp卡 fall 获得加一fatw",
+        "notes": "当你失去一件装备时失去-1fate、当你成功执行一次攀登鉴定时-1fate、当你愿望消失时不必在使徒面前消失、希腊任务、当完全移动完或者用完赫耳墨斯机动-1fate",
+        "retiredAt": "",
+        "retireReason": "（官方存档 death_note 为空）",
+        "katharsisCode": ""
+      },
+      {
+        "id": "hero-1042608656-23",
+        "argonaut": "oleander",
+        "customName": "OLEANDER",
+        "playerName": "PH",
+        "basicSkill": "",
+        "skillsExpanded": false,
+        "baseSkills": {
+          "courage": 1,
+          "cunning": 1,
+          "endurance": 0,
+          "fury": 0,
+          "will": 0,
+          "wisdom": 2
+        },
+        "mnemos": {
+          "c1": [
+            "c1_09"
+          ],
+          "c2": [],
+          "c3": [],
+          "c4": [
+            "c4_01"
+          ],
+          "c5": []
+        },
+        "mnemosProgress": {
+          "c1_09": 10,
+          "c4_01": 5
+        },
+        "mnemosNodeProgress": [],
+        "mnemosTags": [],
+        "fatedMnemos": {
+          "c1": [],
+          "c2": [],
+          "c3": [],
+          "c4": [
+            "fm_c4_09",
+            "fm_c4_08",
+            "fm_c4_02",
+            "fm_c4_05"
+          ],
+          "c5": [
+            "fm_c5_06"
+          ]
+        },
+        "fatedProgress": {
+          "fm_c4_09": 3,
+          "fm_c4_08": 3,
+          "fm_c4_02": 3,
+          "fm_c4_05": 3,
+          "fm_c5_06": 1
+        },
+        "triskelion": {
+          "danger": 0,
+          "fury": 0,
+          "fate": 0
+        },
+        "abilities": "风疫诅咒",
+        "notes": "觉醒投掷加成额外+1、当你一次获得三个状态标记或者神浆标记时-1fate、当你抽硬币卡并且不进行重新抽取-1fate、当你站起或者回归泄气-1fate、希腊任务、当你是最后一个行动的玩家且洗了bp卡堆-1fate",
+        "retiredAt": "",
+        "retireReason": "（官方存档 death_note 为空）",
+        "katharsisCode": "b11"
+      }
+    ]
+  }
+}

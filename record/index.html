@@ -432,7 +432,7 @@
     }
 
     .titan-add-row {
-      grid-template-columns: minmax(120px, 1fr) 82px auto 96px auto;
+      grid-template-columns: minmax(120px, 1fr) 82px auto 96px 96px auto;
     }
 
     .titan-row {
@@ -455,7 +455,8 @@
       font-weight: 900;
     }
 
-    .titan-add-row .titan-total-limit {
+    .titan-add-row .titan-total-limit,
+    .titan-add-row .titan-dead-count {
       width: 96px;
     }
 
@@ -1604,6 +1605,10 @@
               总上限
               <input id="titanLimitInput" type="number" min="0" step="1" value="0" title="泰坦总上限" aria-label="泰坦总上限">
             </label>
+            <label class="titan-number-field titan-dead-count">
+              已死亡
+              <input id="deadTitansInput" type="number" min="0" step="1" value="0" title="已死亡泰坦累计" aria-label="已死亡泰坦累计">
+            </label>
             <button id="addTitanButton" type="button">添加泰坦</button>
           </div>
         </details>
@@ -2322,6 +2327,7 @@
       cycleDays: {},
       titan: "",
       titanLimit: "",
+      deadTitans: "",
       boons: "",
       afflictions: "",
       counters: "",
@@ -2374,6 +2380,7 @@
       titanNameInput: document.querySelector("#titanNameInput"),
       titanCountInput: document.querySelector("#titanCountInput"),
       titanLimitInput: document.querySelector("#titanLimitInput"),
+      deadTitansInput: document.querySelector("#deadTitansInput"),
       titanCrippledInput: document.querySelector("#titanCrippledInput"),
       addTitanButton: document.querySelector("#addTitanButton"),
     };
@@ -2728,6 +2735,7 @@
         nymphUsedCards: normalizeSummonSelection(value?.nymphUsedCards, summonCards.nymphs),
         titans,
         titanLimit: hasTitanLimit ? normalizeTitanLimit(value?.titanLimit) : migrateTitanLimit(titans),
+        deadTitans: normalizeDeadTitans(value?.deadTitans),
         titan: undefined,
       };
       // Compare the same values that the page displays, including legacy aliases
@@ -2881,6 +2889,13 @@
     }
 
     function normalizeTitanLimit(value) {
+      if (value !== "" && value !== null && value !== undefined) {
+        return String(Math.max(0, Math.floor(Number(value || 0))));
+      }
+      return "";
+    }
+
+    function normalizeDeadTitans(value) {
       if (value !== "" && value !== null && value !== undefined) {
         return String(Math.max(0, Math.floor(Number(value || 0))));
       }
@@ -3400,13 +3415,14 @@
     function updateTitanListCount() {
       const totals = titanTotals();
       const limit = state.titanLimit === "" ? "-" : Math.max(0, Number(state.titanLimit || 0));
-      elements.titanListCount.textContent = `总数 ${totals.total}/${limit} · 残废 ${totals.crippled}`;
+      elements.titanListCount.textContent = `总数 ${totals.total}/${limit} · 残废 ${totals.crippled} · 已死亡 ${state.deadTitans === "" ? "-" : Math.max(0, Number(state.deadTitans || 0))}`;
     }
 
     function renderTitans() {
       state.titans = normalizeTitanList(state.titans);
       state.titanLimit = normalizeTitanLimit(state.titanLimit);
       elements.titanLimitInput.value = state.titanLimit;
+      elements.deadTitansInput.value = state.deadTitans;
       updateTitanListCount();
       elements.titanList.innerHTML = "";
 
@@ -3463,9 +3479,13 @@
 
         const removeButton = document.createElement("button");
         removeButton.type = "button";
-        removeButton.className = "titan-remove";
-        removeButton.textContent = "删除";
+        removeButton.className = "titan-remove titan-death";
+        removeButton.textContent = "死亡";
+        removeButton.title = "该泰坦死亡：从列表移除，并把数量累加到「已死亡」";
+        removeButton.setAttribute("aria-label", `${titan.name || "泰坦"} 死亡（已死亡 +${Math.max(1, Math.floor(Number(titan.count || 1)))}）`);
         removeButton.addEventListener("click", () => {
+          const casualties = Math.max(1, Math.floor(Number(state.titans[index].count || 1)));
+          state.deadTitans = String(Math.max(0, Number(state.deadTitans || 0)) + casualties);
           state.titans.splice(index, 1);
           renderTitans();
           queueSave();
@@ -6181,6 +6201,11 @@
     elements.addTitanButton.addEventListener("click", addTitan);
     elements.titanLimitInput.addEventListener("input", () => {
       state.titanLimit = normalizeTitanLimit(elements.titanLimitInput.value);
+      updateTitanListCount();
+      queueSave();
+    });
+    elements.deadTitansInput.addEventListener("input", () => {
+      state.deadTitans = normalizeDeadTitans(elements.deadTitansInput.value);
       updateTitanListCount();
       queueSave();
     });

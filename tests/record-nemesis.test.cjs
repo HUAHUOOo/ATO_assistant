@@ -44,7 +44,7 @@ function harness(saved = {}) {
     'isPlainObject', 'cloneJson', 'jsonEqual', 'normalizeState', 'migrateEnemyStages',
     'normalizeNemesisSelections', 'migrateNemesisProgress', 'normalizeNemesisResourceHistory',
     'normalizeResources', 'migrateSharedResourceKey', 'normalizeCycleStats', 'normalizeCrewCounters',
-    'normalizeCount', 'normalizeTitanList', 'normalizeTitanLimit', 'migrateTitanLimit',
+    'normalizeCount', 'normalizeTitanList', 'normalizeTitanLimit', 'normalizeDeadTitans', 'migrateTitanLimit',
     'normalizeSummonSelection', 'normalizeMatrix', 'normalizeMatrixKey', 'normalizeCycleDay', 'defaultDayForCycle',
     'currentCycle', 'currentNemesis', 'selectNemesis', 'currentResources', 'resourceStorageKey',
     'getEvolutionStage', 'evolutionStages', 'getEvolutionStageKey', 'isEvolutionStageActive',
