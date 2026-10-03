@@ -159,6 +159,16 @@ if re.search(r"URL(?:Decoder|Encoder)\.(?:decode|encode)\([^;{]*StandardCharsets
 if 'URLDecoder.decode(value, "UTF-8")' not in source:
     failures.append('查询串解码必须走 decode(String, "UTF-8") 旧重载（见 decodeQueryPart）')
 
+# 上面这条改动最容易犯的错是漏 import：CI 里只有 Android 工程真的用 javac 编译一次才会发现
+# （本机没有 Android SDK，跑不了）。这里把用到的 JDK 类型和 import 钉在一起。
+for symbol, import_line in (
+    ('UnsupportedEncodingException', 'import java.io.UnsupportedEncodingException;'),
+    ('StandardCharsets', 'import java.nio.charset.StandardCharsets;'),
+    ('URLDecoder', 'import java.net.URLDecoder;'),
+):
+    if symbol in source and import_line not in source:
+        failures.append(f'用到了 {symbol} 却没有 {import_line}')
+
 if failures:
     print("局域网转发边界校验失败：")
     for item in failures:
