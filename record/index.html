@@ -3243,9 +3243,9 @@
           rollback.type = "button";
           rollback.className = "fate-rollback";
           rollback.textContent = "回退";
-          rollback.title = "C1 -2 命运，C2 -3 命运";
+          rollback.title = "C1 -2 命运，C2-C5 -3 命运";
           rollback.addEventListener("click", () => {
-            const delta = state.cycle === "c1" ? 2 : state.cycle === "c2" ? 3 : 0;
+            const delta = { c1: 2, c2: 3, c3: 3, c4: 3, c5: 3 }[state.cycle] || 0;
             if (!delta) return;
             sync(Number(input.value || 0) - delta);
           });

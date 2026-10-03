@@ -175,7 +175,7 @@ async function main() {
     assert.equal(captured.source.pendingLocalChanges, true);
   });
 
-  const sections = { dashboard: { activeProfileId: 'p', profiles: { p: { note: 'imported' } } }, map: {}, record: {}, technology: {}, heroes: {} };
+  const sections = { dashboard: { activeProfileId: 'p', profiles: { p: { id: 'p', state: { day: 1 }, note: 'imported' } } }, map: {}, record: {}, technology: {}, heroes: {} };
   let alertText = '';
   let postCount = 0;
 

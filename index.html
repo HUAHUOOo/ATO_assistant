@@ -2456,8 +2456,8 @@
   <!-- 官方 App 存档（.jsave）→ ATO sections 的转换器；「导入状态」按内容判定后走它。
        jsave-tables.js 是官方枚举/卡名数据表，必须在转换器之前加载；
        map/map-data.js 也要在前（转换器用 window.ATO_MAP_DATA 落地图瓦片）。 -->
-  <script src="./assets/jsave-tables.js?v=20261004-jsave-map"></script>
-  <script src="./assets/jsave-import.js?v=20261004-jsave-map"></script>
+  <script src="./assets/jsave-tables.js?v=20261004-jsave-import-fixes"></script>
+  <script src="./assets/jsave-import.js?v=20261004-jsave-import-fixes"></script>
   <script>window.ATO_BGM_CONFIG = { expect: "bgm17" };</script>
   <script src="./assets/bgm/manifest.js?v=20260921-bgm17"></script>
   <script src="./assets/bgm/bgm.js?v=20260921-bgm17"></script>
@@ -9095,6 +9095,35 @@
     // `isFullBackup` 为 false 时 null/undefined 的分区会被过滤掉 —— 与状态包之外的
     // 局部导入语义一致，不会把没转换的分区清空。
     async function applyImportedSections({ sections, dashboardImport, isFullBackup }) {
+      // 校验先于归一化和任何服务端读写，避免 {} / 无关 JSON 被补成空档后覆盖现有档案。
+      function isLegacyDashboardState(value) {
+        if (!isPlainObject(value)) return false;
+        const day = value.day;
+        const validDay = (typeof day === "number" && Number.isFinite(day) && day >= 0)
+          || (typeof day === "string" && /^(?:\d+|T[0-5]|T6\/00)$/i.test(day.trim()));
+        return validDay || ["completed", "dateNotes", "cardTracks"].some((key) => isPlainObject(value[key]))
+          || Array.isArray(value.events);
+      }
+      function isDashboardArchive(value) {
+        if (!isPlainObject(value)) return false;
+        if (value.profiles === undefined) return isLegacyDashboardState(value.state || value);
+        if (!isPlainObject(value.profiles) || !Object.keys(value.profiles).length) return false;
+        if (value.activeProfileId !== undefined && !Object.prototype.hasOwnProperty.call(value.profiles, value.activeProfileId)) return false;
+        return Object.entries(value.profiles).every(([id, profile]) => {
+          if (!isPlainObject(profile) || typeof profile.id !== "string" || profile.id !== id || !id.trim()) return false;
+          if (profile.cycles !== undefined) {
+            if (!isPlainObject(profile.cycles)) return false;
+            const cycles = Object.entries(profile.cycles);
+            if (cycles.length) return cycles.every(([cycleId, cycle]) => /^c[1-5]$/.test(cycleId)
+              && isPlainObject(cycle) && isPlainObject(cycle.state)
+              && (cycle.id === undefined || cycle.id === cycleId));
+          }
+          return isPlainObject(profile.state) || isLegacyDashboardState(profile);
+        });
+      }
+      if ((sections !== null && sections !== undefined && !isPlainObject(sections)) || !isDashboardArchive(dashboardImport)) {
+        throw new Error("文件不是有效的 ATO 存档：缺少完整的主控台档案或战役状态。");
+      }
       // 「导入状态」是整份替换 record 分区（用户已选定：保持这个合并语义），所以目标战役里
       // 手写的记录表笔记会被这次导入带进来的内容整段取代，而且没有自动恢复的入口。写之前
       // 先把两边摊平比一次，只有「两边都有笔记、且内容不同」才拦一下：空档没什么可丢的，
@@ -9216,6 +9245,11 @@
             let sections;
             try {
               parsed = jsave.parseJsave(bytes);
+              if (!isPlainObject(parsed.official.campaign_stats)
+                || !Array.isArray(parsed.official.argo_stats_vals)
+                || !Array.isArray(parsed.official.timeline_status)) {
+                throw new Error("缺少战役属性或时间轨道，文件不是完整的官方存档。");
+              }
               sections = jsave.convert(parsed.official);
             } catch (error) {
               throw new Error(`这看起来不是官方存档：${String(error?.message || error)}`);
@@ -9236,6 +9270,7 @@
           }
 
           const imported = JSON.parse(text || "{}");
+          if (!isPlainObject(imported)) throw new Error("文件不是有效的 ATO 存档：根节点必须是存档对象。");
           const isFullBackup = imported.app === "ATO Campaign Save Package" && Number(imported.version) >= 3;
           const sections = imported.sections || imported.campaign?.sections || null;
           const dashboardImport = sections?.dashboard || imported.legacyDashboard || imported;
