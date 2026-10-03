@@ -23,27 +23,47 @@ const scoreSource = readText("index.html");
 // 真的有存档才会跑「与 Python 深比较」；没有时按 node:test 的方式显式跳过而不是假装通过。
 const JSAVE_PATHS = [
   "D:\\files\\Tencent Files\\2628451455\\FileRecv\\MobileFile\\campaign_0005(2).jsave",
+  "D:\\files\\Tencent Files\\2628451455\\FileRecv\\MobileFile\\campaign_0005(4).jsave",
+];
+// 多分片（c1，32+80）与"整张网格"（c2，96 格而 ATO 只有 84 个板块）两份实测档。
+const C1_SAVE_PATHS = [
+  "D:\\files\\Tencent Files\\2628451455\\FileRecv\\MobileFile\\campaign_0000.jsave",
+];
+const C2_SAVE_PATHS = [
+  "D:\\files\\Tencent Files\\2628451455\\FileRecv\\MobileFile\\campaign_0001(1).jsave",
+];
+// c3（4 张分片 80+80+80+9）与 c4（带真实标记）两份实测档。
+const C3_SAVE_PATHS = [
+  "D:\\files\\Tencent Files\\2628451455\\FileRecv\\MobileFile\\campaign_0002.jsave",
+];
+const C4_SAVE_PATHS = [
+  "D:\\files\\Tencent Files\\2628451455\\FileRecv\\MobileFile\\campaign_0003(3).jsave",
 ];
 const REFERENCE_PATHS = [
   path.join(root, "tests", "fixtures", "jsave", "pysnap", "snap0005.sections.json"),
 ];
 const jsavePath = JSAVE_PATHS.find((file) => fs.existsSync(file)) || null;
+const c1SavePath = C1_SAVE_PATHS.find((file) => fs.existsSync(file)) || null;
+const c2SavePath = C2_SAVE_PATHS.find((file) => fs.existsSync(file)) || null;
+const c3SavePath = C3_SAVE_PATHS.find((file) => fs.existsSync(file)) || null;
+const c4SavePath = C4_SAVE_PATHS.find((file) => fs.existsSync(file)) || null;
 const referencePath = REFERENCE_PATHS.find((file) => fs.existsSync(file)) || null;
 
 // Python `unique_id()` 用的是毫秒时间戳，两次运行必然不同 —— 比较时按路径忽略。
 const VOLATILE_ID = /(^|\.)(id|activeHeroId)$/;
 
+// 地图板块表：直接用转换器自己的加载器，拿到 `{ ids, rows, cols, row0, col0, cells }`
+// （网格信息是"官方数组下标 → ATO tileId"的第二种算法所需要的）。
 function mapTilesFromMapData() {
   const source = readText("map/map-data.js");
   const data = JSON.parse(source.slice(source.indexOf("{"), source.lastIndexOf("}") + 1));
-  const tiles = {};
-  (data.cycles || []).forEach((cycle) => {
-    tiles[cycle.id] = (cycle.tiles || []).map((tile) => String(tile.id));
-  });
-  return tiles;
+  return jsaveImport._internal.mapTiles(data);
 }
 
 const MAP_TILES = mapTilesFromMapData();
+const tileIdsOf = (cycleId) => MAP_TILES[cycleId].ids;
+// 只按下标对位的旧形状（给"格数/网格都对不上"的负向用例与合成用例用）。
+const positionalTiles = (ids) => ({ ids: ids.map(String) });
 
 // 逐叶子比较，返回差异行（空数组 = 完全相同）。对象键顺序无关，数组按下标比。
 function leafDiffs(actual, expected, where, out) {
@@ -200,12 +220,19 @@ test("convert() 与 Python 参考 sections.json：除地图分区外逐叶子相
   assert.ok(idLines > 0, "参考里应当有 id 字段，否则忽略规则失效");
   assert.deepEqual(otherDiffs, [], `除 id 外还有 canonical 差异：\n${otherDiffs.slice(0, 20).join("\n")}`);
 
-  // 地图分区虽然不比"完全相同"，但**不许把 Python 版已有的部分改坏**：把本轮新增的三个键
-  // 从 JS 结果里摘掉之后，必须与冻结参考逐叶子相同（`tokens` 的 AG/AD/markers 与
-  // 21 个 `tileVariants` 一个字都不许变）。
+  // 地图分区虽然不比"完全相同"，但**不许把 Python 版已有的部分改坏**：把本轮新增的
+  // 内容（explored / previewRevealed / tileNotes，以及 toks 落下来的指示物）从 JS 结果里
+  // 摘掉之后，必须与冻结参考逐叶子相同（`tokens` 的 AG/AD、`markers` 里的 `last_city`
+  // 与 21 个 `tileVariants` 一个字都不许变）。
   const mineMap = JSON.parse(JSON.stringify(mine.map));
   Object.values(mineMap?.users?.default?.cycles || {}).forEach((cycleState) => {
     ["explored", "previewRevealed", "tileNotes"].forEach((key) => delete cycleState[key]);
+    const markers = cycleState.tokens?.markers;
+    if (!markers) return;
+    Object.entries(markers).forEach(([tileId, perTile]) => {
+      Object.keys(perTile || {}).forEach((id) => { if (id !== "last_city") delete perTile[id]; });
+      if (!Object.keys(perTile || {}).length) delete markers[tileId];
+    });
   });
   assert.deepEqual(
     leafDiffs(mineMap, JSON.parse(JSON.stringify(reference.map)), "sections.map"), [],
@@ -244,7 +271,7 @@ test("真实 .jsave 的转换结果带上了七个分区里 ATO 真正有数据�
 // 官方 maps[0] 的第 i 格 → ATO 该轮第 i 格的 tileId。
 function officialTiles(parsed, cycleId) {
   const tiles = (parsed.official.maps || [])[0] || [];
-  const ids = MAP_TILES[cycleId] || [];
+  const ids = tileIdsOf(cycleId);
   return { tiles, ids };
 }
 
@@ -331,7 +358,7 @@ test("地图导入：revl → previewRevealed（只写未探索的那些），no
   assert.equal(cycleState.tileNotes["026"], "通用指示物");
 });
 
-test("地图导入：官方 toks / reward_token / add_advr 不猜落位，只进诊断（不污染 markers）", { skip: !jsavePath }, () => {
+test("地图导入：toks 位 → markers（c5 位序按面板顺序 + ATO 同名 id），未映射的位只进诊断", { skip: !jsavePath }, () => {
   const parsed = jsaveImport.parseJsave(fs.readFileSync(jsavePath));
   const cycleId = `c${parsed.official.campaign_cycle + 1}`;
   const report = jsaveImport.convertWithReport(parsed.official, { mapTiles: MAP_TILES });
@@ -341,31 +368,73 @@ test("地图导入：官方 toks / reward_token / add_advr 不猜落位，只进
   const tokTiles = [];
   const addAdvrTiles = [];
   tiles.forEach((tile, index) => {
-    if (Array.isArray(tile.toks) && tile.toks.some(Boolean)) tokTiles.push(ids[index]);
+    if (Array.isArray(tile.toks) && tile.toks.some(Boolean)) tokTiles.push({ id: ids[index], toks: tile.toks });
     if (Array.isArray(tile.add_advr) && tile.add_advr.some(Boolean)) addAdvrTiles.push(ids[index]);
   });
-  assert.ok(tokTiles.length > 0, "本档官方确实有格上指示物，否则这条断言没牙");
-  assert.deepEqual(tokTiles, ["021", "026", "033", "051", "065", "066"]);
+  assert.deepEqual(tokTiles.map((item) => item.id), ["021", "026", "033", "051", "065", "066"]);
   assert.deepEqual(addAdvrTiles, ["014", "034"]);
 
-  // 位序无法确认 → 一个指示物都不许写：markers 里只剩「最后到访的城市」（来自
-  // campaign_stats.city_tile 的 021），其余 toks 格子上没有任何 marker。
-  assert.deepEqual(Object.keys(cycleState.tokens.markers), ["021"]);
-  assert.deepEqual(cycleState.tokens.markers["021"], { last_city: true });
-  tokTiles.filter((tileId) => tileId !== "021").forEach((tileId) => {
-    assert.equal(cycleState.tokens.markers[tileId], undefined, `${tileId} 的 toks 不许猜成某个指示物`);
+  // 位序依据（三条独立证据，详见 assets/jsave-import.js 的 TOKS_BIT_TO_MARKER 注释）：
+  //   ① 官方 App「Edit Tile」面板逐行顺序（c1–c5 各一张用户截图）；
+  //   ② 字段槽位结构：`add_advr` 在 c5 恰好 2 位、其余循环是空数组，面板的 ARGO/ADVERSARY
+  //      组后面恰好还有 NEMESIS / BLACK BEAK 两行；面板第三组去掉 UNDERWATER TILE
+  //      （格子属性，ATO 没有对应指示物）后恰好 8 行 = c5 的 `toks` 位数；
+  //   ③ ATO 注册表 `map/app.js:301` 里逐行有同名 id（标签见 asset-studio/app/catalog.py
+  //      的 MAP_TOKEN_LABELS），且 c4 的面板 7 行 = 实测 c4 `toks` 7 位、c3 的面板 5 行
+  //      = 实测 c3 `toks` 5 位（`campaign_0001_1.decoded.json` 的 c3 图）。
+  // 硬交叉验证：`campaign_stats.city_tile = 21` 与「唯一一个位 0 为 true 的格子 = 021」
+  // 是同一格 —— 位 0 就是面板里的 LAST VISITED CITY（两个独立来源互相印证）。
+  assert.equal(parsed.official.campaign_stats.city_tile, 21);
+  assert.equal(tokTiles.filter((item) => item.toks[0] === true).map((item) => item.id).join(","), "021");
+
+  // 逐格逐一对照：位 → ATO id。
+  const expected = {
+    "021": { c5_ruin: true },                          // 位 3 = RUIN；位 0 = 城市（见下）
+    "026": { c5_last_visited_underwater_city: true },  // 位 1
+    "033": { c5_ruin: true },                          // 位 3
+    "051": { c5_ruin: true },                          // 位 3
+    "065": { hs: true },                               // 位 5 = HEMIOLIA SCOUT
+    "066": { c5_ruin: true },                          // 位 3
+  };
+  assert.deepEqual(report.stats.map_detail.markers, expected);
+  // 城市标记由 campaign_stats.city_tile 落位（021），与 toks 位 0 同格 → 合起来是
+  // last_city + c5_ruin；位 0 自己**不**额外写 marker（理由见实现注释）。
+  assert.deepEqual(cycleState.tokens.markers, {
+    "021": { last_city: true, c5_ruin: true },
+    "026": { c5_last_visited_underwater_city: true },
+    "033": { c5_ruin: true },
+    "051": { c5_ruin: true },
+    "065": { hs: true },
+    "066": { c5_ruin: true },
   });
+  // 位 0 与 city_tile 同格 → 视作"已经由 city_tile 落位"，既不重复写 marker，也不算未映射
+  // （toks_bit_written 只在**没落位**的位上留痕）。
+  assert.deepEqual(report.stats.map_detail.toks_bit_written, {});
+  assert.deepEqual(report.stats.map_detail.toks_bit0_conflict, []);
+
+  // `toks` 全 false 的格子一个 marker 都不许有。
+  tiles.forEach((tile, index) => {
+    if (Array.isArray(tile.toks) && tile.toks.some(Boolean)) return;
+    assert.equal(cycleState.tokens.markers[ids[index]], undefined,
+      `${ids[index]} 的 toks 全 false，不该有 marker`);
+  });
+
   // 官方 `reward_token` 在 5 份样例里**每格**都是默认值 "Hull"（含 has_reward_token=false 的
-  // 格子），照写会让 80 格全长出奖励指示物；本档 has_* 全 false，所以也不该有任何落位。
+  // 格子），那是 `RewardTokenType` 枚举的第 0 项（Hull / Crew / Titan / ArgoKnowledge /
+  // DreamofPharos / RRToken，见元数据转储），是"该格奖励类型"而不是"放了东西"；
+  // has_* 全 false，所以也不该有任何落位。
   assert.equal(tiles.filter((tile) => tile.reward_token).length, 80);
   assert.equal(tiles.filter((tile) => tile.has_reward_token || tile.has_generic_token).length, 0);
+  assert.deepEqual(Object.keys(cycleState.tokens.markers).filter((id) => {
+    return Object.keys(cycleState.tokens.markers[id]).some((key) => /reward|generic|body|staff|taitan|knowledge|dof|rr/.test(key));
+  }), []);
 
-  // 但必须如实记进诊断，用户/报告能看见"有东西没导"。
+  // 仍然没落位的部分必须如实记进诊断：本档只剩 add_advr（面板里是 NEMESIS / BLACK BEAK，
+  // 但「额外仇敌位 ↔ 指示物」还缺用户侧确认）。
   const unmapped = report.stats.map_detail.unmapped;
-  assert.deepEqual(unmapped.map((item) => item.key), ["toks", "add_advr"]);
-  assert.deepEqual(unmapped[0].tiles, tokTiles);
-  assert.deepEqual(unmapped[1].tiles, addAdvrTiles);
-  assert.match(unmapped[0].reason, /位序/);
+  assert.deepEqual(unmapped.map((item) => item.key), ["add_advr"]);
+  assert.deepEqual(unmapped[0].tiles, addAdvrTiles);
+  assert.match(unmapped[0].reason, /NEMESIS/);
   assert.deepEqual(report.stats.map_detail.tokens, { AG: "057", AD: "070" });
   assert.equal(report.stats.map_detail.explored, 63);
   assert.equal(report.stats.map_detail.preview_revealed, 3);
@@ -373,38 +442,208 @@ test("地图导入：官方 toks / reward_token / add_advr 不猜落位，只进
   assert.equal(report.stats.map_detail.variants, 21);
 });
 
-test("地图导入：格数不一致 / 多张地图 / 读不到格表 → 一个地图字段都不写", () => {
+test("地图导入：toks 位序只写在有面板证据的循环上（c2 / c3 / c4 有，c1 不猜）", () => {
+  // c2 / c3 / c4 的面板行数与实测 `toks` 位数一致（c2 3+1 备用、c3=5、c4=7），
+  // 且每一行都有同名 ATO id。这里用"只按下标对位"的表形状，专门测**位序表**本身。
+  const cases = [
+    { cycleIndex: 1, cycleId: "c2", bits: [1, 2], ids: ["hs", "ENGIN"] },
+    { cycleIndex: 2, cycleId: "c3", bits: [1, 2, 3, 4], ids: ["token_2", "hs", "ENGIN", "night_nymph"] },
+    {
+      cycleIndex: 3,
+      cycleId: "c4",
+      bits: [1, 2, 3, 4, 5, 6],
+      ids: ["c4_city_of_squalor", "c4_cloud_ship", "last_oasis", "hs", "ENGIN", "night_nymph"],
+    },
+  ];
+  cases.forEach(({ cycleIndex, cycleId, bits, ids }) => {
+    const ids0 = tileIdsOf(cycleId);
+    const mapTiles = { [cycleId]: positionalTiles(ids0) };
+    const tiles = ids0.map(() => ({ toks: [] }));
+    // 每格只用一位：第 i 格用第 i 位，命中一个 id。
+    bits.forEach((bit, index) => {
+      tiles[index] = { toks: Array(Math.max(...bits) + 1).fill(false) };
+      tiles[index].toks[bit] = true;
+    });
+    const report = jsaveImport.convertWithReport(
+      { campaign_cycle: cycleIndex, maps: [tiles], campaign_stats: {} }, { mapTiles });
+    const markers = cycleStateOf(report.sections, cycleId).tokens.markers || {};
+    bits.forEach((bit, index) => {
+      assert.deepEqual(markers[ids0[index]], { [ids[index]]: true },
+        `${cycleId} 的 toks[${bit}] 应当落到 ${ids[index]}`);
+    });
+    // 位 0（LAST VISITED CITY）不写：campaign_stats 没给 city_tile 时也不该凭空写。
+    assert.equal(markers[ids0[0]] && markers[ids0[0]].last_city, undefined);
+  });
+
+  // c1 没有可信映射：面板那三行（LABYRINTHIAN TEMPLE / CITY OF THE BULL / SEPULCHER
+  // ACROPOLIS）对应的 ATO id 是不透明的 c11/c12/c13，名字对不上；而且用户截图里
+  // "ENGINE NYMPH 在 O28/O33 附近"与"面板顺序即位序"（→ 位 4 落在 O23）对不上，
+  // 说明 c1 的位序还缺一次确认 → 一位都不许写，全部记进 unmapped。
+  {
+    const ids0 = tileIdsOf("c1");
+    const mapTiles = { c1: positionalTiles(ids0) };
+    const tiles = ids0.map(() => ({ toks: Array(6).fill(false) }));
+    tiles[0].toks[1] = true;
+    const report = jsaveImport.convertWithReport(
+      { campaign_cycle: 0, maps: [tiles], campaign_stats: {} }, { mapTiles });
+    const cycleState = cycleStateOf(report.sections, "c1");
+    assert.equal(cycleState.tokens.markers, undefined, "c1 不该写任何 marker");
+    assert.deepEqual(report.stats.map_detail.unmapped.map((item) => item.key), ["toks"]);
+    assert.deepEqual(report.stats.map_detail.unmapped[0].tiles, [ids0[0]]);
+  }
+});
+
+test("地图导入：多分片 + 网格换 id（c1 实测 32+80 两张分片，只有 80 那张能落位）", { skip: !c1SavePath }, () => {
+  const parsed = jsaveImport.parseJsave(fs.readFileSync(c1SavePath));
+  assert.equal(parsed.official.campaign_cycle, 0);
+  assert.equal(parsed.official.maps.length, 2);
+  assert.deepEqual(parsed.official.maps.map((map) => map.length), [32, 80]);
+  const report = jsaveImport.convertWithReport(parsed.official, { mapTiles: MAP_TILES });
+  const cycleState = cycleStateOf(report.sections, "c1");
+  const detail = report.stats.map_detail;
+
+  // 80 格那张分片是 8×10 的网格（ATO 的数字板块只占第 4..13 列，所以网格起点列是 3）：
+  // 官方下标 40/41/60 → 格 (4,3)/(4,4)/(6,3) → id 021/022/031，与
+  // `campaign_stats.argo_tile/adversary_tile/city_tile` = 21/22/31 **三个锚点全部吻合**；
+  // 用户截图上的 O21/O22/O23/O26/O27/O28/O31/O32/O33 也与下面的结果对上。
+  assert.equal(detail.map_index, 1);
+  assert.match(detail.map_how, /10 列，起点格 0,3/);
+  assert.deepEqual(detail.anchors.slice().sort(), ["adversary=022", "argo=021", "city=031"]);
+  assert.deepEqual(detail.skipped_maps, [0]);
+  assert.deepEqual(Object.keys(cycleState.explored).sort(), ["021", "022", "023", "028", "031", "032", "033"]);
+  assert.deepEqual(Object.keys(cycleState.previewRevealed).sort(), ["026", "027"]);
+  assert.equal(cycleState.tokens.AG, "021");
+  assert.equal(cycleState.tokens.AD, "022");
+  // `toks` 位在 c1 上还没有依据 → 只落 `city_tile` 来的 last_city，一个 toks marker 都不写。
+  assert.deepEqual(cycleState.tokens.markers, { "031": { last_city: true } });
+  assert.deepEqual(detail.unmapped.map((item) => item.key), ["skipped_maps", "toks"]);
+  assert.deepEqual(detail.unmapped[0].tiles, ["0"]);
+  assert.equal(parsed.official.campaign_stats.city_tile, 31);
+  // 位 0（城市位）与 city_tile 同格 → 没有冲突。
+  assert.deepEqual(detail.toks_bit0_conflict, []);
+});
+
+test("地图导入：c2 实测（96=12×8 网格，5 格已探索；toks 位 0/1/2 的城市/侦察船/引擎宁芙）", { skip: !c2SavePath }, () => {
+  const parsed = jsaveImport.parseJsave(fs.readFileSync(c2SavePath));
+  assert.equal(parsed.official.campaign_cycle, 1);
+  assert.equal(parsed.official.maps.length, 1);
+  assert.equal(parsed.official.maps[0].length, 96);
+  const report = jsaveImport.convertWithReport(parsed.official, { mapTiles: MAP_TILES });
+  const cycleState = cycleStateOf(report.sections, "c2");
+  const detail = report.stats.map_detail;
+
+  // ATO 的 c2 板块数只有 84（12×8 网格里缺 12 格），所以官方 96 格数组必须**按格换 id**：
+  // 官方下标 72/88/89 → id 064/078/079 == `campaign_stats.argo_tile/city_tile/adversary_tile` ✓
+  assert.match(detail.map_how, /8 列，起点格 0,0/);
+  assert.deepEqual(detail.anchors.slice().sort(), ["adversary=079", "argo=064", "city=078"]);
+  assert.deepEqual(Object.keys(cycleState.explored).sort(), ["064", "071", "072", "078", "079"]);
+  assert.equal(cycleState.tokens.AG, "064");
+  assert.equal(cycleState.tokens.AD, "079");
+  assert.deepEqual(cycleState.tokens.markers, {
+    "071": { hs: true },      // 位 1 = HEMIOLIA SCOUT（截图上的蓝底船）
+    "072": { ENGIN: true },   // 位 2 = ENGINE NYMPH（截图上的暗色引擎宁芙）
+    "078": { last_city: true }, // 位 0 = LAST VISITED CITY，由 city_tile 落位
+  });
+  assert.deepEqual(detail.missing_official_cells.length, 12);
+  assert.deepEqual(detail.unmapped.map((item) => item.key), ["missing_cells"]);
+  assert.deepEqual(detail.toks_bit0_conflict, []);
+});
+
+
+test("地图导入：c4 实测（9 列网格，11 格已探索；7 个 toks 位全部落到 7 个不同的格）", { skip: !c4SavePath }, () => {
+  const parsed = jsaveImport.parseJsave(fs.readFileSync(c4SavePath));
+  assert.equal(parsed.official.campaign_cycle, 3);
+  const report = jsaveImport.convertWithReport(parsed.official, { mapTiles: MAP_TILES });
+  const cycleState = cycleStateOf(report.sections, "c4");
+  const detail = report.stats.map_detail;
+
+  // 官方 81 格数组；ATO 的 c4 表是 9×9 无空洞网格，但 **id 与网格顺序不一致**（id 021 在
+  // 行优先 56），所以必须按锚点解出的网格换 id —— 三个锚点全部命中：
+  //   下标 56 → id 021 = `argo_tile`；55 → 020 = `adversary_tile`；45（toks[0]）→ 028 = `city_tile`
+  assert.match(detail.map_how, /9 列，起点格 0,0/);
+  assert.deepEqual(detail.anchors.slice().sort(), ["adversary=020", "argo=021", "city=028"]);
+  assert.deepEqual(Object.keys(cycleState.explored).sort(),
+    ["020", "021", "028", "029", "030", "037", "038", "039", "046", "047", "048"]);
+  assert.deepEqual(Object.keys(cycleState.previewRevealed), ["019"]);
+  assert.equal(cycleState.tokens.AG, "021");
+  assert.equal(cycleState.tokens.AD, "020");
+  // 位序按 c4 面板：LAST VISITED CITY / CITY OF SQUALOR / CLOUD SHIP / LAST VISITED OASIS /
+  // HEMIOLIA SCOUT / ENGINE NYMPH / NIGHT NYMPH —— 七位全部用到，落在七个不同的格上。
+  assert.deepEqual(cycleState.tokens.markers, {
+    "028": { last_city: true },
+    "029": { c4_city_of_squalor: true },
+    "030": { c4_cloud_ship: true },
+    "037": { last_oasis: true },
+    "038": { hs: true },
+    "039": { ENGIN: true },
+    "046": { night_nymph: true },
+  });
+  assert.deepEqual(detail.unmapped, []);
+});
+
+test("地图导入：c3 实测（4 张分片；按锚点解出 10 列网格，坐标有歧义的格跳过并记录）", { skip: !c3SavePath }, () => {
+  const parsed = jsaveImport.parseJsave(fs.readFileSync(c3SavePath));
+  assert.equal(parsed.official.campaign_cycle, 2);
+  assert.deepEqual(parsed.official.maps.map((map) => map.length), [80, 80, 80, 9]);
+  const report = jsaveImport.convertWithReport(parsed.official, { mapTiles: MAP_TILES });
+  const cycleState = cycleStateOf(report.sections, "c3");
+  const detail = report.stats.map_detail;
+
+  // 三个锚点：下标 42 → 002 = argo_tile；43 → 005 = adversary_tile；52（toks[0]）→ 001 = city_tile
+  assert.equal(detail.map_index, 0);
+  assert.match(detail.map_how, /10 列，起点格 1,0/);
+  assert.deepEqual(detail.anchors.slice().sort(), ["adversary=005", "argo=002", "city=001"]);
+  assert.deepEqual(detail.skipped_maps, [1, 2, 3]);
+  // ATO 的 c3 板块表有 70 处坐标重复（92 个板块只落在 22 个格上）→ 大部分格无法可靠换 id，
+  // 只有**唯一占用**的格才落位（本档实测 5 格），其余进 missing_official_cells。
+  assert.equal(cycleState.tokens.AG, "002");
+  assert.equal(cycleState.tokens.AD, "005");
+  assert.deepEqual(cycleState.tokens.markers, {
+    "001": { last_city: true },
+    "005": { night_nymph: true },
+    "009": { ENGIN: true },
+  });
+  // 逐格断言"歧义格没有被强行取第一个 id"：这 5 格是唯一占用格，多一格都说明歧义处理失效。
+  assert.deepEqual(Object.keys(cycleState.explored).sort(), ["001", "002", "005", "009", "014"]);
+  assert.ok(detail.missing_official_cells.length > 0, "c3 的歧义格必须被记录");
+  assert.deepEqual(detail.unmapped.map((item) => item.key), ["skipped_maps", "missing_cells"]);
+});
+
+
+test("地图导入：格数与网格都对不上 / 读不到格表 → 一个地图字段都不写", () => {
   const fakeTiles = Array.from({ length: 80 }, (unused, index) => ({
     expl: true, revl: true, argo: index === 0, toks: [true, false], note: "x",
   }));
   const official = { campaign_cycle: 4, maps: [fakeTiles], campaign_stats: {} };
 
-  // 1) ATO 该轮地图只有 79 格 → 差一格就会整体错位，宁可不写。
+  // 1) ATO 该轮板块列表被截成 79 个，网格也不是 8×10 → 对应关系说不清，整体不写。
   const shortReport = jsaveImport.convertWithReport(official, {
-    mapTiles: { c5: MAP_TILES.c5.slice(0, 79) },
+    mapTiles: { c5: positionalTiles(tileIdsOf("c5").slice(0, 79)) },
   });
   assert.deepEqual(Object.keys(cycleStateOf(shortReport.sections, "c5")), ["tokens"]);
   assert.deepEqual(cycleStateOf(shortReport.sections, "c5").tokens, {});
-  assert.match(shortReport.stats.map_detail.note, /格数不符/);
+  assert.match(shortReport.stats.map_detail.note, /都对不上/);
 
   // 2) 读不到 map/map-data.js 的格表（tileId 换不成补零串）→ 同样不写。
   const noTableReport = jsaveImport.convertWithReport(official, { mapTiles: {} });
   assert.deepEqual(cycleStateOf(noTableReport.sections, "c5").tokens, {});
   assert.match(noTableReport.stats.map_detail.note, /读不到 map\/map-data\.js/);
 
-  // 3) 官方存档里不止一张地图 → 对应关系没确认，不写。
+  // 3) 两个分片都跟 c5 的板块数/网格（8×10）对不上 → 不写。分片本身是支持的：
+  //    c5 的 8×10 网格会让"80 格分片"走网格路径，所以这里刻意用 79 格的分片。
+  const oddTiles = fakeTiles.slice(0, 79);
   const twoMapsReport = jsaveImport.convertWithReport(
-    { campaign_cycle: 4, maps: [fakeTiles, fakeTiles] }, { mapTiles: MAP_TILES });
+    { campaign_cycle: 4, maps: [oddTiles, oddTiles] }, { mapTiles: MAP_TILES });
   assert.deepEqual(Object.keys(cycleStateOf(twoMapsReport.sections, "c5")), ["tokens"]);
-  assert.match(twoMapsReport.stats.map_detail.note, /2 张地图/);
+  assert.match(twoMapsReport.stats.map_detail.note, /都对不上/);
 
-  // 4) 反向对照：格数一致时**确实**会写，否则上面三条负向断言可能是"反正都不写"。
+  // 4) 反向对照：分片格数与板块数一致时**确实**会写，否则上面三条负向断言可能是"反正都不写"。
   const ok = jsaveImport.convert(official, { mapTiles: MAP_TILES });
   const cycleState = cycleStateOf(ok, "c5");
   assert.equal(Object.keys(cycleState.explored).length, 80);
   assert.deepEqual(cycleState.previewRevealed, {}, "expl=true 的 revl 标志不进 previewRevealed");
   assert.equal(Object.keys(cycleState.tileNotes).length, 80);
-  assert.equal(cycleState.tokens.AG, MAP_TILES.c5[0]);
+  assert.equal(cycleState.tokens.AG, tileIdsOf("c5")[0]);
 });
 
 // ---------------------------------------------------------------- 主控台导入入口分流

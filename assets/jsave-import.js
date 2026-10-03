@@ -789,16 +789,93 @@
 
   // ---------------------------------------------------------------- ATO 地图瓦片
 
+  // ATO 各轮地图的**格子表**。数据来自 map/map-data.js（`window.ATO_MAP_DATA = {...}`）。
+  //
+  // 每个循环返回 { ids, rows, cols, cells, count }：
+  //   ids   —— 按 map-data.js 的 `order` 排好的 tileId 列表（`"001"` 这种补零串）；
+  //   cells —— `"<row-1>,<col-1>"` → tileId，用来把"官方数组下标"换算成格子；
+  //   rows/cols —— 网格的几何（`rows * cols` 是**整张网格**的格子数，可能大于 ids.length，
+  //                因为 ATO 表里有的格子是空的：c2 就是 12×8=96 的网格里只有 84 个格）。
+  //
+  // 为什么需要网格：官方存档的 `maps[0]` 是**整张网格的行优先序**，而 tileId 是**印在板块上的
+  // 编号**，两者在 c2 上并不一致（实测：官方下标 72/88/89 对应 ATO 的 id 064/078/079，正好等于
+  // `campaign_stats.argo_tile/city_tile/adversary_tile` = 64/78/79，也与用户截图上的 O64/O78/O79
+  // 一致）；c4（9×9=81）与 c5（8×10=80）没有空洞，两种算法结果相同，所以历史行为不变。
   function loadAtoMapTiles(data) {
-    // 返回 { cycle: [tileId, ...] }。数据来自 map/map-data.js（`window.ATO_MAP_DATA = {...}`）。
-    // 用来决定 `map...tokens.AG/AD` 里 tileId 的写法（真实数据是 `"001"` 这种补零串）。
     var source = data || root.ATO_MAP_DATA || null;
     if (!source) return {};
     var out = {};
     (source.cycles || []).forEach(function (cycle) {
-      out[cycle && cycle.id] = ((cycle && cycle.tiles) || []).map(function (tile) {
-        return String(tile && tile.id);
+      if (!cycle || !cycle.id) return;
+      var tiles = (cycle.tiles || []).slice();
+      // 只有**数字 id** 的板块算官方地图上的格子：ATO 自己加的 `T00`…`T06` 这类板块
+      // （教学/时间线用的额外板块）在官方地图上不存在，把它们算进网格会让边界和格子表都偏。
+      var numeric = tiles.filter(function (tile) { return /^\d+$/.test(String(tile && tile.id)); });
+      var minRow = Infinity;
+      var minCol = Infinity;
+      var maxRow = 0;
+      var maxCol = 0;
+      var cells = {};
+      numeric.forEach(function (tile) {
+        var row = Number(tile && tile.row);
+        var col = Number(tile && tile.col);
+        if (!Number.isInteger(row) || !Number.isInteger(col) || row < 1 || col < 1) return;
+        minRow = Math.min(minRow, row);
+        minCol = Math.min(minCol, col);
+        maxRow = Math.max(maxRow, row);
+        maxCol = Math.max(maxCol, col);
+        // 一格可能被多个板块占用（实测 c3：92 个板块只落在 22 个格上）→ 保留**全部** id；
+        // 取 id 时只有"唯一占用"的格才可靠，有歧义的格会被跳过并记进诊断。
+        cells[(row - 1) + "," + (col - 1)] = (cells[(row - 1) + "," + (col - 1)] || [])
+          .concat(String(tile.id));
       });
+      var hasBox = Number.isFinite(minRow) && Number.isFinite(minCol) && maxRow >= minRow && maxCol >= minCol;
+      var ordered = tiles.slice().sort(function (a, b) {
+        var ao = Number(a && a.order);
+        var bo = Number(b && b.order);
+        if (!Number.isFinite(ao)) ao = 0;
+        if (!Number.isFinite(bo)) bo = 0;
+        return ao - bo;
+      });
+      out[cycle.id] = {
+        ids: ordered.map(function (tile) { return String(tile && tile.id); }),
+        // 「网格」= 数字板块的**外接矩形**：c1 的数字板块只在第 4..13 列（10 列宽），
+        // 所以起点列是 3（0 基），宽 10、高 8 = 80 格 —— 正好等于官方 c1 那张 80 格分片。
+        rows: hasBox ? (maxRow - minRow + 1) : 0,
+        cols: hasBox ? (maxCol - minCol + 1) : 0,
+        row0: hasBox ? (minRow - 1) : 0,
+        col0: hasBox ? (minCol - 1) : 0,
+        cells: cells,
+        count: tiles.length
+      };
+    });
+    return out;
+  }
+
+  // 调用方可以直接给 `{ cycle: [tileId, ...] }`（旧形状，只按下标对位），也可以给
+  // `loadAtoMapTiles()` 的完整形状；这里统一成后者，`cells` 缺省时就没有网格信息。
+  function normalizeMapTiles(raw) {
+    var out = {};
+    Object.keys(raw || {}).forEach(function (cycleId) {
+      var value = raw[cycleId];
+      if (Array.isArray(value)) {
+        out[cycleId] = {
+          ids: value.map(function (id) { return String(id); }),
+          rows: 0, cols: 0, cells: null, count: value.length
+        };
+        return;
+      }
+      if (value && typeof value === "object") {
+        out[cycleId] = {
+          ids: ((value.ids) || []).map(function (id) { return String(id); }),
+          rows: Number(value.rows) || 0,
+          cols: Number(value.cols) || 0,
+          row0: Number(value.row0) || 0,
+          col0: Number(value.col0) || 0,
+          cells: value.cells || null,
+          count: Number(value.count) || ((value.ids) || []).length
+        };
+      }
     });
     return out;
   }
@@ -1044,7 +1121,7 @@
     this.factions = diplomacyFactions();
     this.tech_names = techCardNames();
     this.gear_names = gearCardIds();
-    this.map_tiles = tables.mapTiles || loadAtoMapTiles();
+    this.map_tiles = normalizeMapTiles(tables.mapTiles || loadAtoMapTiles());
     this.official_keys = [];
     this.warnings = [];
     this.stats = {};
@@ -1969,6 +2046,72 @@
     return { enemies: enemies, nemesis: nemesisSel };
   };
 
+  // 官方 `maps[]` 的 `toks[i]` 位 → ATO 的指示物 id（`tokens.markers.<格>.<id>`）。
+  //
+  // 依据（三条互相独立，2026-10-04 取证；取证过程见 release-notes/v3.5.0.md 的
+  // 「地图完整导入」一节）：
+  //   ① **面板顺序**：官方 App「Edit Tile」面板逐行列出每个标记的开关，顺序是
+  //      EXPLORED / REVEALED / ARGO / ADVERSARY / NEMESIS / BLACK BEAK /
+  //      UNDERWATER TILE / LAST VISITED CITY / LAST VISITED UNDERWATER CITY /
+  //      SILVER REMNANT TOKEN / RUIN / ATLANTEAN CAPITAL MARKER / HEMIOLIA SCOUT /
+  //      ENGINE NYMPH / NIGHT NYMPH / TILE NOTE（用户截图，c5 的 O70 面板）。
+  //   ② **字段槽位结构**：存档里 `expl/revl` 之后是 `argo`、`advr`、`add_advr[2]`、
+  //      `toks[N]`、`note`；面板的 ARGO/ADVERSARY 组在 c5 恰好还有 NEMESIS、BLACK BEAK
+  //      两行 —— 与 `add_advr` **在 c5 恰好 2 位、其余循环是空数组** 完全对齐；
+  //      面板第三组共 9 行，去掉 ATO 里没有对应、且不属于"放上去的棋子"的
+  //      UNDERWATER TILE（格子属性，官方由 `ico_uw` 之类的地图数据画），剩 8 行 —— 与
+  //      **c5 的 `toks` 恰好 8 位** 对齐。
+  //   ③ **ATO 注册表同名 id**：`map/app.js:301` 的 `tokenAssets`（标签另见
+  //      `asset-studio/app/catalog.py` 的 `MAP_TOKEN_LABELS`）里，下面的每一行都有
+  //      同名 id；c5 的 8 位里 7 位能一一对名（第 0 位见下）。
+  //
+  // 位 0 **故意不映射**：面板里它是 LAST VISITED CITY，而 ATO 侧的「最后到访的城市」已经由
+  // `campaign_stats.city_tile` 落成 `markers.<格>.last_city`（官方自己也把这一格镜像成
+  // 全局的 `city_tile`，本档实测两者同为 021 —— 这是位序的关键交叉验证），再写一次是重复；
+  // 若某一格里位 0 为 true 而该格不是 `city_tile` 那一格，会记进
+  // `stats.map_detail.toks_bit0_conflict` 供排查。
+  //
+  // **没有映射表的循环**（一律不猜，照旧记进 `unmapped`）：
+  //   c1 —— 面板那三行是 LABYRINTHIAN TEMPLE / CITY OF THE BULL / SEPULCHER ACROPOLIS，
+  //         而 ATO 的 id 是不透明的 `c11` / `c12` / `c13`，名字对不上（面板行数也无法用
+  //         实测 `toks` 长度校验：没有 c1 的样例存档），要用户拿 ATO 标记池的三个图标与
+  //         面板名字对照后才能补；
+  //   c2 —— 面板只有 3 行（LAST VISITED CITY / HEMIOLIA SCOUT / ENGINE NYMPH），而实测
+  //         `toks` 是 **4** 位，差 1，先不写（可能是截图裁掉一行，或缺的那位在本轮不可用）。
+  var TOKS_BIT_TO_MARKER = {
+    c2: {
+      // 面板（c2）：LAST VISITED CITY / HEMIOLIA SCOUT / ENGINE NYMPH
+      // 位 0 = LAST VISITED CITY 这条在 c2 上**被硬验证过**：`campaign_stats.city_tile = 78`，
+      // 而唯一一个 toks[0] 为 true 的格子（官方下标 88）按网格换算正好是 id `078`。
+      1: "hs",                                // HEMIOLIA SCOUT（截图上是蓝底船）
+      2: "ENGIN"                              // ENGINE NYMPH（截图上是暗色引擎宁芙）
+      // 位 3：c2 面板只有 3 行，实测 `toks` 却有 4 位（本档位 3 从未出现）→ 不映射、不猜。
+    },
+    c3: {
+      1: "token_2",                           // ARIADNE'S ANCHOR（catalog 标签「循环 III 专用地图标记（AA）」）
+      2: "hs",                                // HEMIOLIA SCOUT
+      3: "ENGIN",                             // ENGINE NYMPH
+      4: "night_nymph"                        // NIGHT NYMPH
+    },
+    c4: {
+      1: "c4_city_of_squalor",                // CITY OF SQUALOR
+      2: "c4_cloud_ship",                     // CLOUD SHIP
+      3: "last_oasis",                        // LAST VISITED OASIS
+      4: "hs",                                // HEMIOLIA SCOUT
+      5: "ENGIN",                             // ENGINE NYMPH
+      6: "night_nymph"                        // NIGHT NYMPH
+    },
+    c5: {
+      1: "c5_last_visited_underwater_city",   // LAST VISITED UNDERWATER CITY
+      2: "last_silver_ruin",                  // SILVER REMNANT TOKEN
+      3: "c5_ruin",                           // RUIN
+      4: "c5_atlantean_capital",              // ATLANTEAN CAPITAL MARKER
+      5: "hs",                                // HEMIOLIA SCOUT（ATO 的侦察船标记，unique）
+      6: "ENGIN",                             // ENGINE NYMPH
+      7: "night_nymph"                        // NIGHT NYMPH
+    }
+  };
+
   // 官方 `maps` → ATO 地图循环状态（`map...cycles.<c>`）。
   //
   // 官方每一格（实测 campaign_0005(4).jsave 的 maps[0]，80 格）都带这些键：
@@ -1976,63 +2119,216 @@
   //   expl                 bool         已探索（63 格 true）→ `explored`
   //   revl                 bool         已揭示（7 格 true）→ `previewRevealed`，规则见下
   //   argo / advr          bool         阿尔戈 / 主仇敌位置 → `tokens.AG` / `tokens.AD`
-  //   add_advr             [bool,bool]  额外仇敌（ATO 只有一个 `AD` 位，无落点）
-  //   toks                 [bool × N]   格上指示物（N 随循环变：c2=4、c4=7、c5=8）
-  //   reward_token         string       奖励指示物名字（**所有样例每格都是默认值 "Hull"**，
-  //                                     只有 `has_reward_token` 为 true 才代表真的放着）
-  //   has_reward_token     bool         该格是否放着奖励指示物（5 份样例全 false）
+  //   add_advr             [bool × N]   额外仇敌位（c5 是 2 位，其余循环空数组）；
+  //                                     面板里那两行就是 NEMESIS / BLACK BEAK
+  //   toks                 [bool × N]   格上指示物（N 随循环变：c2=4、c3=5、c4=7、c5=8）
+  //                                     → `tokens.markers`，位序见 TOKS_BIT_TO_MARKER
+  //   reward_token         string       该格奖励指示物的**类型**（官方枚举 `RewardTokenType`
+  //                                     = Hull / Crew / Titan / ArgoKnowledge / DreamofPharos /
+  //                                     RRToken，第 0 项 Hull 是默认值 —— 所有样例每格都是
+  //                                     "Hull"，**不代表放了东西**）
+  //   has_reward_token     bool         该格是否真的放着奖励指示物（5 份样例全 false）
   //   has_generic_token    bool         该格是否放着通用指示物（5 份样例全 false）
   //   can_have_reward_token bool        该格能不能放奖励指示物（静态属性，c2 实测 31 格 true）
   //   note                 string       格笔记 → `tileNotes`
   //   alternative          bool         变体面 → `tileVariants[tileId] = "alternate"`
   //
-  // 落位前提（任一不满足就**一个地图字段都不写**）：官方 `maps` 恰好一张、能读到
-  // ATO 该轮地图的 tileId 表、且格数与官方地图**逐格一致** —— 下标对位差一格就会把
-  // A 格的状态写到 B 格上，比不写更糟。
+  // 落位前提（任一不满足就**一个地图字段都不写**）：能读到 ATO 该轮地图的板块表，并且
+  // 官方至少有一个分片能与它**确定对应关系**（格数相同按下标对位，或分片格数等于网格面积
+  // 时按 (row, col) 换 id）—— 下标对位差一格就会把 A 格的状态写到 B 格上，比不写更糟。
   //
-  // `toks` / `reward_token` / `add_advr` 目前**不落位**：`toks` 的位序与位含义
-  // （哪一个 bit 是黑喙 / 遗迹 / 通用指示物……）在 5 份样例里只出现过 7 个 true
-  // （格 021 的 0+3 位、026 的 1 位、033/051/066 的 3 位、065 的 5 位），没有任何
-  // 能把位序钉死的信息，且长度随循环变（c2=4、c4=7、c5=8），猜一个位序等于往
-  // 用户的图上放错的指示物；`reward_token` 在所有样例里都是默认值 "Hull"（连
-  // `has_reward_token` 为 false 的格子也一样），照写会让 80 格全部长出奖励指示物；
-  // `add_advr` 在 ATO 里没有第二个仇敌位。三者都如实记进 `stats.map_detail.unmapped`
-  // 与导入报告，不写进 `record.notes`（那会让 `record` 分区与冻结的 Python 参考
-  // 快照产生差异，见 tests/jsave-import.test.cjs 的说明）。
+  // 仍未落位的部分：位 0（LAST VISITED CITY 由 `campaign_stats.city_tile` 落位，不重复写）；
+  // `reward_token` 单看是类型不是状态（只有 `has_reward_token` 为 true 才有意义，而样例
+  // 里全是 false）；`add_advr` 的两个位对应面板的 NEMESIS / BLACK BEAK，ATO 里虽有同名
+  // 指示物 id（`c5_nemesis` / `c5_black_beak`），但"额外仇敌位 ↔ 指示物"这一步还缺用户
+  // 侧的确认（见报告 §8 的「下一步」），所以先不写；c1 的三个专属标记（面板上叫
+  // LABYRINTHIAN TEMPLE / CITY OF THE BULL / SEPULCHER ACROPOLIS）对应的 ATO id 是不透明的
+  // `c11`/`c12`/`c13`，名字对不上也先不写。这些都如实记进
+  // `stats.map_detail.unmapped`，不写进 `record.notes`（那会让 `record` 分区与冻结的
+  // Python 参考快照产生差异，见 tests/jsave-import.test.cjs 的说明）。
   Converter.prototype.buildMapSection = function (official, cycleId) {
     var maps = official.maps || [];
     var empty = {
-      tokens: {}, variants: {}, explored: {}, previewRevealed: {}, tileNotes: {}, written: false
+      tokens: {}, variants: {}, explored: {}, previewRevealed: {}, tileNotes: {},
+      markers: {}, written: false
     };
     var detail = { entries: maps.length, written: false, note: "" };
-    var tileIds = this.map_tiles[cycleId] || [];
-    if (maps.length !== 1) {
-      detail.note = "官方存档有 " + maps.length + " 张地图，无法确定对应关系，未落位";
-      this.stats.map_detail = detail;
-      return empty;
-    }
-    var tiles = maps[0] || [];
-    if (!tileIds.length || tiles.length !== tileIds.length) {
+    var tileTable = this.map_tiles[cycleId] || null;
+    var tileIds = (tileTable && tileTable.ids) || [];
+    var tiles = maps;
+    // 官方数组下标 → ATO tileId 的两种算法（都要求"能确定对应关系"，否则整体不写）：
+    //   ① **格数相同**：直接按下标对位（c4=81、c5=80，历史行为，未变）；
+    //   ② **格数不同但官方给出的正是整张网格**（`tiles.length === rows * cols`）：官方数组是
+    //      整张网格的行优先序（c2 实测 12×8=96），按 (row, col) 查 ATO 的格子表。
+    //      这一条是被三个独立约束证实的：官方下标 72/88/89 → 格 (10,1)/(12,1)/(12,2) →
+    //      id `064`/`078`/`079` == `campaign_stats.argo_tile/city_tile/adversary_tile`
+    //      == 用户截图上的 O64/O78/O79。
+    // 官方可能给多张地图（用户实测：多张图是**平铺在同一张地图面上**的分片，例如 c1 是
+    // 32 + 80 = 112 格）。所以逐个分片找**能确定对应关系**的那一张：
+    //   (a) 分片格数 === ATO 该轮板块数（列表顺序）—— c4/c5 走这条；
+    //   (b) 分片格数 === 该轮网格面积（`rows * cols`，只按数字 id 的板块算）—— 分片是
+    //       **整张网格的行优先序**，按下标算 (row, col) 再查格子表；c2 是 96=12×8，
+    //       c1 的 80 格分片是 8×10（ATO 的列 4..13），两条都被 `campaign_stats`
+    //       的 argo/adversary/city 三个锚点和用户截图的 O 编号逐一对上（见报告 §9）。
+    // 其它分片（例如 c1 的 32 格那张，ATO 没有对应板块）跳过并记进诊断。
+    // 官方数组下标 → ATO tileId。三种算法，优先用**有据可依**的那种：
+    //   ① **锚点解出的网格**：官方存档自己带着交叉引用 —— `campaign_stats.argo_tile` /
+    //      `adversary_tile` / `city_tile` 是那三个标记所在板块的**编号**，而 per-tile 的
+    //      `argo` / `advr` / `toks[0]` 告诉我们它们在**数组里的下标**。三个锚点一起就能解出
+    //      (列数, 行偏移, 列偏移)：官方数组是整张网格的行优先序。实测五轮都解得唯一解，
+    //      并且和用户截图上的 O 编号一致（c5 下标 56/69/20 → 057/070/021；c4 56/55/45 →
+    //      021/020/028；c2 72/89/88 → 064/079/078；c1 第 2 张分片 40/41/60 → 021/022/031；
+    //      c3 42/43/52 → 002/005/001）。少于两个锚点时不硬解。
+    //   ② **外接矩形网格**：没有锚点时，若分片格数等于"数字板块的外接矩形面积"，按格换 id。
+    //   ③ **按下标对位**：分片格数与板块列表长度相同（这是最早的行为，只在没有网格信息时用）。
+    // 一格被多个板块占用时（c3）该格不可靠 → 跳过这一格并记进诊断，绝不猜。
+    var stats = official.campaign_stats || {};
+    var pad3 = function (n) { return ("00" + n).slice(-3); };
+    var anchorKinds = { argo: "argo_tile", adversary: "adversary_tile", city: "city_tile" };
+    var collectAnchors = function (map) {
+      var found = { argo: [], adversary: [], city: [] };
+      map.forEach(function (tile, i) {
+        if (!tile || typeof tile !== "object") return;
+        if (tile.argo) found.argo.push(i);
+        if (tile.advr) found.adversary.push(i);
+        if (Array.isArray(tile.toks) && tile.toks[0] === true) found.city.push(i);
+      });
+      var list = [];
+      Object.keys(anchorKinds).forEach(function (kind) {
+        var statValue = stats[anchorKinds[kind]];
+        if (found[kind].length !== 1) return;
+        if (!Number.isInteger(statValue) || statValue <= 0) return;
+        list.push({ kind: kind, index: found[kind][0], id: pad3(statValue) });
+      });
+      return list;
+    };
+    var cellsOf = function (geometry, i) {
+      if (!tileTable || !tileTable.cells) return null;
+      var row = geometry.row0 + Math.floor(i / geometry.cols);
+      var col = geometry.col0 + (i % geometry.cols);
+      var cell = tileTable.cells[row + "," + col];
+      if (!cell || !cell.length) return null;
+      if (cell.length > 1) return { ambiguous: cell };
+      return { id: cell[0] };
+    };
+    var makeIndexToId = function (geometry, anchors) {
+      var overrides = {};
+      (anchors || []).forEach(function (anchor) { overrides[anchor.index] = anchor.id; });
+      return function (i) {
+        // 锚点自己的那几格是**权威**的：`campaign_stats` 直接给了编号，即使该格在 ATO 表里
+        // 被多个板块占用（c3 有 70 处重复坐标），这个下标也一定是那个编号。
+        if (Object.prototype.hasOwnProperty.call(overrides, i)) return overrides[i];
+        var cell = cellsOf(geometry, i);
+        return cell && cell.id ? cell.id : null;
+      };
+    };
+    var solveGeometry = function (anchors) {
+      var solutions = [];
+      for (var cols = 4; cols <= 40 && solutions.length < 24; cols += 1) {
+        for (var row0 = 0; row0 <= 4; row0 += 1) {
+          for (var col0 = 0; col0 <= 14; col0 += 1) {
+            var geometry = { cols: cols, row0: row0, col0: col0 };
+            var ok = anchors.every(function (anchor) {
+              var cell = cellsOf(geometry, anchor.index);
+              return Boolean(cell && cell.id === anchor.id)
+                || Boolean(cell && cell.ambiguous && cell.ambiguous.indexOf(anchor.id) >= 0);
+            });
+            if (ok) solutions.push(geometry);
+          }
+        }
+      }
+      if (!solutions.length) return null;
+      var boxMatch = solutions.filter(function (geometry) {
+        return tileTable && geometry.cols === tileTable.cols
+          && geometry.row0 === tileTable.row0 && geometry.col0 === tileTable.col0;
+      });
+      if (boxMatch.length === 1) return boxMatch[0];
+      return solutions.length === 1 ? solutions[0] : null;
+    };
+    var chosen = null;
+    maps.forEach(function (map, mapIndex) {
+      if (chosen || !Array.isArray(map)) return;
+      var anchors = collectAnchors(map);
+      if (anchors.length >= 2) {
+        var solved = solveGeometry(anchors);
+        if (solved) {
+          chosen = {
+            mapIndex: mapIndex,
+            map: map,
+            indexToId: makeIndexToId(solved, anchors),
+            how: "由 " + anchors.length + " 个锚点（" + anchors.map(function (a) { return a.kind; }).join("/")
+              + "）解出网格：" + solved.cols + " 列，起点格 " + solved.row0 + "," + solved.col0,
+            anchors: anchors.map(function (a) { return a.kind + "=" + a.id; })
+          };
+        }
+        return;
+      }
+      if (tileTable && tileTable.cells && tileTable.cols > 0 && tileTable.rows > 0
+          && map.length === tileTable.rows * tileTable.cols) {
+        var boxGeometry = { cols: tileTable.cols, row0: tileTable.row0, col0: tileTable.col0 };
+        chosen = {
+          mapIndex: mapIndex,
+          map: map,
+          indexToId: makeIndexToId(boxGeometry, []),
+          how: "格数等于该轮网格面积 " + tileTable.rows + "×" + tileTable.cols + "（按格换 id）",
+          anchors: []
+        };
+        return;
+      }
+      if (tileIds.length && map.length === tileIds.length) {
+        chosen = {
+          mapIndex: mapIndex,
+          map: map,
+          indexToId: function (i) { return tileIds[i]; },
+          how: "格数与 ATO 该轮板块数相同（按下标对位）",
+          anchors: []
+        };
+      }
+    });
+    if (!chosen) {
+      var shape = maps.map(function (map) { return Array.isArray(map) ? map.length : "?"; }).join("/");
       detail.note = tileIds.length
-        ? ("唯一一张地图有 " + tiles.length + " 格，而 ATO 的 " + cycleId + " 地图有 "
-          + tileIds.length + " 格，格数不符，未落位")
+        ? ("地图分片格数 " + shape + "，与 ATO 的 " + cycleId + " 地图（板块 " + tileIds.length
+          + " 个，网格 " + ((tileTable && tileTable.rows) || 0) + "×"
+          + ((tileTable && tileTable.cols) || 0) + "）都对不上，未落位")
         : ("读不到 map/map-data.js 里 " + cycleId + " 的格表，官方格下标换不成 ATO 的 "
           + "tileId（补零串），未落位");
       this.stats.map_detail = detail;
       return empty;
     }
+    var indexToId = chosen.indexToId;
+    var skippedMaps = [];
+    maps.forEach(function (map, mapIndex) {
+      if (mapIndex !== chosen.mapIndex) skippedMaps.push(mapIndex);
+    });
+    tiles = chosen.map;
+    detail.map_index = chosen.mapIndex;
+    detail.map_how = chosen.how;
+    detail.anchors = chosen.anchors || [];
+    detail.skipped_maps = skippedMaps;
     var tokens = {};
     var variants = {};
     var explored = {};
     var previewRevealed = {};
     var tileNotes = {};
+    var markers = {};
+    var bitMap = TOKS_BIT_TO_MARKER[cycleId] || null;
     var tokTiles = [];
+    var toksUnmappedTiles = [];
+    var tokBitsWritten = {};
     var addAdvrTiles = [];
     var rewardTiles = [];
+    var cityTile = ((official.campaign_stats || {}).city_tile);
+    var cityTileId = (typeof cityTile === "number" && Number.isInteger(cityTile) && cityTile >= 0)
+      ? ("00" + cityTile).slice(-3) : "";
+    var bit0Conflict = [];
+    var missingCells = [];
     tiles.forEach(function (tile, i) {
       if (!tile || typeof tile !== "object") return;
-      var tileId = tileIds[i];
-      if (!tileId) return;
+      var tileId = indexToId(i);
+      // 网格路径下，官方数组可能有 ATO 表里没有的格子（c2 有 12 个空格）→ 跳过这一格，
+      // 但要如实记进诊断，免得"有状态没导"这件事无声无息。
+      if (!tileId) { missingCells.push(i); return; }
       if (tile.argo) tokens.AG = tileId;
       if (tile.advr) tokens.AD = tileId;
       if (tile.alternative) variants[tileId] = "alternate";
@@ -2050,10 +2346,36 @@
       // 008 / 065 / 070）。同时 expl=true 的 4 格（004 / 016 / 042 / 062）不写：
       // 它们已经由 `explored` 覆盖，ATO 自己在探索时也会删掉 previewRevealed。
       // 语义上仍有两种读法（"曾经揭示过" / "当前已揭示未探索"），两种读法下这条规则
-      // 的结果一致（都是"未探索 + 已揭示"那部分），详见 map-import-work/report.md。
+      // 的结果一致（都是"未探索 + 已揭示"那部分），详见 release-notes/v3.5.0.md。
       if (tile.revl === true && tile.expl !== true) previewRevealed[tileId] = true;
       if (typeof tile.note === "string" && tile.note.trim()) tileNotes[tileId] = tile.note;
-      if (Array.isArray(tile.toks) && tile.toks.some(Boolean)) tokTiles.push(tileId);
+      if (Array.isArray(tile.toks) && tile.toks.some(Boolean)) {
+        tokTiles.push(tileId);
+        var mapped = null;
+        tile.toks.forEach(function (on, bit) {
+          if (on !== true) return;
+          // 位 0 = 面板第一行 LAST VISITED CITY。ATO 侧这个状态由
+          // `campaign_stats.city_tile` → `markers.<格>.last_city` 落位：同一格时就算已经
+          // 导进来了（不重复写 marker）；不同格时才说明读法有问题，记进 bit0 冲突 + 诊断。
+          if (bit === 0) {
+            if (cityTileId && tileId === cityTileId) { mapped = true; return; }
+            bit0Conflict.push(tileId);
+            tokBitsWritten[0] = tokBitsWritten[0] || [];
+            tokBitsWritten[0].push(tileId);
+            return;
+          }
+          var markerId = bitMap ? bitMap[bit] : null;
+          if (!markerId) {
+            tokBitsWritten[bit] = tokBitsWritten[bit] || [];
+            tokBitsWritten[bit].push(tileId);
+            return;
+          }
+          markers[tileId] = markers[tileId] || {};
+          markers[tileId][markerId] = true;
+          mapped = true;
+        });
+        if (!mapped) toksUnmappedTiles.push(tileId);
+      }
       if (Array.isArray(tile.add_advr) && tile.add_advr.some(Boolean)) addAdvrTiles.push(tileId);
       if (tile.has_reward_token === true || tile.has_generic_token === true) {
         rewardTiles.push(tileId);
@@ -2065,13 +2387,37 @@
     detail.explored = Object.keys(explored).length;
     detail.preview_revealed = Object.keys(previewRevealed).length;
     detail.tile_notes = Object.keys(tileNotes).length;
+    detail.markers = markers;
+    detail.marker_count = Object.keys(markers).length;
+    detail.toks_bit_written = tokBitsWritten;
+    detail.toks_bit0_conflict = bit0Conflict;
+    detail.missing_official_cells = missingCells;
     var unmapped = [];
-    if (tokTiles.length) {
+    if (skippedMaps.length) {
+      unmapped.push({
+        key: "skipped_maps",
+        label: "官方地图分片（ATO 没有对应板块）",
+        tiles: skippedMaps.map(String),
+        reason: ("这些分片的格数与 ATO 该轮地图的板块数/网格面积都不一致，未落位"
+          + (chosen ? "（已落位的是分片 " + chosen.mapIndex + "：" + chosen.how + "）" : ""))
+      });
+    }
+    if (missingCells.length) {
+      unmapped.push({
+        key: "missing_cells",
+        label: "官方地图格子（ATO 表里没有对应格）",
+        tiles: missingCells.map(String),
+        reason: "官方数组按网格行优先序展开，这些下标落在 ATO 该轮地图没有的格子上，状态未落位"
+      });
+    }
+    if (toksUnmappedTiles.length) {
       unmapped.push({
         key: "toks",
-        label: "格上指示物",
-        tiles: tokTiles,
-        reason: "官方 toks 的位序与位含义无法确认（位长随循环变），未落位"
+        label: "格上指示物（未映射的位）",
+        tiles: toksUnmappedTiles,
+        reason: bitMap
+          ? ("这些格子上的 toks 位没有映射（本档的位 0；两种读法下都不该写 marker，见代码注释）")
+          : ("官方 toks 的位序没有" + cycleId + "的证据（面板顺序只在 c5 上取到证），未落位")
       });
     }
     if (addAdvrTiles.length) {
@@ -2079,7 +2425,8 @@
         key: "add_advr",
         label: "额外仇敌",
         tiles: addAdvrTiles,
-        reason: "ATO 只有一个 AD（仇敌）位，额外的仇敌没有落点"
+        reason: ("面板里这两行是 NEMESIS / BLACK BEAK，但「额外仇敌位 ↔ 指示物」这一步"
+          + "还缺用户侧确认，未落位")
       });
     }
     if (rewardTiles.length) {
@@ -2097,12 +2444,14 @@
     this.stats.map_explored = explored;
     this.stats.map_preview_revealed = previewRevealed;
     this.stats.map_tile_notes = tileNotes;
+    this.stats.map_markers = markers;
     return {
       tokens: tokens,
       variants: variants,
       explored: explored,
       previewRevealed: previewRevealed,
       tileNotes: tileNotes,
+      markers: markers,
       written: true
     };
   };
@@ -2295,6 +2644,15 @@
       mapCycle.explored = deepClone(mapResult.explored);
       mapCycle.previewRevealed = deepClone(mapResult.previewRevealed);
       mapCycle.tileNotes = deepClone(mapResult.tileNotes);
+      // 格上指示物：`toks` 的位 → `tokens.markers.<格>.<id>`（位序依据见 TOKS_BIT_TO_MARKER）。
+      if (truthy(mapResult.markers)) {
+        if (!mapCycle.tokens.markers) mapCycle.tokens.markers = {};
+        Object.keys(mapResult.markers).forEach(function (tileId) {
+          var perTile = mapResult.markers[tileId] || {};
+          mapCycle.tokens.markers[tileId] = Object.assign(
+            mapCycle.tokens.markers[tileId] || {}, deepClone(perTile));
+        });
+      }
     }
     // 官方 campaign_stats.city_tile（截图「LAST VISITED CITY TILE O21」）→ ATO 地图的
     // 「最后到访的城市」标记：map/app.js:30 注册的 `last_city`，
@@ -2303,9 +2661,13 @@
     // tileId 用三位补零串，与 AG/AD 同一套编号（实测 argo_tile=57 ↔ "057"）。
     var cityTile = (official.campaign_stats || {}).city_tile;
     if (typeof cityTile === "number" && Number.isInteger(cityTile) && cityTile >= 0) {
+      var cityTileId = ("00" + cityTile).slice(-3);
       if (!mapCycle.tokens.markers) mapCycle.tokens.markers = {};
-      mapCycle.tokens.markers[("00" + cityTile).slice(-3)] = { last_city: true };
-      this.stats.city_tile = ("00" + cityTile).slice(-3);
+      // 合并而不是覆盖：同一格上可能已经有 toks 落下来的指示物（实测 021 同时是
+      // 城市格和遗迹格：`last_city` + `c5_ruin`）。
+      mapCycle.tokens.markers[cityTileId] = Object.assign(
+        mapCycle.tokens.markers[cityTileId] || {}, { last_city: true });
+      this.stats.city_tile = cityTileId;
     }
     if (truthy(this.stats.map_variants)) {
       mapCycle.tileVariants = deepClone(this.stats.map_variants);
