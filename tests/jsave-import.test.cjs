@@ -164,11 +164,15 @@ test("convert() 与 Python 参考 sections.json：除地图分区外逐叶子相
   const mine = jsaveImport.convert(parsed.official, { mapTiles: MAP_TILES });
 
   // ⚠️ 地图分区（`sections.map`）不参与深比较：
-  // Python 原型（`jsave-import/import_jsave.py`）已冻结且不可重跑（它依赖的
-  // `app-extract/official-tables.json` 已被删除，`tests/fixtures/jsave/pysnap/` 里只有
-  // 冻结产物），而地图分区自 v3.5.0 起由 JS 版扩展（`explored` / `previewRevealed` /
-  // `tileNotes`，修的是"官方存档导进来地图上格子全是未探索"的真漏洞），所以地图分区改为
-  // 本文件里的专项断言覆盖（见下面的「地图导入」用例）。
+  // 参考实现是**冻结的 Python 原型**（`tests/fixtures/jsave/pysnap/`）。现役的
+  // `jsave-import/import_jsave.py` 已不在工作区，它依赖的 `app-extract/official-tables.json`
+  // 也不随源码发布（干净的检出里跑不起来），而这份原型**不产出**地图状态字段 ——
+  // 本轮地图分区由 JS 版扩展（`explored` / `previewRevealed` / `tileNotes`，修的是
+  // "官方存档导进来、地图上格子全是未探索"的真漏洞），改 Python 原型不在本轮范围，
+  // 所以地图分区改为本文件里的专项断言覆盖（见下面的「地图导入」用例）。
+  // 冻结参考本身是可复现的：本地用同一份 `app-extract/official-tables.json` 重跑原型，
+  // 它自带的 42 条断言全 PASS，产物与冻结副本**逐叶子 0 差异**（canonical 2913 行对
+  // 2913 行，非 id 行 0 处不同）—— 也就是说下面这个基准没有被手工改过。
   // **其余分区（dashboard / record / technology / heroes）仍然逐叶子、逐行相同，没有放宽**：
   // 冻结参考里那些分区的每一个叶子都必须还对上。
   const stripMap = (sections) => {
