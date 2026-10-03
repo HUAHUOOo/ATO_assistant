@@ -43,6 +43,36 @@ function extractFunction(name) {
   throw new Error(`unbalanced function ${name}`);
 }
 
+// 按**声明**（而不是按名字）切一个顶层 async 函数：注释里先出现过函数名，
+// 用名字搜索会从注释开始切，切出来是残片。
+// 另外参数表是解构（`{ sections, dashboardImport, ... }`），必须从参数表的 `)` 之后
+// 开始数花括号，否则第一个 `}` 就把函数切断了。
+function extractAsyncDeclaration(name) {
+  const needle = `async function ${name}(`;
+  const start = src.indexOf(needle);
+  assert.ok(start >= 0, needle);
+  const paren = src.indexOf('(', start);
+  let parens = 0;
+  let bodyStart = -1;
+  for (let i = paren; i < src.length; i += 1) {
+    if (src[i] === '(') parens += 1;
+    else if (src[i] === ')') {
+      parens -= 1;
+      if (parens === 0) { bodyStart = i; break; }
+    }
+  }
+  assert.ok(bodyStart >= 0, `参数表不闭合：${name}`);
+  let depth = 0;
+  for (let i = src.indexOf('{', bodyStart); i < src.length; i += 1) {
+    if (src[i] === '{') depth += 1;
+    else if (src[i] === '}') {
+      depth -= 1;
+      if (depth === 0) return src.slice(start, i + 1);
+    }
+  }
+  throw new Error(`unbalanced function ${name}`);
+}
+
 const jsonHelpers = ['isPlainObject', 'cloneJson', 'jsonEqual', 'mergeCampaignValues', 'mergeCampaignSections'];
 // 导出与导入共用的备份 section 清单就放在 exportState 上方，两侧都要用。
 const backupPrelude = between('const backupSectionIds', 'async function exportState()');
@@ -56,9 +86,15 @@ async function check(label, body) {
   }
 }
 
-// FileReader 打桩：readAsText 同步完成，onload 的 promise 存进 Reader.last.done。
+// FileReader 打桩：读取同步完成（按字节，因为「导入状态」要按内容判定 .jsave），
+// onload 的 promise 存进 Reader.last.done。
 class Reader {
-  readAsText(file) { this.result = JSON.stringify(file); this.done = this.onload(); }
+  readAsArrayBuffer(file) {
+    const text = JSON.stringify(file);
+    const bytes = Buffer.from(text, 'utf8');
+    this.result = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+    this.done = this.onload();
+  }
   constructor() { Reader.last = this; }
 }
 
@@ -170,7 +206,23 @@ async function main() {
       syncInputs() {}, renderProfiles() {}, renderCycles() {}, renderFlow() {}, renderDateTrack() {},
       renderDashboardArchive() {},
       elements: { importInput: { value: 'fixture' } },
-      window: { alert: (message) => { alertText = message; } },
+      // 「导入状态」现在按字节读文件（要按内容判定官方 .jsave），所以这几个全局必须有。
+      TextDecoder, TextEncoder, Uint8Array, ArrayBuffer,
+      window: {
+        alert: (message) => { alertText = message; },
+        // 「导入状态」现在会先判断两边的记录表笔记是否会被覆盖，确认框走 window.confirm。
+        // 下面这些夹具的 loadFullCampaign() 都不带 sections.record，当前战役没有笔记 →
+        // 不该弹窗；这里给一个「确定」的桩，避免缺桩把导入打死。
+        // 覆盖警告本身的四条分支（含点取消不写服务端）在 tests/import-notes-overwrite-warning.test.cjs。
+        confirm: () => true,
+        // 本文件测的是 ATO 状态包（.json）路径；官方 .jsave 转换器在
+        // tests/jsave-import.test.cjs 里单测，这里给一个「不是 jsave」的桩。
+        ATO_JSAVE_IMPORT: {
+          isJsave: () => false,
+          parseJsave: () => { throw new Error('unexpected jsave'); },
+          convert: () => { throw new Error('unexpected jsave'); },
+        },
+      },
       loadFullCampaign: async () => ({ sectionRevisions: currentRevisions }),
       sessionUser: { id: 'account' },
       ...extra,
@@ -181,8 +233,16 @@ async function main() {
           }
         : extra.fetch,
     });
-    vm.runInContext(between('async function importCampaignSections(', 'async function downloadJsonPayload(')
-      + backupPrelude + between('function importStateFile(', 'function clearState('), ctx);
+    vm.runInContext(backupPrelude
+      // applyImportedSections 的「覆盖笔记」判断用页面自己的 isPlainObject 读记录表分区，
+      // 这个函数不在 backupPrelude 里，得单独注进去。
+      + extractFunction('isPlainObject')
+      + between('async function importCampaignSections(', 'async function downloadJsonPayload(')
+      // applyImportedSections 是 importStateFile 抽出来的共用函数（导入状态包与官方 .jsave
+      // 走同一条合并路径），在 importStateFile 上方，要单独抽；它用到 backupSectionIds，
+      // 所以必须排在 backupPrelude 后面。
+      + extractAsyncDeclaration('applyImportedSections')
+      + between('function importStateFile(', 'function clearState('), ctx);
     return ctx;
   }
 

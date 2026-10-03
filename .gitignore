@@ -76,6 +76,10 @@
 !/assets/vendor/gifenc.js
 # 主控台 BGM：播放器代码随源码发布，音频仍被 *.mp3 / *.ogg 规则忽略
 !/assets/bgm/
+# 主控台「导入状态」的官方 .jsave 转换器与官方枚举/卡名数据表：
+# index.html 按 jsave-tables.js → jsave-import.js 顺序直接引用，必须随源码发布
+!/assets/jsave-import.js
+!/assets/jsave-tables.js
 
 # Local official-Chinese image overrides are read only by the explicit asset
 # pack exporters; they must never be part of a source or application release.
@@ -127,3 +131,9 @@ __pycache__/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# 官方 APK 解包产物（不进仓库，500MB+）
+/app-extract/
+
+# 官方存档导入的地图/探针工作目录（临时脚本与 dump，报告留在工作区但不进仓库）
+/map-import-work/

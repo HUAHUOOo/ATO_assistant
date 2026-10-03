@@ -455,3 +455,18 @@ test('vendored GIF 编码器在发布审计与 .gitignore 白名单里', () => {
   const auditLite = fs.readFileSync(path.join(root, 'tools', 'guide-capture', 'audit-lite.mjs'), 'utf8');
   assert.match(auditLite, /'assets\/vendor\/gifenc\.js'/, '发布审计白名单（audit-lite）必须放行它');
 });
+
+test('官方存档导入的两个脚本在发布审计的两份白名单里，且 .gitignore 放行', () => {
+  // `assets/*` 在发布审计里是**默认拦截**，只靠白名单放行；两份白名单（ps1 与
+  // audit-lite.mjs）必须同步，否则 CI 的 audit 检查会因为 "Blocked copyrighted/private
+  // resources" 直接红掉（v3.5.0 就踩过一次：.gitignore 加了、白名单没加）。
+  const gitignore = fs.readFileSync(path.join(root, '.gitignore'), 'utf8');
+  const gitignoreLines = gitignore.split(/\r?\n/).map((line) => line.trim());
+  const auditPs1 = fs.readFileSync(path.join(root, 'tools', 'audit-public-release.ps1'), 'utf8');
+  const auditLite = fs.readFileSync(path.join(root, 'tools', 'guide-capture', 'audit-lite.mjs'), 'utf8');
+  ['assets/jsave-import.js', 'assets/jsave-tables.js'].forEach((file) => {
+    assert.ok(gitignoreLines.includes(`!/${file}`), `.gitignore 必须放行 ${file}`);
+    assert.ok(auditPs1.includes(`'${file}'`), `发布审计白名单（ps1）必须放行 ${file}`);
+    assert.ok(auditLite.includes(`'${file}'`), `发布审计白名单（audit-lite）必须放行 ${file}`);
+  });
+});

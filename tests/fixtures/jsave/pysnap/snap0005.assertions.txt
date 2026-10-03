@@ -1,0 +1,43 @@
+[PASS] 字段计数 · 天数 —— cycle=c5 day=80（timeline 前缀最后一个 true 的下标，已游戏内核对）
+[PASS] 字段计数 · dateNotes —— 24 条
+[PASS] 字段计数 · 资源行 —— 69 行写入（0 值跳过 16 行）
+[PASS] 字段计数 · 稀有资源 —— 7 条 `名称x值` 写进 resources['rare']（rres_names 7 项 / rres_vals 7 项）
+[PASS] 字段计数 · 冒险落格 —— 24 格（7 个 hub 参与；长度异常 0 个）
+[PASS] 字段计数 · 外交 —— 3 行
+[PASS] 字段计数 · 矩阵 —— 写入 111 格；备注残留 6 行
+[PASS] 字段计数 · 泰坦 —— 16 条（空名丢弃 0）
+[PASS] 字段计数 · 军械库 —— 196 条目（gearCards 之外 0 个）
+[PASS] 字段计数 · 机师 —— 在役 4 / 墓园 20
+[PASS] 字段计数 · 科技 —— 291 条 unlocked（官方牌堆 true 293；卡号翻不出 2）
+[PASS] 字段计数 · 属性 —— 16/21 有对应字段，5 项 ATO 无处可放
+[PASS] 矩阵备注条数 —— 实测 27 条（官方 matrix_notes 非空格）；与 campaign_0000 的 27 条逐条核对
+[PASS] 矩阵备注位置一致 —— 实测 F4, J7, W11, X8, AA4, AA5, AA6, AA11, AA12, BB7, BB8, BB9, CC4, CC6, CC8, CC9, CC12, DD1, DD2, DD3, DD6, DD7, DD9, EE2, EE3, FF1, FF8
+[PASS] 矩阵 27 条逐条核对 —— 全部一致
+[PASS] 官方键消费覆盖 —— 官方顶层键 58 个：逐项消费 36 个（有损 23 个）、以文本写进记录表笔记 16 个、刻意不写 6 个（ability_search_options, production_search_options, save_version, search_options_json, tech_search_options, trade_search_options）；既没消费也没写笔记 0 个 → 无
+[PASS] 未导入内容均已写进记录表笔记 —— 16 个「导不进 ATO」的官方顶层键全部有笔记标签；6 个刻意不写（ability_search_options, production_search_options, save_version, search_options_json, tech_search_options, trade_search_options —— 官方界面偏好/格式版本，属于不必导，不是导不进）；未处理 0 个 → 无
+[PASS] 有损键清单 —— adventures；argo_stats_vals；argonaut_0；argonaut_1；argonaut_2；argonaut_3；campaign_notes；campaign_stats；cargo_resources；dead_argonauts；gear_list；gf_names；matrix_notes；pygmalion；rres_names；smn_names；tally_lbls；tally_marks；tech_deck_list；tech_id_list；timeline_notes；timeline_status；titan_names
+[PASS] 资源键映射完整 —— 85 项官方枚举 → ATO 键，实测 85 项
+[PASS] CORE_* 走 <定义循环>-core-<短名> —— 实测 18 个
+[PASS] 资源键规则 vs 真实存档 —— 读了 15 份真实存档、17 个键；规则预测 88 个键。 无法解释的键 0 个。 共享键却带前缀的 0 个；非共享键却不带前缀的 0 个。 结论：规则与真实存档一致
+[PASS] 机师实体总数 —— heroes 4 + graveyard 20 = 24，期望（非空 argonaut 槽 + dead + retired）= 24
+[PASS] 机师槽明细 —— arg0 ORPHAN OF D’MT(arg_orphan)；arg1 ASTER(arg_aster)；arg2 ASTER(arg_aster)；arg3 OLEANDER(arg_oleander)
+[PASS] 墓园机师模板可识别性 —— 20 条墓园记录中，argonaut 去前缀后不在 ATO ARGONAUTS 名单的有 1 条 → 1(arg_custom05)
+[PASS] 军械库 manufactured —— 全部为 0（官方 gear_card_number 只是件数，不等于累计制造）；实测取值集合 [0]
+[PASS] 资源 0 值行 —— 官方 cargo_resources 有 16 行值为 0（其中 3 行 ATO 其实有键），本转换器 0 值不写
+[PASS] 资源落格可渲染性 —— 当轮 ATO 记录页没有对应资源行的官方枚举 65 个；其中本次值为非 0 的 52 个（这些值仍写进 record.resources，但记录页当前循环不显示）
+[PASS] 稀有资源行数与 rres_names 等长 —— resources['rare'] 有 7 行 = len(rres_names) = 7；全部为 `名称x值` 形式
+[PASS] 内蕴奥德赛 progress —— 官方 campaign_stats.inward=False → cardTracks.inwardOdyssey.progress=0（position=80、doom=0；用户确认：该槽最多只能放 1 个进展，故官方用布尔表示 0/1 —— 语义已定，样例 5 份 inward 全 false 只是没有 true 样本）
+[PASS] 外交按名字映射（c4/c5 顺序错位自测） —— 5 个循环用伪造值 [1,2,3] 全部按名字对位：c4 → aristotelians=1/wasters=2/cloudThieves=3；c5 → outcastVanguard=1/followersOfArete=2/cycladeanProtectorate=3
+[PASS] 按循环字段双写一致（cycleIdentityKeys） —— cycleStats.c5 写了 14/17 个身份键 storyCard、doomCard、mapTiles、fate、aaLimit、strangers、humanity、renegade、loopLength、frozenTime、paradox、babelianDebt、oxygenCurrent、paranoia；顶层与 cycleStats 完全一致
+[PASS] cycleStats 含 counters/notes —— cycleStats.c5 还写了 counters(59 字符)/notes(1253 字符)/boons/afflictions/syncLog
+[PASS] 官方属性上限对位 —— argo_stats_lims 21 项里 6 项能落到 ATO 的上限字段（CREW→crew、HULL→hull、AABILITY→aaLimit、SUMMON_LIMIT→summonLimit、TITAN_LIMIT→titanLimit、OXYGEN→oxygenLimit）；其余 15 项 ATO 没有字段
+[PASS] evo 部分落位 —— 写进 record.enemies 18 个阶段键；evo_adversary → nemesisSelections={"c5": "titanX"}；无位置的：evo_adv_mode（ATO 无对应位置）；evo_track_history（ATO 无对应位置）
+[PASS] 地图 tokens —— map.users.default.cycles.c5.tokens = {"AG": "057", "AD": "070"}；tileVariants 21 项；已落位
+[PASS] 已死亡泰坦 deadTitans —— 官方 dead_titans=76 → record.deadTitans='76'（应为字符串 '76'；顶层、不按循环）
+[PASS] 笔记区块 · 前后标识 —— record.notes 1253 字符；开始标识在 183、结束标识在 1224；区块 1070 字符
+[PASS] 笔记区块 · 未导入项标签齐全 —— 20 个应写的官方项（存档里真实存在的）全部在区块里有标签
+[PASS] 笔记区块 · 连跑两次一致（幂等） —— 第二次转换的 record.notes 与第一次完全相同（1253 字符）
+[PASS] 笔记区块 · 旧区块被剥掉不叠加 —— 把区块当成一条 campaign_notes 再转一次：notes 与首次一致，开始标识出现 1 次
+[PASS] 笔记区块 · 长度上限 —— 区块 1070 字符 ≤ 上限 4000
+[PASS] 笔记区块 · 用户内容在区块之前且未改写 —— campaign_notes 6 条 + 矩阵残留 6 行全部在区块之前、逐字未改；区块位于 notes 末尾
+总体：全部通过

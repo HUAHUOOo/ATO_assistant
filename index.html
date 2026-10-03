@@ -2349,12 +2349,13 @@
             </div>
             <div class="archive-actions">
               <button id="exportButton" type="button" class="secondary" data-dashboard-readonly-allowed>导出状态</button>
-              <button id="importButton" type="button" class="secondary">导入状态</button>
+              <button id="importButton" type="button" class="secondary" title="可导入 ATO 状态包（.json）或官方 App 存档（.jsave）">导入状态</button>
               <button id="termLanguageToggle" class="secondary" type="button" aria-pressed="false" title="切换为官方翻译" data-dashboard-readonly-allowed>切换为官方翻译</button>
               <!-- 简报读的是每日存档备份，所以入口放在存档控制这一块（不再放在顶部工具条）；
                    它是链接但用 secondary 按钮样式，和旁边三个按钮长得一致。 -->
               <a class="secondary briefing-card-link" href="./briefing/index.html">战役简报</a>
-              <input id="importInput" type="file" accept="application/json,.json" hidden>
+              <!-- accept 同时放行官方 App 的 .jsave（导入时会按内容再判一次，不看扩展名） -->
+              <input id="importInput" type="file" accept="application/json,.json,.jsave,application/octet-stream" hidden>
             </div>
             <div id="resourcePackCard" class="second-screen-card" hidden>
               <label>Android 资源包</label>
@@ -2452,6 +2453,11 @@
   <script src="./map/nemesis-path.js?v=20260924-shared"></script>
   <script src="./map/nemesis-battle.js?v=20261003-record"></script>
   <script src="./assets/cycle-symbols.js?v=20260918"></script>
+  <!-- 官方 App 存档（.jsave）→ ATO sections 的转换器；「导入状态」按内容判定后走它。
+       jsave-tables.js 是官方枚举/卡名数据表，必须在转换器之前加载；
+       map/map-data.js 也要在前（转换器用 window.ATO_MAP_DATA 落地图瓦片）。 -->
+  <script src="./assets/jsave-tables.js?v=20261004-jsave-map"></script>
+  <script src="./assets/jsave-import.js?v=20261004-jsave-map"></script>
   <script>window.ATO_BGM_CONFIG = { expect: "bgm17" };</script>
   <script src="./assets/bgm/manifest.js?v=20260921-bgm17"></script>
   <script src="./assets/bgm/bgm.js?v=20260921-bgm17"></script>
@@ -9084,55 +9090,156 @@
       }
     }
 
+    // 把「已经是 ATO sections 形状」的内容整份写进服务端（导入状态包与官方 .jsave 共用）。
+    // 官方 .jsave 只转换得出 dashboard/map/record/technology/heroes 五个分区，
+    // `isFullBackup` 为 false 时 null/undefined 的分区会被过滤掉 —— 与状态包之外的
+    // 局部导入语义一致，不会把没转换的分区清空。
+    async function applyImportedSections({ sections, dashboardImport, isFullBackup }) {
+      // 「导入状态」是整份替换 record 分区（用户已选定：保持这个合并语义），所以目标战役里
+      // 手写的记录表笔记会被这次导入带进来的内容整段取代，而且没有自动恢复的入口。写之前
+      // 先把两边摊平比一次，只有「两边都有笔记、且内容不同」才拦一下：空档没什么可丢的，
+      // 重复导入同一份存档也不该打扰用户。
+      // 记录表按用户分桶，桶的 key 不一定是 default（官方存档写 default，页面按账号 id 分桶），
+      // 旧存档还可能把 notes 直接放在 record 顶层，所以两种形状都要认、每个桶都要收。
+      function collectRecordNotes(recordSection) {
+        const collected = new Set();
+        const push = (value) => {
+          if (typeof value === "string" && value.trim()) collected.add(value);
+        };
+        // 一个用户桶里的笔记：顶层 notes 只是「当前循环的视图」，记录表页面改笔记时写的是
+        // cycleStats.<cycle>.notes 并把顶层那份删掉（record/index.html setCycleStat），
+        // 所以两处都收 —— 漏掉 cycleStats 等于对真实存档永远不报警。
+        const pushUserRecord = (user) => {
+          if (!isPlainObject(user)) return;
+          push(user.notes);
+          if (!isPlainObject(user.cycleStats)) return;
+          Object.keys(user.cycleStats).forEach((cycle) => {
+            if (isPlainObject(user.cycleStats[cycle])) push(user.cycleStats[cycle].notes);
+          });
+        };
+        if (!isPlainObject(recordSection)) return [];
+        const buckets = isPlainObject(recordSection.users)
+          ? recordSection.users
+          : (isPlainObject(recordSection.accounts) ? recordSection.accounts : null);
+        if (buckets) {
+          Object.keys(buckets).forEach((id) => pushUserRecord(buckets[id]));
+          // 桶外还留着一份顶层 notes 的存档也要算上（旧形状 record.notes）。
+          push(recordSection.notes);
+        } else {
+          pushUserRecord(recordSection);
+        }
+        // 比的是「有哪些不同文本」，同一段文字在顶层与 cycleStats 里各存一份不算两份。
+        return Array.from(collected).sort();
+      }
+
+      // 返回空串 = 不用打扰用户；返回文案 = 这次导入会覆盖既有笔记。
+      function notesOverwriteWarning(importedRecord, currentCampaign) {
+        const imported = collectRecordNotes(importedRecord);
+        const current = collectRecordNotes(currentCampaign?.sections?.record);
+        if (!imported.length || !current.length) return "";
+        // 重复导入同一份存档时两边逐条相同 → 不弹窗。
+        if (JSON.stringify(imported) === JSON.stringify(current)) return "";
+        return [
+          "导入会覆盖「记录表笔记」！",
+          "",
+          "这次导入带进来的笔记（官方存档的战役备注 + 矩阵残留 + 未导入项区块）会整段替换当前战役里已有的记录表笔记，覆盖以后原有笔记无法自动恢复。",
+          "建议先点「导出状态」把当前存档备份一份，再继续导入。",
+          "",
+          "（官方存档里的战役备注与「未导入项」区块会保留下来，不是全部丢光。）",
+          "",
+          "确定继续导入吗？点「取消」将中止本次导入，服务器不会有任何改动。",
+        ].join("\n");
+      }
+
+      const nextArchive = dashboardImport.profiles
+        ? normalizeArchive(dashboardImport)
+        : normalizeArchive({
+            activeProfileId: "imported",
+            profiles: {
+              imported: {
+                id: "imported",
+                name: dashboardImport.name || "导入用户",
+                state: dashboardImport.state || dashboardImport,
+              },
+            },
+          });
+
+      const importEntries = backupSectionIds
+        .map((section) => [section, section === "dashboard" ? nextArchive : sections?.[section]])
+        .filter(([, sectionState]) => sectionState !== undefined && (isFullBackup || sectionState !== null));
+      // 覆盖警告必须在 flushCampaignSave() 之前：那一步会真的往服务端写。这里只读一次
+      // 服务端存档，用户点「取消」时整段返回，连待写入的防抖保存都不会发生。
+      const importedRecord = importEntries.find(([section]) => section === "record")?.[1];
+      const notesWarning = importedRecord === undefined
+        ? ""
+        : notesOverwriteWarning(importedRecord, await loadFullCampaign());
+      if (notesWarning && !window.confirm(notesWarning)) {
+        window.alert("已取消导入：没有写入任何分区，服务器仍是导入前的状态。\n建议先点「导出状态」备份当前存档，再重试导入。");
+        return;
+      }
+      // 先等这次防抖保存落盘：否则它的定时器会在导入之后触发，把导入前的内存状态
+      // 又写回 dashboard，覆盖刚导入的存档。
+      clearTimeout(campaignSaveTimer);
+      campaignSaveTimer = null;
+      await flushCampaignSave();
+      const currentCampaign = await loadFullCampaign();
+      const currentRevisions = currentCampaign?.sectionRevisions || {};
+      const result = await importCampaignSections(
+        Object.fromEntries(importEntries),
+        Object.fromEntries(importEntries.map(([section]) => [
+          section,
+          Math.max(0, Number(currentRevisions[section] ?? 0)),
+        ]))
+      );
+      // 服务器已经整份写入，这一页这时才切到导入后的状态：失败时本页与服务器都保持原样。
+      archive = nextArchive;
+      state = currentCycle().state;
+      campaignSectionRevision = Math.max(0, Number(result.sections?.dashboard ?? campaignSectionRevision));
+      campaignSectionExists = Boolean(result.sections?.dashboard || campaignSectionExists);
+      campaignSectionBaseline = cloneJson(archive);
+      campaignServerBaseline = cloneJson(archive);
+      campaignSyncChannel?.postMessage({ revision: campaignSectionRevision });
+      renderDashboardArchive(archive);
+      window.alert("导入完成。");
+    }
+
     function importStateFile(file) {
       if (!file) return;
       const reader = new FileReader();
       reader.onload = async () => {
         try {
-          const imported = JSON.parse(String(reader.result || "{}"));
+          const bytes = new Uint8Array(reader.result || new ArrayBuffer(0));
+          const jsave = window.ATO_JSAVE_IMPORT;
+          const text = new TextDecoder("utf-8").decode(bytes);
+          if (jsave?.isJsave(bytes)) {
+            let parsed;
+            let sections;
+            try {
+              parsed = jsave.parseJsave(bytes);
+              sections = jsave.convert(parsed.official);
+            } catch (error) {
+              throw new Error(`这看起来不是官方存档：${String(error?.message || error)}`);
+            }
+            const cycle = parsed.meta?.campaign_cycle;
+            const cycleId = Number.isInteger(cycle) && cycle >= 0 && cycle <= 4 ? `c${cycle + 1}` : "";
+            const profile = sections?.dashboard?.profiles?.default;
+            if (!profile || !cycleId || !profile.cycles?.[cycleId]) {
+              throw new Error("官方存档转换不出对应的循环（campaign_cycle 超出 c1..c5）");
+            }
+            // 转换器按官方存档写 activeCycleId；这里再确保一次，免得导入后停在别的循环。
+            profile.activeCycleId = cycleId;
+            return await applyImportedSections({
+              sections,
+              dashboardImport: sections.dashboard,
+              isFullBackup: false,
+            });
+          }
+
+          const imported = JSON.parse(text || "{}");
           const isFullBackup = imported.app === "ATO Campaign Save Package" && Number(imported.version) >= 3;
           const sections = imported.sections || imported.campaign?.sections || null;
           const dashboardImport = sections?.dashboard || imported.legacyDashboard || imported;
-          const nextArchive = dashboardImport.profiles
-            ? normalizeArchive(dashboardImport)
-            : normalizeArchive({
-                activeProfileId: "imported",
-                profiles: {
-                  imported: {
-                    id: "imported",
-                    name: dashboardImport.name || "导入用户",
-                    state: dashboardImport.state || dashboardImport,
-                  },
-                },
-              });
-
-          const importEntries = backupSectionIds
-            .map((section) => [section, section === "dashboard" ? nextArchive : sections?.[section]])
-            .filter(([, sectionState]) => sectionState !== undefined && (isFullBackup || sectionState !== null));
-          // 先等这次防抖保存落盘：否则它的定时器会在导入之后触发，把导入前的内存状态
-          // 又写回 dashboard，覆盖刚导入的存档。
-          clearTimeout(campaignSaveTimer);
-          campaignSaveTimer = null;
-          await flushCampaignSave();
-          const currentCampaign = await loadFullCampaign();
-          const currentRevisions = currentCampaign?.sectionRevisions || {};
-          const result = await importCampaignSections(
-            Object.fromEntries(importEntries),
-            Object.fromEntries(importEntries.map(([section]) => [
-              section,
-              Math.max(0, Number(currentRevisions[section] ?? 0)),
-            ]))
-          );
-          // 服务器已经整份写入，这一页这时才切到导入后的状态：失败时本页与服务器都保持原样。
-          archive = nextArchive;
-          state = currentCycle().state;
-          campaignSectionRevision = Math.max(0, Number(result.sections?.dashboard ?? campaignSectionRevision));
-          campaignSectionExists = Boolean(result.sections?.dashboard || campaignSectionExists);
-          campaignSectionBaseline = cloneJson(archive);
-          campaignServerBaseline = cloneJson(archive);
-          campaignSyncChannel?.postMessage({ revision: campaignSectionRevision });
-          renderDashboardArchive(archive);
-          window.alert("导入完成。");
+          return await applyImportedSections({ sections, dashboardImport, isFullBackup });
         } catch (error) {
           if (error?.code === "SAVE_CONFLICT" && error.sections) {
             const detail = Object.entries(error.sections)
@@ -9146,7 +9253,8 @@
           elements.importInput.value = "";
         }
       };
-      reader.readAsText(file);
+      // 读成字节：官方 .jsave 的前 3 字节是不透明头，必须按内容判定而不是按扩展名。
+      reader.readAsArrayBuffer(file);
     }
 
     function clearState() {
