@@ -27,7 +27,7 @@ function element() {
 function harness(saved = {}) {
   const ctx = vm.createContext({
     state: null, document: { createElement: element }, elements: { enemyTracks: element() },
-    makeTrackTitle: (zh, en) => ({ zh, en }), queueSave() {}, renderResources() {},
+    makeTrackTitle: (zh, en) => Object.assign(element(), { zh, en }), queueSave() {}, renderResources() {},
     atomicMergePaths: new Set(['crewBoxes', 'maxUnlocked']),
   });
   vm.runInContext(source.slice(source.indexOf('    const cycleData = '), source.indexOf('    const elements = ')), ctx);
@@ -49,7 +49,7 @@ function harness(saved = {}) {
 }
 const row = ctx => ctx.elements.enemyTracks.children.at(-1);
 const chips = ctx => row(ctx).children[1].children;
-const select = ctx => row(ctx).children[0].children[0].children[1];
+const select = ctx => row(ctx).children[0].children.at(-1).children[1];
 const keys = ctx => Array.from(ctx.currentResources(), resource => resource.key);
 const choose = (ctx, key) => {
   select(ctx).value = key;

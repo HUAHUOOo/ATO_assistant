@@ -3967,14 +3967,18 @@
     }
 
     function makeNemesisTrackTitle() {
-      const title = document.createElement("div");
+      const enemy = currentNemesis();
+      const title = makeTrackTitle(enemy.zh, enemy.en);
       title.className = "track-name nemesis-track-name";
-      const label = document.createElement("label");
-      label.className = "nemesis-selector";
-      const text = document.createElement("span");
-      text.textContent = "宿敌";
+      const controls = document.createElement("div");
+      controls.className = "nemesis-switch";
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "nemesis-switch-button";
+      button.textContent = "切换";
+      button.setAttribute("aria-expanded", "false");
       const select = document.createElement("select");
-      select.setAttribute("aria-label", "宿敌");
+      select.setAttribute("aria-label", "切换宿敌");
       const options = nemesisOptionsByCycle[state.cycle];
       options.forEach((key) => {
         const option = document.createElement("option");
@@ -3982,18 +3986,30 @@
         option.textContent = nemesisByKey[key].zh;
         select.appendChild(option);
       });
-      select.value = currentNemesis().key;
+      select.value = enemy.key;
       select.disabled = options.length === 1;
+      button.disabled = options.length === 1;
+      button.title = button.disabled ? "当前循环的宿敌固定" : "切换宿敌";
+      select.hidden = true;
+      button.addEventListener("click", () => {
+        select.hidden = !select.hidden;
+        button.setAttribute("aria-expanded", String(!select.hidden));
+        if (!select.hidden) select.focus();
+      });
+      select.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape") return;
+        select.hidden = true;
+        button.setAttribute("aria-expanded", "false");
+        button.focus();
+      });
       select.addEventListener("change", () => {
         if (!selectNemesis(select.value)) return;
         renderEnemyTracks();
         renderResources();
         queueSave();
       });
-      const english = document.createElement("span");
-      english.textContent = currentNemesis().en;
-      label.append(text, select);
-      title.append(label, english);
+      controls.append(button, select);
+      title.appendChild(controls);
       return title;
     }
 
