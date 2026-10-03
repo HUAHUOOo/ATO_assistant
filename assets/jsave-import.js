@@ -2079,6 +2079,18 @@
   //   c2 —— 面板只有 3 行（LAST VISITED CITY / HEMIOLIA SCOUT / ENGINE NYMPH），而实测
   //         `toks` 是 **4** 位，差 1，先不写（可能是截图裁掉一行，或缺的那位在本轮不可用）。
   var TOKS_BIT_TO_MARKER = {
+    c1: {
+      // 面板（c1，用户确认**没有** HEMIOLIA SCOUT 行 → 5 行正好对应位 0–4，位 5 从未用到）：
+      // LAST VISITED CITY / LABYRINTHIAN TEMPLE / CITY OF THE BULL / SEPULCHER ACROPOLIS / ENGINE NYMPH
+      // 三个 c1 专属 id 由用户按标记图标确认：c12 = 迷宫图案 → LABYRINTHIAN TEMPLE；
+      // c11 = 公牛剪影 → CITY OF THE BULL；c13 = 神庙/陵墓立面 → SEPULCHER ACROPOLIS。
+      // 截图交叉验证：三个褐色方块在 O28/O32/O33，而本档位 1/2/3 按解出的网格正好落在
+      // 032/033/028 ✓（暗色圆 ENGINE NYMPH 的截图位置读得含糊，按面板顺序落在 023）。
+      1: "c12",                               // LABYRINTHIAN TEMPLE
+      2: "c11",                               // CITY OF THE BULL
+      3: "c13",                               // SEPULCHER ACROPOLIS
+      4: "ENGIN"                              // ENGINE NYMPH
+    },
     c2: {
       // 面板（c2）：LAST VISITED CITY / HEMIOLIA SCOUT / ENGINE NYMPH
       // 位 0 = LAST VISITED CITY 这条在 c2 上**被硬验证过**：`campaign_stats.city_tile = 78`，

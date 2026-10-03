@@ -442,10 +442,14 @@ test("地图导入：toks 位 → markers（c5 位序按面板顺序 + ATO 同�
   assert.equal(report.stats.map_detail.variants, 21);
 });
 
-test("地图导入：toks 位序只写在有面板证据的循环上（c2 / c3 / c4 有，c1 不猜）", () => {
-  // c2 / c3 / c4 的面板行数与实测 `toks` 位数一致（c2 3+1 备用、c3=5、c4=7），
-  // 且每一行都有同名 ATO id。这里用"只按下标对位"的表形状，专门测**位序表**本身。
+test("地图导入：toks 位序表（c1–c4 都有面板+图标依据，位 0 一律不写）", () => {
+  // c2 / c3 / c4 的面板行数与实测 `toks` 位数一致（c2 3+1 备用、c3=5、c4=7）；
+  // c1 的用户截图确认**没有** HEMIOLIA SCOUT 行 → 5 行对应位 0–4（位 5 从未用到），
+  // 三个专属 id 由用户按标记图标确认（c12=迷宫→LABYRINTHIAN TEMPLE、c11=公牛→CITY OF THE
+  // BULL、c13=神庙/陵墓→SEPULCHER ACROPOLIS）。这里用"只按下标对位"的表形状，
+  // 专门测**位序表**本身（网格换 id 由下面的真档用例覆盖）。
   const cases = [
+    { cycleIndex: 0, cycleId: "c1", bits: [1, 2, 3, 4], ids: ["c12", "c11", "c13", "ENGIN"] },
     { cycleIndex: 1, cycleId: "c2", bits: [1, 2], ids: ["hs", "ENGIN"] },
     { cycleIndex: 2, cycleId: "c3", bits: [1, 2, 3, 4], ids: ["token_2", "hs", "ENGIN", "night_nymph"] },
     {
@@ -475,19 +479,18 @@ test("地图导入：toks 位序只写在有面板证据的循环上（c2 / c3 /
     assert.equal(markers[ids0[0]] && markers[ids0[0]].last_city, undefined);
   });
 
-  // c1 没有可信映射：面板那三行（LABYRINTHIAN TEMPLE / CITY OF THE BULL / SEPULCHER
-  // ACROPOLIS）对应的 ATO id 是不透明的 c11/c12/c13，名字对不上；而且用户截图里
-  // "ENGINE NYMPH 在 O28/O33 附近"与"面板顺序即位序"（→ 位 4 落在 O23）对不上，
-  // 说明 c1 的位序还缺一次确认 → 一位都不许写，全部记进 unmapped。
+  // c1 **现在有位序了**（用户确认图标对应），所以"没有依据的位不写"这一条改用 c1 的位 5
+  // （面板只有 5 行 = 位 0–4，位 5 从未用到）来守：位 5 设成 true 时不许写 marker，
+  // 且该格要进 unmapped。
   {
     const ids0 = tileIdsOf("c1");
     const mapTiles = { c1: positionalTiles(ids0) };
     const tiles = ids0.map(() => ({ toks: Array(6).fill(false) }));
-    tiles[0].toks[1] = true;
+    tiles[0].toks[5] = true;
     const report = jsaveImport.convertWithReport(
       { campaign_cycle: 0, maps: [tiles], campaign_stats: {} }, { mapTiles });
     const cycleState = cycleStateOf(report.sections, "c1");
-    assert.equal(cycleState.tokens.markers, undefined, "c1 不该写任何 marker");
+    assert.equal(cycleState.tokens.markers, undefined, "c1 位 5 没有对应指示物，不该写 marker");
     assert.deepEqual(report.stats.map_detail.unmapped.map((item) => item.key), ["toks"]);
     assert.deepEqual(report.stats.map_detail.unmapped[0].tiles, [ids0[0]]);
   }
@@ -514,9 +517,18 @@ test("地图导入：多分片 + 网格换 id（c1 实测 32+80 两张分片，�
   assert.deepEqual(Object.keys(cycleState.previewRevealed).sort(), ["026", "027"]);
   assert.equal(cycleState.tokens.AG, "021");
   assert.equal(cycleState.tokens.AD, "022");
-  // `toks` 位在 c1 上还没有依据 → 只落 `city_tile` 来的 last_city，一个 toks marker 都不写。
-  assert.deepEqual(cycleState.tokens.markers, { "031": { last_city: true } });
-  assert.deepEqual(detail.unmapped.map((item) => item.key), ["skipped_maps", "toks"]);
+  // `toks` 位按 c1 面板顺序落位（位 0 = 城市，由 city_tile 落位；位 1–4 = 三个专属标记 +
+  // ENGINE NYMPH）。三个褐色方块在截图上的 O28/O32/O33 与本档位 1/2/3 解出的
+  // `032`（c12，迷宫神庙）/`033`（c11，公牛之城）/`028`（c13，陵墓卫城）**逐一吻合**。
+  assert.deepEqual(cycleState.tokens.markers, {
+    "023": { ENGIN: true },
+    "028": { c13: true },
+    "031": { last_city: true },
+    "032": { c12: true },
+    "033": { c11: true },
+  });
+  assert.deepEqual(detail.toks_bit_written, {});
+  assert.deepEqual(detail.unmapped.map((item) => item.key), ["skipped_maps"]);
   assert.deepEqual(detail.unmapped[0].tiles, ["0"]);
   assert.equal(parsed.official.campaign_stats.city_tile, 31);
   // 位 0（城市位）与 city_tile 同格 → 没有冲突。
