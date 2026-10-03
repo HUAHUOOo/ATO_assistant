@@ -2450,6 +2450,7 @@
   <script src="./map/map-tile-tags.js?v=20260730-c4-oasis-tag"></script>
   <script src="./map/map-data.js?v=20260730-cycle-labels"></script>
   <script src="./map/nemesis-path.js?v=20260924-shared"></script>
+  <script src="./map/nemesis-battle.js?v=20261003-record"></script>
   <script src="./assets/cycle-symbols.js?v=20260918"></script>
   <script>window.ATO_BGM_CONFIG = { expect: "bgm17" };</script>
   <script src="./assets/bgm/manifest.js?v=20260921-bgm17"></script>
@@ -5473,8 +5474,10 @@
       return { cycleId, cycle, cycleState };
     }
 
-    function adversaryBattleHref(cycleId) {
-      const target = adversaryBattleByCycle[cycleId];
+    async function adversaryBattleHref(cycleId, profileId = archive.activeProfileId) {
+      const server = await readServerArgoRecord(profileId);
+      if (!server.available) throw new Error("无法读取当前记录表宿敌，请恢复连接后重试。");
+      const target = window.ATO_NEMESIS_BATTLE.targetFor(cycleId, server.record, adversaryBattleByCycle);
       if (!target) return "";
       const params = new URLSearchParams(target);
       return `./story/index.html?${params.toString()}`;
@@ -5583,7 +5586,7 @@
           if (cycleState.tokens.AD === targetId) {
             cycleState.tokens.AD = "";
             if (cycleId === "c5") cycleState.titanXTrackPosition = null;
-            battleHref = adversaryBattleHref(cycleId);
+            battleHref = await adversaryBattleHref(cycleId, commandState.profileId);
             message = battleHref
               ? `阿尔戈号已移动至 ${targetId}，与宿敌相遇：已移除宿敌，正在打开宿敌战斗。`
               : `阿尔戈号已移动至 ${targetId}，与宿敌相遇：已移除宿敌，请结算宿敌战斗。`;
@@ -5606,7 +5609,7 @@
           if (cycleState.tokens.AD === value) {
             cycleState.tokens.AD = "";
             if (cycleId === "c5") cycleState.titanXTrackPosition = null;
-            battleHref = adversaryBattleHref(cycleId);
+            battleHref = await adversaryBattleHref(cycleId, commandState.profileId);
             message = battleHref
               ? `阿尔戈号经特殊连接移动至 ${value}，与宿敌相遇：已移除宿敌，正在打开宿敌战斗。`
               : `阿尔戈号经特殊连接移动至 ${value}，与宿敌相遇：已移除宿敌，请结算宿敌战斗。`;
@@ -5683,7 +5686,7 @@
             }
             if (cycleState.tokens.AD === targetId) {
               cycleState.tokens.AD = "";
-              battleHref = adversaryBattleHref(cycleId);
+              battleHref = await adversaryBattleHref(cycleId, commandState.profileId);
               message = battleHref
                 ? "宿敌追上阿尔戈号：已移除宿敌，正在打开宿敌战斗。"
                 : "宿敌追上阿尔戈号：已移除宿敌，请结算宿敌战斗。";
@@ -6717,7 +6720,7 @@
       }
     }
 
-    async function readServerArgoRecord() {
+    async function readServerArgoRecord(profileId = archive.activeProfileId) {
       const response = await fetch(`${authUrl}?section=record`, { cache: "no-store" });
       if (response.status === 401) return { available: false, record: null, error: "auth required" };
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -6731,7 +6734,7 @@
       }
       const savedRecord = payload.exists && isPlainObject(payload.state) ? payload.state : null;
       const profileRecord = isPlainObject(savedRecord?.users)
-        ? savedRecord.users[archive.activeProfileId] || null
+        ? savedRecord.users[profileId] || null
         : savedRecord;
       return {
         available: true,

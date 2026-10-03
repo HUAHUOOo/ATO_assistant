@@ -3966,9 +3966,17 @@
         return track.reduce((max, item) => Math.max(max, recordLevelForTrack(recordState, item)), 0);
       }
       if (!recordState?.enemies || !track) return 0;
-      let level = parseApostleLevel(recordState.enemies[track.key]);
+      const nemesis = ["pursuer", "adversary", "dahaka", "titanX"].includes(track.key);
+      const nemesisPrefix = `nemesis:${track.key}:`;
+      const hasSharedNemesis = nemesis && Object.keys(recordState.enemies).some((key) => key.startsWith(nemesisPrefix));
+      let level = hasSharedNemesis ? 0 : parseApostleLevel(recordState.enemies[track.key]);
       Object.entries(recordState.enemies).forEach(([key, active]) => {
-        if (!active || !key.startsWith(`${track.cycle}:`)) return;
+        if (!active || key.endsWith(":triangle")) return;
+        if (hasSharedNemesis) {
+          if (key.startsWith(nemesisPrefix)) level = Math.max(level, parseApostleLevel(key.slice(nemesisPrefix.length)));
+          return;
+        }
+        if (!key.startsWith(`${track.cycle}:`) && !(nemesis && /^c[1-5]:/.test(key))) return;
         const parts = key.split(":");
         const isDirect = parts[1] === track.key;
         const isShared = parts[1] === "shared" && (parts[2] || "").split("+").includes(track.key);
@@ -8380,7 +8388,7 @@
   <script src="ps/other/resouce/bp_resource_map_c1_c3.js"></script>
   <script src="ps/other/resouce/bp_resource_map_c4_c5.js?v=20260730e"></script>
   <script src="c45_specials.js?v=20260929-dahaka-levels1"></script>
-  <script src="bp_loot_calculator_addon.js?v=20260929-save-fixes1"></script>
+  <script src="bp_loot_calculator_addon.js?v=20261003-nemesis"></script>
   <script src="../assets/ato-terms.js?v=20260919-chimera"></script>
   <script src="../assets/term-language.js?v=20260923-nocascade"></script>
 </body>

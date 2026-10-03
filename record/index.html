@@ -1478,7 +1478,7 @@
     }
   </style>
   <link rel="stylesheet" href="../cycle-theme.css">
-  <link rel="stylesheet" href="./record.css?v=20261003-icons">
+  <link rel="stylesheet" href="./record.css?v=20261003-nemesis">
   <script src="../assets/theme.js?v=20261001" defer></script>
 </head>
 <body>
@@ -1804,7 +1804,7 @@
             ],
           },
           { key: "temenos", zh: "吞域兽", en: "Temenos", stages: ["1", "2", "3", "4"] },
-          { key: "pursuer", zh: "赫尔墨斯追踪者", en: "Hermesian Pursuer", stages: ["1", "2", "3", "4", "5"], hasTriangle: true },
+          { key: "pursuer", zh: "赫尔墨斯追击者", en: "Hermesian Pursuer", stages: ["1", "2", "3", "4", "5"], hasTriangle: true },
         ],
         adventures: [
           ["宿命的谜题", "Fated Conundrum", "five"],
@@ -2205,6 +2205,25 @@
       },
     };
 
+    const nemesisOptionsByCycle = {
+      c1: ["pursuer"],
+      c2: ["adversary", "pursuer", "dahaka"],
+      c3: ["adversary", "dahaka"],
+      c4: ["dahaka"],
+      c5: ["titanX"],
+    };
+    const nemesisByKey = Object.fromEntries(
+      Object.values(cycleData).flatMap((cycle) => cycle.enemies)
+        .filter((enemy) => Object.values(nemesisOptionsByCycle).some((keys) => keys.includes(enemy.key)))
+        .map((enemy) => [enemy.key, enemy])
+    );
+    const nemesisResourceKeys = {
+      pursuer: ["grotesqueBeak", "powderedMatter"],
+      adversary: ["retractableMechanism", "reliefshellFragment"],
+      dahaka: ["onyxDust", "ireEssence"],
+      titanX: ["orichalcumAlloy", "slaveMetal"],
+    };
+
     const sharedResourceKeys = (() => {
       const counts = {};
       Object.values(cycleData).forEach((cycle) => {
@@ -2309,6 +2328,8 @@
       notes: "",
       syncLog: "",
       enemies: {},
+      nemesisSelections: {},
+      nemesisResourceHistory: {},
       adventures: {},
       diplomacy: {},
       resources: {},
@@ -2615,10 +2636,60 @@
       return migrated;
     }
 
+    function normalizeNemesisSelections(value) {
+      return Object.fromEntries(Object.entries(nemesisOptionsByCycle).map(([cycleId, options]) => [
+        cycleId, options.includes(value?.[cycleId]) ? value[cycleId] : options[0],
+      ]));
+    }
+
+    function migrateNemesisProgress(enemies) {
+      const migrated = { ...enemies };
+      const oldMarks = {};
+      Object.entries(enemies).forEach(([key, value]) => {
+        const match = /^(c[1-5]):([^:]+):(.+)$/.exec(key);
+        if (!match || !nemesisByKey[match[2]]) return;
+        const target = `nemesis:${match[2]}:${match[3]}`;
+        oldMarks[target] = Boolean(oldMarks[target] || value);
+        delete migrated[key];
+      });
+      Object.values(nemesisByKey).forEach((enemy) => {
+        const legacy = enemies[enemy.key];
+        evolutionStages(enemy.stages).forEach((stage) => {
+          if (legacy === undefined || legacy === null || typeof legacy === "boolean") return;
+          const target = `nemesis:${enemy.key}:${stage.id}`;
+          oldMarks[target] ||= String(legacy) === stage.id || String(legacy) === stage.legacyId;
+        });
+        delete migrated[enemy.key];
+      });
+      Object.entries(oldMarks).forEach(([key, value]) => {
+        // A saved shared mark (including an explicit false) supersedes old cycle marks.
+        if (!Object.prototype.hasOwnProperty.call(migrated, key)) migrated[key] = value;
+      });
+      return migrated;
+    }
+
+    function normalizeNemesisResourceHistory(value, selections, resources) {
+      const history = {};
+      Object.entries(nemesisOptionsByCycle).forEach(([cycleId, options]) => {
+        options.forEach((key) => {
+          const historyKey = `${cycleId}:${key}`;
+          if (value?.[historyKey] || key === options[0] || key === selections[cycleId]
+            || resources[`${cycleId}-core-${key}`] !== undefined
+            || (key === "pursuer" && resources[`${cycleId}-core-hermesian-pursuer`] !== undefined)
+            || nemesisResourceKeys[key].some((resourceKey) => resources[`${cycleId}-${resourceKey}`] !== undefined)) {
+            history[historyKey] = true;
+          }
+        });
+      });
+      return history;
+    }
+
     function normalizeState(value) {
       const legacySummonLimit = value?.summonLimit ?? "";
       const titans = normalizeTitanList(value?.titans, value?.titan);
       const hasTitanLimit = value && Object.prototype.hasOwnProperty.call(value, "titanLimit");
+      const nemesisSelections = normalizeNemesisSelections(value?.nemesisSelections);
+      const resources = normalizeResources(value?.resources);
       const {
         apotheosis: _removedApotheosis,
         knowledge: _removedKnowledge,
@@ -2637,7 +2708,9 @@
         nymphCharges: normalizeCount(value?.nymphCharges),
         hull: value?.hull === "" || value?.hull === null || value?.hull === undefined ? defaultState.hull : String(value.hull),
         crew: value?.crew === "" || value?.crew === null || value?.crew === undefined ? defaultState.crew : String(value.crew),
-        enemies: migrateEnemyStages(value?.enemies),
+        enemies: migrateNemesisProgress(migrateEnemyStages(value?.enemies)),
+        nemesisSelections,
+        nemesisResourceHistory: normalizeNemesisResourceHistory(value?.nemesisResourceHistory, nemesisSelections, resources),
         crewBoxes: isPlainObject(value?.crewBoxes) ? value.crewBoxes : {},
         cycleStats: normalizeCycleStats(value),
         cycleDays: isPlainObject(value?.cycleDays)
@@ -2645,7 +2718,7 @@
           : { [cycleData[value?.cycle] ? value.cycle : defaultState.cycle]: normalizeCycleDay(value?.day, value?.cycle) },
         adventures: isPlainObject(value?.adventures) ? value.adventures : {},
         diplomacy: isPlainObject(value?.diplomacy) ? value.diplomacy : {},
-        resources: normalizeResources(value?.resources),
+        resources,
         matrix: normalizeMatrix(value?.matrix),
         maxUnlocked: isPlainObject(value?.maxUnlocked) ? value.maxUnlocked : {},
         pygmalion: isPlainObject(value?.pygmalion) ? value.pygmalion : {},
@@ -2744,6 +2817,13 @@
 
     function normalizeResources(value) {
       const resources = isPlainObject(value) ? cloneJson(value) : {};
+      Object.keys(cycleData).forEach((cycleId) => {
+        const legacyKey = `${cycleId}-core-hermesian-pursuer`;
+        if (resources[legacyKey] === undefined) return;
+        const key = `${cycleId}-core-pursuer`;
+        resources[key] = Math.max(0, Number(resources[key]) || 0, Number(resources[legacyKey]) || 0);
+        delete resources[legacyKey];
+      });
       sharedResourceKeys.forEach((key) => {
         migrateSharedResourceKey(resources, key);
         migrateSharedResourceKey(resources, `${key}-names`);
@@ -3713,6 +3793,7 @@
     }
 
     function getEvolutionStageKey(trackKey, stage) {
+      if (nemesisByKey[trackKey]) return `nemesis:${trackKey}:${stage.id}`;
       if (stage.sharedWith) {
         return `${state.cycle}:shared:${[...stage.sharedWith].sort().join("+")}:${stage.id}`;
       }
@@ -3720,7 +3801,7 @@
     }
 
     function clearEvolutionTrack(trackKey) {
-      const directPrefix = `${state.cycle}:${trackKey}:`;
+      const directPrefix = nemesisByKey[trackKey] ? `nemesis:${trackKey}:` : `${state.cycle}:${trackKey}:`;
       const sharedPrefix = `${state.cycle}:shared:`;
       Object.keys(state.enemies || {}).forEach((key) => {
         if (key === trackKey || key.startsWith(directPrefix) || (key.startsWith(sharedPrefix) && key.includes(trackKey))) {
@@ -3730,7 +3811,7 @@
     }
 
     function hasEvolutionProgress(trackKey) {
-      const directPrefix = `${state.cycle}:${trackKey}:`;
+      const directPrefix = nemesisByKey[trackKey] ? `nemesis:${trackKey}:` : `${state.cycle}:${trackKey}:`;
       const sharedPrefix = `${state.cycle}:shared:`;
       return Object.entries(state.enemies || {}).some(([key, value]) => {
         return Boolean(value) && (key === trackKey || key.startsWith(directPrefix) || (key.startsWith(sharedPrefix) && key.includes(trackKey)));
@@ -3856,7 +3937,7 @@
         });
         chips.appendChild(button);
       });
-      row.append(makeTrackTitle(zh, en), chips);
+      row.append(options.nemesis ? makeNemesisTrackTitle() : makeTrackTitle(zh, en), chips);
       container.appendChild(row);
     }
 
@@ -3870,10 +3951,58 @@
       }
     }
 
+    function currentNemesis() {
+      const options = nemesisOptionsByCycle[state.cycle];
+      const key = state.nemesisSelections?.[state.cycle];
+      return nemesisByKey[options.includes(key) ? key : options[0]];
+    }
+
+    function selectNemesis(key) {
+      if (!nemesisOptionsByCycle[state.cycle].includes(key)) return false;
+      state.nemesisSelections ||= {};
+      state.nemesisSelections[state.cycle] = key;
+      state.nemesisResourceHistory ||= {};
+      state.nemesisResourceHistory[`${state.cycle}:${key}`] = true;
+      return true;
+    }
+
+    function makeNemesisTrackTitle() {
+      const title = document.createElement("div");
+      title.className = "track-name nemesis-track-name";
+      const label = document.createElement("label");
+      label.className = "nemesis-selector";
+      const text = document.createElement("span");
+      text.textContent = "宿敌";
+      const select = document.createElement("select");
+      select.setAttribute("aria-label", "宿敌");
+      const options = nemesisOptionsByCycle[state.cycle];
+      options.forEach((key) => {
+        const option = document.createElement("option");
+        option.value = key;
+        option.textContent = nemesisByKey[key].zh;
+        select.appendChild(option);
+      });
+      select.value = currentNemesis().key;
+      select.disabled = options.length === 1;
+      select.addEventListener("change", () => {
+        if (!selectNemesis(select.value)) return;
+        renderEnemyTracks();
+        renderResources();
+        queueSave();
+      });
+      const english = document.createElement("span");
+      english.textContent = currentNemesis().en;
+      label.append(text, select);
+      title.append(label, english);
+      return title;
+    }
+
     function renderEnemyTracks() {
       elements.enemyTracks.innerHTML = "";
-      currentCycle().enemies.forEach((enemy) => {
-        renderObjectTrack(elements.enemyTracks, enemy.zh, enemy.en, enemy.stages, "enemies", enemy.key, { className: "green", hasTriangle: enemy.hasTriangle });
+      const enemies = currentCycle().enemies.filter((enemy) => !nemesisByKey[enemy.key]);
+      enemies.push(currentNemesis());
+      enemies.forEach((enemy) => {
+        renderObjectTrack(elements.enemyTracks, enemy.zh, enemy.en, enemy.stages, "enemies", enemy.key, { className: "green", hasTriangle: enemy.hasTriangle, nemesis: Boolean(nemesisByKey[enemy.key]) });
       });
     }
 
@@ -4287,7 +4416,7 @@
 
     function currentResources() {
       const cycle = currentCycle();
-      return cycle.resources.flatMap(([key, zh, en]) => {
+      const resources = cycle.resources.flatMap(([key, zh, en]) => {
         if (key === "core") {
           return cycle.enemies.map((enemy) => ({
             key: `core-${enemy.key}`,
@@ -4305,6 +4434,24 @@
           type: key === "rare" ? "text" : key === "priests" ? "number-text" : "number",
         }];
       });
+      const seen = new Set(resources.map(({ key }) => key));
+      const catalog = new Map(Object.values(cycleData).flatMap((item) => item.resources).map((item) => [item[0], item]));
+      nemesisOptionsByCycle[state.cycle].forEach((key) => {
+        if (key !== currentNemesis().key && !state.nemesisResourceHistory?.[`${state.cycle}:${key}`]) return;
+        const enemy = nemesisByKey[key];
+        const coreKey = `core-${key}`;
+        if (!seen.has(coreKey)) {
+          resources.push({ key: coreKey, zh: `${enemy.zh}核心`, en: `${enemy.en} Core`, icon: "core", type: "number" });
+          seen.add(coreKey);
+        }
+        nemesisResourceKeys[key].forEach((resourceKey) => {
+          if (seen.has(resourceKey)) return;
+          const [, zh, en] = catalog.get(resourceKey);
+          resources.push({ key: resourceKey, zh, en, icon: resourceKey, type: "number" });
+          seen.add(resourceKey);
+        });
+      });
+      return resources;
     }
 
     function makeResourceHeading({ key, zh, en, icon }) {

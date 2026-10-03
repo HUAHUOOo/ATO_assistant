@@ -66,6 +66,10 @@ textarea { background: var(--bg); }
 .track-row:last-child, .diplomacy-row:last-child { border-bottom: 0; }
 .track-name strong { color: var(--accent-strong); font-weight: 600; }
 .track-name span { font-weight: 400; }
+.nemesis-selector { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.nemesis-selector > span { color: var(--accent-strong); font-weight: 600; }
+.nemesis-selector select { width: auto; max-width: 100%; min-height: 32px; padding: 4px 24px 4px 8px; color: var(--accent-strong); font-size: 14px; font-weight: 600; }
+.nemesis-selector select:disabled { opacity: 1; }
 .chip, .adventure-box, .pygmalion-cell, .track-extra-box, .crew-counter { border-radius: 0; }
 .chip:not(.active), .adventure-box:not(.active), .pygmalion-cell:not(.active) { background: var(--bg); border-color: var(--line); color: var(--ink); }
 .chip.active, .adventure-box.active, .pygmalion-cell.active { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
