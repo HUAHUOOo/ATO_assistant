@@ -131,3 +131,9 @@ __pycache__/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# 官方 APK 解包产物（不进仓库，500MB+）
+/app-extract/
+
+# 官方存档导入的地图/探针工作目录（临时脚本与 dump，报告留在工作区但不进仓库）
+/map-import-work/
