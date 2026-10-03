@@ -76,7 +76,7 @@ function renderedRecord(cycle, record) {
   const names = ['currentCycle', 'renderAdventures', 'normalizeState', 'normalizeCycleStats', 'normalizeCrewCounters',
     'normalizeResources', 'migrateSharedResourceKey', 'normalizeCount', 'normalizeSummonSelection',
     'normalizeTitanList', 'normalizeTitanLimit', 'migrateTitanLimit', 'normalizeMatrix', 'normalizeMatrixKey',
-    'defaultDayForCycle', 'normalizeCycleDay', 'isPlainObject', 'cloneJson', 'getBindValue', 'getCycleStat', 'currentCycleStats'];
+    'defaultDayForCycle', 'normalizeCycleDay', 'isPlainObject', 'cloneJson', 'migrateEnemyStages', 'getBindValue', 'getCycleStat', 'currentCycleStats'];
   vm.runInContext(recordSource.slice(recordSource.indexOf('    const cycleData = '), recordSource.indexOf('    const elements = '))
     + '\n' + names.map(name => extract(recordSource, name)).join('\n'), c);
   c.state = c.normalizeState(c.state);

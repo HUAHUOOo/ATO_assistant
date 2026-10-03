@@ -198,6 +198,7 @@ class OfficialFixture(unittest.TestCase):
             "complete_only": False,
             "include_story_data": True,
             "include_bgm": True,
+            "include_icons": True,
             "include_story_files": True,
             "official_story": True,
             "official_scans": True,

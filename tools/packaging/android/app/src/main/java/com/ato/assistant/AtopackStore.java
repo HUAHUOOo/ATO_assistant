@@ -35,6 +35,8 @@ final class AtopackStore {
   private static final int MAX_ENTITY_INDEX_BYTES = 128 * 1024 * 1024;
   private static final long MAX_BGM_BYTES = 32L * 1024 * 1024;
   private static final int MAX_BGM_FILES = 128;
+  private static final long MAX_ICON_BYTES = 1024L * 1024;
+  private static final int MAX_ICON_FILES = 256;
   private static final int MAX_ASSETS = 20_000;
   private static final String WEB_PREFIX = "/android_asset/web/";
   // 二进制素材（不是图片）只允许落在这个前缀下，与 tools/build_fan_pack.py、
@@ -222,6 +224,39 @@ final class AtopackStore {
           if (!target.equals(resource.optString("member"))) { stats.skipped++; continue; }
           ZipArchiveEntry entry = archive.getEntry(target);
           if (entry == null || entry.isDirectory() || entry.getSize() < 0 || entry.getSize() > MAX_BGM_BYTES) {
+            stats.skipped++;
+            continue;
+          }
+          if (resource.has("bytes") && resource.optLong("bytes", -1) != entry.getSize()) {
+            stats.skipped++;
+            continue;
+          }
+          try { installBlob(archive, entry, sha256); }
+          catch (InvalidPackEntry invalid) { stats.skipped++; continue; }
+          next.put(target, new ResourceEntry(sha256, safeMime(resource.optString("mimeType"), target)));
+        }
+      }
+      // 主控台界面图标：APK 不带这些字形，随资料包的 iconFiles 段解包到 web 根目录的
+      // assets/icons/，页面按相对路径 ./assets/icons/<名称>.svg 取用。
+      JSONArray iconFiles = manifest.optJSONArray("iconFiles");
+      if (iconFiles != null) {
+        if (iconFiles.length() > MAX_ICON_FILES) throw new IOException("界面图标数量超过限制");
+        for (int index = 0; index < iconFiles.length(); index++) {
+          JSONObject resource = iconFiles.optJSONObject(index);
+          if (resource == null) { stats.skipped++; continue; }
+          String target;
+          String sha256;
+          try {
+            target = safePath(resource.optString("target"), "界面图标路径");
+            sha256 = validSha256(resource.optString("sha256"));
+          } catch (IOException invalid) { stats.skipped++; continue; }
+          if (!target.matches("assets/icons/[A-Za-z0-9][A-Za-z0-9._-]*\\.svg")) {
+            stats.skipped++;
+            continue;
+          }
+          if (!target.equals(resource.optString("member"))) { stats.skipped++; continue; }
+          ZipArchiveEntry entry = archive.getEntry(target);
+          if (entry == null || entry.isDirectory() || entry.getSize() < 0 || entry.getSize() > MAX_ICON_BYTES) {
             stats.skipped++;
             continue;
           }

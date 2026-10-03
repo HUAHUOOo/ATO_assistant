@@ -5,37 +5,58 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ATO 战役简报</title>
 <link rel="stylesheet" href="../cycle-theme.css">
-<link rel="stylesheet" href="briefing.css?v=20261002-day1">
+<link rel="stylesheet" href="../assets/theme.css?v=20261001">
+<link rel="stylesheet" href="briefing.css?v=20261003-console">
+<script src="../assets/theme.js?v=20261001" defer></script>
 </head>
-<body data-cycle="c1">
+<body data-cycle="c1" data-theme-module="briefing">
+<div class="briefing-shell">
 <header class="briefing-head">
   <div class="head-title">
-    <h1>战役简报</h1>
+    <p class="head-eyebrow">回放 · 记录 · 导出</p>
+    <h1 id="briefingTitle">战役简报</h1>
     <p class="head-sub" id="headSub">正在读取每日备份…</p>
-    <p class="head-status" id="exportStatus" role="status" hidden></p>
   </div>
+  <div class="head-side">
+    <a id="backLink" class="back-link" href="../"><span aria-hidden="true">←</span> 回主控台</a>
+    <dl class="head-summary" aria-label="最近备份概览">
+      <div><dt>已记录</dt><dd><span id="recordedCount">—</span><small>天</small></dd></div>
+      <div><dt>已探索</dt><dd><span id="exploredCount">—</span><small>格</small></dd></div>
+      <div><dt>已点亮</dt><dd><span id="unlockedCount">—</span><small>项科技</small></dd></div>
+    </dl>
+  </div>
+</header>
+
+<div class="briefing-toolbar" role="group" aria-label="循环与导出">
   <div class="head-actions">
     <label class="field">
       <span>循环</span>
       <select id="cycleSelect" aria-label="选择循环"></select>
     </label>
-    <button type="button" id="refreshButton" class="ghost-button">重新读取</button>
-    <button type="button" id="exportFilesButton" class="primary-button" disabled title="地图回放 GIF + 科技树回放 GIF + 逐日简报 PDF，打成一个 zip">导出 GIF / PDF</button>
-    <a id="backLink" class="ghost-button link-button" href="../">回主控台</a>
+    <button type="button" id="refreshButton" class="ghost-button"><svg class="button-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 6.1A8 8 0 0 1 20 12M4 12a8 8 0 0 0 13.9 5.9"/></svg>重新读取</button>
   </div>
-</header>
+  <div class="export-actions">
+    <div class="export-description"><strong>导出战报</strong><span>地图 GIF · 科技树 GIF · 逐日 PDF</span></div>
+    <button type="button" id="exportFilesButton" class="primary-button" disabled aria-describedby="exportHint" title="地图回放 GIF + 科技树回放 GIF + 逐日简报 PDF，打成一个 zip"><svg class="button-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 15v5h16v-5"/></svg><span id="exportButtonLabel">导出 GIF / PDF</span></button>
+    <span class="sr-only" id="exportHint">将当前循环的两份回放 GIF 和逐日简报 PDF 打包为 ZIP 下载。</span>
+  </div>
+  <p class="head-status" id="exportStatus" role="status" hidden></p>
+</div>
 
 <main class="briefing-body" id="briefingBody" hidden>
   <section class="replay" aria-label="回放">
     <div class="replay-head">
       <div class="day-readout">
-        <span class="day-index" id="dayIndex">1 / 1</span>
-        <strong class="day-title" id="dayTitle">—</strong>
+        <div class="day-heading"><span class="section-label">战役回放</span><span class="day-index" id="dayIndex">1 / 1</span></div>
+        <h2 class="day-title" id="dayTitle">—</h2>
         <span class="day-meta" id="dayMeta"></span>
-      </div>      <div class="replay-controls">
-        <button type="button" id="prevButton" class="ghost-button" title="上一天（←）">上一天</button>
-        <button type="button" id="playButton" class="primary-button" title="播放 / 暂停（空格）">播放</button>
-        <button type="button" id="nextButton" class="ghost-button" title="下一天（→）">下一天</button>
+      </div>
+      <div class="replay-controls">
+        <div class="playback-buttons">
+          <button type="button" id="prevButton" class="ghost-button" title="上一天（←）">上一天</button>
+          <button type="button" id="playButton" class="primary-button" title="播放 / 暂停（空格）" aria-pressed="false">播放</button>
+          <button type="button" id="nextButton" class="ghost-button" title="下一天（→）">下一天</button>
+        </div>
         <label class="field">
           <span>速度</span>
           <select id="speedSelect" aria-label="播放速度">
@@ -55,18 +76,18 @@
     <div class="panes">
       <article class="pane pane-map">
         <header class="pane-head">
-          <h2>地图进展</h2>
+          <h3><span class="pane-number" aria-hidden="true">01</span>地图进展</h3>
           <span class="pane-sub" id="mapSummary"></span>
         </header>
         <div class="pane-canvas map-canvas" id="mapCanvas">
           <div class="map-stage" id="mapStage"></div>
         </div>
-        <footer class="pane-foot" id="mapNewList"></footer>
+        <footer class="pane-foot"><span id="mapNewList"></span><span class="map-legend"><span class="legend-key new">当日翻开</span><span class="legend-key current">当前位置</span></span></footer>
       </article>
 
       <article class="pane pane-tech">
         <header class="pane-head">
-          <h2>科技树点亮</h2>
+          <h3><span class="pane-number" aria-hidden="true">02</span>科技树点亮</h3>
           <span class="pane-sub" id="techSummary"></span>
         </header>
         <div class="pane-canvas tech-canvas" id="techCanvas">
@@ -79,8 +100,8 @@
 
   <section class="log" aria-label="逐日清单">
     <header class="log-head">
-      <h2>逐日记录</h2>
-      <p class="log-sub">点任意一天跳到那天；写着「无记录」的日期说明当天没留下备份，差分因此跨过了它。</p>
+      <div><span class="section-label">战役历程</span><h2>逐日记录</h2></div>
+      <p class="log-sub">选择日期查看当日进展。<br>「无记录」表示当天没有备份，变化从上一份记录计算。</p>
     </header>
     <ol class="log-list" id="logList"></ol>
   </section>
@@ -88,15 +109,19 @@
 
 <section class="notice" id="notice" aria-live="polite">
   <div class="notice-card">
+    <span class="notice-mark" aria-hidden="true">◇</span>
+    <p class="section-label">战役档案</p>
     <h2 id="noticeTitle">正在读取…</h2>
     <p id="noticeText">战役简报会从每日存档备份里重建这一轮的经过。</p>
     <div class="notice-actions" id="noticeActions"></div>
   </div>
 </section>
+</div>
 
 <!-- 地图与科技树复用仓库里现成的布局代码，简报自己只负责「按日期回放」。 -->
 <script src="../assets/vendor/gifenc.js?v=20261002-day1"></script>
 <script src="../assets/campaign-session.js?v=20260917"></script>
+<script src="../assets/cycle-symbols.js?v=20260918"></script>
 <script src="../map/map-data.js?v=20260926"></script>
 <script src="../map/nemesis-path.js?v=20260926"></script>
 <script src="../technology/tech-page-layout.js?v=20261003-hekaton-row1"></script>
@@ -106,6 +131,6 @@
 <script src="briefing-tech.js?v=20261002-square"></script>
 <script src="briefing-gif.js?v=20261002-day1"></script>
 <script src="briefing-report.js?v=20261002-day1"></script>
-<script src="briefing-app.js?v=20261002-day1"></script>
+<script src="briefing-app.js?v=20261003-console"></script>
 </body>
 </html>

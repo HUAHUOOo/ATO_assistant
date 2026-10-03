@@ -13,6 +13,7 @@ from typing import Callable
 
 from .official_resources import LIBRARY, collect
 from .bgm_resources import collect_library as collect_bgm_library
+from .icon_resources import collect_library as collect_icon_library
 from .db import Database
 from .storage import sha256_file, write_compatible_image
 from .story_extras import (
@@ -22,6 +23,7 @@ from .story_extras import (
     find_entity_index,
 )
 from .stories import storybook_payload
+from .storybook_format import format_storybook
 
 
 STORY_PREFIX = "window.STORYBOOK_DATA = "
@@ -33,6 +35,9 @@ INSTALL_TREES = frozenset({"aibp", "assets", "hero", "map", "record", "ss", "sto
 INSTALL_IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg", ".png", ".webp"})
 INSTALL_AUDIO_SUFFIXES = frozenset({".mp3", ".ogg"})
 INSTALL_AUDIO_PREFIX = "assets/bgm/"
+# 主控台界面图标：同样由使用者自备，随资料包的 iconFiles 段分发（见 icon_resources.py）。
+INSTALL_ICON_SUFFIXES = frozenset({".svg"})
+INSTALL_ICON_PREFIX = "assets/icons/"
 # 二进制素材：运行时脚本按固定路径取用的封装数据（不是图片也不是音频）。只允许落在
 # 这个前缀下，且必须与 tools/build_fan_pack.py 的同名规则保持一致。
 INSTALL_DATA_SUFFIXES = frozenset({".bin"})
@@ -90,14 +95,18 @@ def installable_relative(relative: str) -> str:
         if not relative.startswith(INSTALL_AUDIO_PREFIX):
             raise ValueError(f"音频素材只能安装到 {INSTALL_AUDIO_PREFIX}：{relative}")
         return relative
+    if suffix in INSTALL_ICON_SUFFIXES:
+        if not relative.startswith(INSTALL_ICON_PREFIX):
+            raise ValueError(f"界面图标只能安装到 {INSTALL_ICON_PREFIX}：{relative}")
+        return relative
     if suffix in INSTALL_DATA_SUFFIXES:
         if not relative.startswith(INSTALL_DATA_PREFIX):
             raise ValueError(f"二进制素材只能安装到 {INSTALL_DATA_PREFIX}：{relative}")
         return relative
     if suffix not in INSTALL_IMAGE_SUFFIXES:
         raise ValueError(
-            f"不支持的素材类型（只允许图片、{INSTALL_AUDIO_PREFIX} 音频"
-            f"和 {INSTALL_DATA_PREFIX} 下的二进制素材）：{relative}"
+            f"不支持的素材类型（只允许图片、{INSTALL_AUDIO_PREFIX} 音频、"
+            f"{INSTALL_ICON_PREFIX} 图标和 {INSTALL_DATA_PREFIX} 下的二进制素材）：{relative}"
         )
     if pure.parts[0] not in INSTALL_TREES:
         raise ValueError(f"素材目标目录不在允许范围内：{relative}")
@@ -268,7 +277,7 @@ def merged_storybook_payload(
     if not existing_valid:
         raise ValueError("原项目故事索引格式无法识别；为防止丢失内容，已停止安装")
     payload, report = merge_storybook_payload(existing, incoming, replace_books)
-    return f"{STORY_PREFIX}{json.dumps(payload, ensure_ascii=False, separators=(',', ':'))};\n".encode("utf-8"), report
+    return f"{STORY_PREFIX}{format_storybook(payload)};\n".encode("utf-8"), report
 
 
 def merged_storybook_javascript(db: Database, target: Path | None = None, replace_books: set[str] | None = None) -> bytes:
@@ -397,6 +406,15 @@ def install_plan(db: Database, library: Path, root: Path, replace_books: set[str
             raise ValueError(f"目标位置已存在同名文件夹，无法安装：{relative}")
         status = "add" if not destination.exists() else ("same" if sha256_file(destination) == sha256_file(source) else "replace")
         add_file({"item_id": "bgm", "name": f"背景音乐：{PurePosixPath(relative).name}", "face": "audio",
+                  "source": source.relative_to(library).as_posix(), "target": relative,
+                  "status": status, "direct_copy": True},
+                 lambda source=source: sha256_file(source))
+    for relative, source in collect_icon_library(library):
+        destination = safe_target(root, relative)
+        if destination.exists() and not destination.is_file():
+            raise ValueError(f"目标位置已存在同名文件夹，无法安装：{relative}")
+        status = "add" if not destination.exists() else ("same" if sha256_file(destination) == sha256_file(source) else "replace")
+        add_file({"item_id": "icons", "name": f"界面图标：{PurePosixPath(relative).name}", "face": "icon",
                   "source": source.relative_to(library).as_posix(), "target": relative,
                   "status": status, "direct_copy": True},
                  lambda source=source: sha256_file(source))

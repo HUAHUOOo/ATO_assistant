@@ -17,6 +17,8 @@ const ATO_UPDATE_BLOCKED_TOP = [
   'asset-studio', 'official-assets', 'dist', 'export', 'release', 'releases', 'node_modules',
   'tests',
   '.claude', 'log', 'logs', 'tmp',
+  // 图标提取工作区：界面字形的本地草稿，发布包里没有，更新时既不下载也不删除。
+  'icon-extract',
 ];
 
 const ATO_UPDATE_BLOCKED_LEAVES = [
@@ -97,6 +99,7 @@ function ato_update_path_excluded(string $relative): bool
     if (in_array('tools', $parts, true) || in_array('data', $parts, true)) return true;
     if (in_array($parts[0], ATO_UPDATE_BLOCKED_TOP, true)) return true;
     if (ato_update_is_bgm_media($parts)) return true;
+    if (ato_update_is_icon_media($parts)) return true;
 
     $leaf = $parts[count($parts) - 1];
     if (in_array($leaf, ATO_UPDATE_BLOCKED_LEAVES, true)) return true;
@@ -125,6 +128,16 @@ function ato_update_is_bgm_media(array $parts): bool
     if (!in_array($suffix, ATO_UPDATE_BGM_MEDIA_SUFFIXES, true)) return false;
     if ($parts[0] === 'bgm') return true;   // 早期版本的位置
     return count($parts) >= 3 && $parts[0] === 'assets' && $parts[1] === 'bgm';
+}
+
+/**
+ * 主控台界面图标：字形同样由使用者自备，随资料包的 iconFiles 段分发，不进发布包。
+ * assets/icons/ 整目录都算（这一目录里没有随包发布的程序代码）。
+ * @param string[] $parts 已小写化的路径分量
+ */
+function ato_update_is_icon_media(array $parts): bool
+{
+    return count($parts) >= 2 && $parts[0] === 'assets' && $parts[1] === 'icons';
 }
 
 /**

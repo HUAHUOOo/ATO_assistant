@@ -12,8 +12,13 @@ import argparse
 import json
 import os
 from pathlib import Path
+import sys
 import tempfile
 import zipfile
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "asset-studio"))
+from app.storybook_format import format_storybook
 
 
 APK_MEMBER = "assets/web/story/data/storybook-data.js"
@@ -92,7 +97,7 @@ def write_javascript(destination: Path, payload: dict) -> None:
         "// Contains navigation metadata only; no story prose or media assets.\n"
         "window.STORYBOOK_DATA = "
     )
-    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    body = format_storybook(payload)
     with tempfile.NamedTemporaryFile(
         "w",
         encoding="utf-8",

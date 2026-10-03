@@ -14,6 +14,9 @@ from .bgm_resources import add_to_archive as add_bgm_to_archive
 from .bgm_resources import collect_library as collect_bgm_library
 from .bgm_resources import checked_bytes as bgm_checked_bytes
 from .bgm_resources import import_resources as import_bgm_resources
+from .icon_resources import add_to_archive as add_icon_to_archive
+from .icon_resources import checked_bytes as icon_checked_bytes
+from .icon_resources import import_resources as import_icon_resources
 from .official_assets import resolve as resolve_official_asset
 from .official_resources import LIBRARY, collect, add_to_archive, checked_bytes, import_resources
 from .db import Database
@@ -181,6 +184,8 @@ def export_package(
                 manifest["resourceFiles"] = []
         if filters.get("include_bgm", True):
             add_bgm_to_archive(archive, manifest, ato_root, fallback_library=library)
+        if filters.get("include_icons", True):
+            add_icon_to_archive(archive, manifest, ato_root, fallback_library=library)
         archive.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
     return {
         "path": str(destination),
@@ -188,6 +193,7 @@ def export_package(
         "official_assets": official_assets,
         "entity_index": bool(entity_index),
         "bgm_files": len(manifest.get("bgmFiles", [])),
+        "icon_files": len(manifest.get("iconFiles", [])),
         "bytes": destination.stat().st_size,
     }
 
@@ -282,6 +288,9 @@ def inspect_package(
         bgm_files = manifest.get("bgmFiles", []) or []
         for resource in bgm_files:
             bgm_checked_bytes(archive, resource)
+        icon_files = manifest.get("iconFiles", []) or []
+        for resource in icon_files:
+            icon_checked_bytes(archive, resource)
         entity_summary = _inspect_story_files(archive, manifest, names, verify_hashes, library)
         if int(manifest.get("version", 0)) >= 2 and incoming_books and not entity_summary["included"]:
             raise ValueError("新版资料包含有故事，但没有人物小传索引")
@@ -292,6 +301,7 @@ def inspect_package(
         "entity_index": entity_summary,
         "official_resources": len(manifest.get("resourceFiles", [])),
         "bgm_files": len(bgm_files),
+        "icon_files": len(icon_files),
         "manifest": manifest,
     }
 
@@ -408,6 +418,7 @@ def import_package(
     entity_index_kept = False
     entity_index_backup = ""
     bgm_imported = 0
+    icon_imported = 0
     try:
         with zipfile.ZipFile(package) as archive:
             for index, asset in enumerate(pending, 1):
@@ -455,6 +466,7 @@ def import_package(
                         progress(index, total, f"正在恢复第 {index}/{len(assets)} 个图片")
                 import_resources(archive, manifest, library, replace)
                 bgm_imported = import_bgm_resources(archive, manifest, library, replace)
+                icon_imported = import_icon_resources(archive, manifest, library, replace)
                 for story_file in manifest.get("storyFiles", []):
                     if story_file.get("kind") != ENTITY_INDEX_KIND:
                         continue
@@ -497,6 +509,7 @@ def import_package(
         "entity_index_kept": entity_index_kept,
         "entity_index_backup": entity_index_backup,
         "bgm_imported": bgm_imported,
+        "icon_imported": icon_imported,
     }
 
 
@@ -672,11 +685,17 @@ def export_compat(
             bgm_manifest: dict = {}
             bgm_written = add_bgm_to_archive(archive, bgm_manifest, ato_root, fallback_library=library)
             written += bgm_written
+        icon_written = 0
+        if filters.get("include_icons", True):
+            icon_manifest: dict = {}
+            icon_written = add_icon_to_archive(archive, icon_manifest, ato_root, fallback_library=library)
+            written += icon_written
     return {
         "path": str(destination),
         "files": written + (3 if include_stories else 0),
         "official_assets": official_assets,
         "entity_index": bool(include_stories),
         "bgm_files": bgm_written,
+        "icon_files": icon_written,
         "bytes": destination.stat().st_size,
     }

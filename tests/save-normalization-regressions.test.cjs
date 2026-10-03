@@ -22,7 +22,7 @@ function recordContext() {
   const inputs = [...source.slice(0, source.indexOf('    const storageKey = ')).matchAll(/data-cycle-bind="([^"]+)"/g)]
     .map(match => ({ dataset: { cycleBind: match[1] }, value: '' }));
   const c = context('record/index.html', [
-    'isPlainObject', 'cloneJson', 'jsonEqual', 'normalizeState', 'normalizeCycleStats', 'normalizeCrewCounters',
+    'isPlainObject', 'cloneJson', 'jsonEqual', 'migrateEnemyStages', 'normalizeState', 'normalizeCycleStats', 'normalizeCrewCounters',
     'normalizeResources', 'migrateSharedResourceKey', 'normalizeCount', 'normalizeSummonSelection',
     'normalizeTitanList', 'normalizeTitanLimit', 'migrateTitanLimit', 'normalizeMatrix', 'normalizeMatrixKey',
     'defaultDayForCycle', 'normalizeCycleDay', 'renderCycleFields', 'currentCycle', 'currentCycleStats',

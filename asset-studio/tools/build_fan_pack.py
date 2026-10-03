@@ -47,6 +47,7 @@
     --no-official-story           不带官方故事书正文数据（格式版本回到 2）
     --no-story-data               不带故事正文与人物小传
     --no-bgm                      不带主控台背景音乐
+    --no-icons                    不带主控台界面图标（assets/icons/*.svg）
     --cycle c2 / --module AIBP    只打某些循环 / 模块
     --complete-only               只打正反面都齐了的条目
     --verify full                 改名之前把包内每个成员重新哈希一遍（慢，最稳）
@@ -78,12 +79,15 @@ if str(PROJECT_DIR) not in sys.path:
 from app.bgm_resources import allowed_target as is_bgm_target  # noqa: E402
 from app.bgm_resources import collect as collect_bgm_files  # noqa: E402
 from app.bgm_resources import mime_for as bgm_mime  # noqa: E402
+from app.icon_resources import collect as collect_icon_files  # noqa: E402
+from app.icon_resources import mime_for as icon_mime  # noqa: E402
 from app.fixed_catalog import collect_supplemental_resources  # noqa: E402
 from app.fixed_catalog import fixed_catalog_payload  # noqa: E402
 from app.official_assets import clear_cache as clear_official_cache  # noqa: E402
 from app.official_assets import resolve as resolve_official_asset  # noqa: E402
 from app.official_resources import DATA as OFFICIAL_STORY_DATA  # noqa: E402
 from app.official_resources import collect as collect_official  # noqa: E402
+from app.storybook_format import format_storybook  # noqa: E402
 from app.story_extras import (  # noqa: E402
     ENTITY_INDEX_JSON_TARGET,
     ENTITY_INDEX_JS_TARGET,
@@ -141,6 +145,9 @@ INSTALL_TREES = frozenset({"aibp", "assets", "hero", "map", "record", "ss", "sto
 INSTALL_IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg", ".png", ".webp"})
 INSTALL_AUDIO_SUFFIXES = frozenset({".mp3", ".ogg"})
 INSTALL_AUDIO_PREFIX = "assets/bgm/"
+# 主控台界面图标：同样由使用者自备，随 iconFiles 段分发（见 app/icon_resources.py）。
+INSTALL_ICON_SUFFIXES = frozenset({".svg"})
+INSTALL_ICON_PREFIX = "assets/icons/"
 # 二进制素材：由运行时脚本按固定路径取用的封装数据（不是图片，也不是音频）。
 # 只允许落在下面这个前缀里，且必须与 app/installer.py 的同名规则保持一致。
 INSTALL_DATA_SUFFIXES = frozenset({".bin"})
@@ -263,6 +270,10 @@ def installable_target(relative: str) -> str:
         if not relative.startswith(INSTALL_AUDIO_PREFIX):
             raise PackError(f"音频素材只能放在 {INSTALL_AUDIO_PREFIX}：{relative}")
         return relative
+    if suffix in INSTALL_ICON_SUFFIXES:
+        if not relative.startswith(INSTALL_ICON_PREFIX):
+            raise PackError(f"界面图标只能放在 {INSTALL_ICON_PREFIX}：{relative}")
+        return relative
     if suffix in INSTALL_DATA_SUFFIXES:
         # 二进制素材只允许落在约定的那棵子树里，别处一律拒绝。
         if not relative.startswith(INSTALL_DATA_PREFIX):
@@ -270,8 +281,8 @@ def installable_target(relative: str) -> str:
         return relative
     if suffix not in INSTALL_IMAGE_SUFFIXES:
         raise PackError(
-            f"不支持的素材类型（只允许图片、{INSTALL_AUDIO_PREFIX} 音频"
-            f"和 {INSTALL_DATA_PREFIX} 下的二进制素材）：{relative}"
+            f"不支持的素材类型（只允许图片、{INSTALL_AUDIO_PREFIX} 音频、"
+            f"{INSTALL_ICON_PREFIX} 图标和 {INSTALL_DATA_PREFIX} 下的二进制素材）：{relative}"
         )
     if pure.parts[0] not in INSTALL_TREES:
         raise PackError(f"素材目标目录不在允许范围内：{relative}")
@@ -683,7 +694,7 @@ def build_official_story(ato_root: Path, reporter: Reporter) -> tuple[dict, byte
     payload = {"generatedAt": "ATO Asset Studio 官方版", "books": books}
     javascript = (
         "window.STORYBOOK_DATA = "
-        + json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+        + format_storybook(payload)
         + ";\n"
     ).encode("utf-8")
     return payload, javascript, stats
@@ -698,6 +709,7 @@ def build_official_story(ato_root: Path, reporter: Reporter) -> tuple[dict, byte
 class WriteOutcome:
     manifest: dict
     bgm_count: int
+    icon_count: int
     extra_members: list[str]
     resources_written: int
     hash_mismatch_count: int
@@ -720,6 +732,7 @@ def build_manifest(
     progress: dict,
     resource_files: list[dict],
     bgm_files: list[dict],
+    icon_files: list[dict],
     ato_root: Path,
     official_scans: bool,
 ) -> dict:
@@ -772,10 +785,13 @@ def build_manifest(
             "officialScans": bool(official_scans),
             "correctedProjectOverlay": True,
             "audioIncluded": bool(bgm_files),
+            "iconsIncluded": bool(icon_files),
         },
     }
     if bgm_files:
         manifest["bgmFiles"] = bgm_files
+    if icon_files:
+        manifest["iconFiles"] = icon_files
     return manifest
 
 
@@ -832,7 +848,7 @@ def load_incremental_index(previous: Path, reporter: Reporter) -> tuple[dict[str
         digest = str(asset.get("sha256") or "")
         if member and SHA256_RE.fullmatch(digest):
             remember(member, digest, int(asset.get("bytes") or 0), asset)
-    for section in ("resourceFiles", "bgmFiles"):
+    for section in ("resourceFiles", "bgmFiles", "iconFiles"):
         for entry in manifest.get(section, []) or []:
             member = str(entry.get("member") or entry.get("target") or "")
             digest = str(entry.get("sha256") or "")
@@ -869,6 +885,7 @@ def write_pack(
     official_files: list[tuple[str, Path]],
     official_scans: bool,
     bgm_files: list[tuple[str, Path]],
+    icon_files: list[tuple[str, Path]],
     compression: int,
     reporter: Reporter,
     edition: str = "fan",
@@ -987,9 +1004,9 @@ def write_pack(
                 reporter.progress(index, total_members, written_bytes, started)
         reporter.progress_done()
 
-        # 官方资料 / BGM 是"字符串 key 对应文件"的一长串（官方版一到两千张扫描图）。
-        # 增量时先看包内清单记下的大小 + mtime，一致就直接搬旧字节；底包没记 mtime
-        # （或列表里少一项）时退到"大小 + CRC32"再确认一次，绝不凭路径相同就当同一份。
+        # 官方资料 / BGM / 界面图标是"字符串 key 对应文件"的一长串（官方版一到两千张
+        # 扫描图）。增量时先看包内清单记下的大小 + mtime，一致就直接搬旧字节；底包没记
+        # mtime（或列表里少一项）时退到"大小 + CRC32"再确认一次，绝不凭路径相同就当同一份。
         def reuse_plain_file(member: str, path: Path) -> str | None:
             nonlocal reused_members
             if not reuse_allowed or previous_archive is None or member not in old_names:
@@ -1084,6 +1101,32 @@ def write_pack(
                     "mimeType": bgm_mime(target),
                 }
             )
+        # 主控台界面图标：本地私有字形，随 iconFiles 段分发到 assets/icons/。
+        icon_entries: list[dict] = []
+        for target, path in icon_files:
+            cached = reuse_plain_file(target, path)
+            if cached is not None:
+                icon_entries.append(
+                    {
+                        "target": target,
+                        "member": target,
+                        "sha256": cached,
+                        "bytes": int((old_edges.get(target) or {}).get("bytes") or 0),
+                        "mimeType": icon_mime(target),
+                    }
+                )
+                continue
+            raw = path.read_bytes()
+            archive.writestr(target, raw)
+            icon_entries.append(
+                {
+                    "target": target,
+                    "member": target,
+                    "sha256": hashlib.sha256(raw).hexdigest(),
+                    "bytes": len(raw),
+                    "mimeType": icon_mime(target),
+                }
+            )
         manifest = build_manifest(
             catalog_source=catalog_source,
             items=items,
@@ -1093,6 +1136,7 @@ def write_pack(
             progress={"skippedFaces": [], "storyReview": []},
             resource_files=resource_files,
             bgm_files=bgm_entries,
+            icon_files=icon_entries,
             ato_root=ato_root,
             official_scans=official_scans,
         )
@@ -1111,6 +1155,7 @@ def write_pack(
     return WriteOutcome(
         manifest=manifest,
         bgm_count=len(bgm_entries),
+        icon_count=len(icon_entries),
         extra_members=extra_members,
         resources_written=len(resource_files),
         hash_mismatch_count=mismatch_count,
@@ -1186,6 +1231,10 @@ def verify_partial(
             target = str(item.get("target") or "")
             if target not in name_set:
                 raise PackError(f"资料包缺少背景音乐：{target}")
+        for item in manifest.get("iconFiles", []) or []:
+            target = str(item.get("target") or "")
+            if target not in name_set:
+                raise PackError(f"资料包缺少界面图标：{target}")
 
         checked = 0
         if mode != "none" and declared_lookup:
@@ -1269,6 +1318,7 @@ class BuildResult:
     official_scans: bool = False
     package_version: int = PACKAGE_VERSION_FAN
     bgm_files: int = 0
+    icon_files: int = 0
     edition: str = "fan"
     unsafe_targets: int = 0
     broken_items: int = 0
@@ -1291,6 +1341,7 @@ def build(
     complete_only: bool,
     include_story_data: bool,
     include_bgm: bool,
+    include_icons: bool,
     include_story_files: bool,
     official_story: bool,
     official_scans: bool,
@@ -1381,11 +1432,12 @@ def build(
             f"故事正文要配人物小传索引，但工程目录里没有 {ENTITY_INDEX_JSON_TARGET}（或 .js）"
         )
 
-    # 官方资料与 BGM 都复用提交里的收集器：它们的校验失败（截图缺失、文件过大、
+    # 官方资料、BGM 与界面图标都复用提交里的收集器：它们的校验失败（截图缺失、文件过大、
     # 数据文件格式不对）在这里换成统一的打包错误，命令行只打一行说明，不吐栈。
     try:
         official_files = collect_official(ato_root, include_scans=official_scans) if official_story else []
         bgm = collect_bgm_files(ato_root) if include_bgm else []
+        icons = collect_icon_files(ato_root) if include_icons else []
     except ValueError as error:
         raise PackError(str(error)) from error
 
@@ -1396,9 +1448,10 @@ def build(
         sum(asset.size for asset in planned)
         + sum(path.stat().st_size for _, path in official_files)
         + sum(path.stat().st_size for _, path in bgm)
+        + sum(path.stat().st_size for _, path in icons)
     )
     story_member_count = 0 if entity_index is None else (4 if include_story_files else 1)
-    member_count = len(planned) + len(official_files) + len(bgm) + story_member_count + 1
+    member_count = len(planned) + len(official_files) + len(bgm) + len(icons) + story_member_count + 1
 
     if len(planned) > MAX_ASSETS:
         raise PackError(f"图片条目过多（{len(planned)}，读取方上限 {MAX_ASSETS}）")
@@ -1433,6 +1486,7 @@ def build(
         + ("（含原书扫描图）" if official_scans else "（只带官方故事书正文数据）" if official_files else "（无）")
     )
     reporter.say(f"背景音乐  : {len(bgm)} 首")
+    reporter.say(f"界面图标  : {len(icons)} 个字形")
     reporter.say(f"成员/体积 : {member_count} / {human_bytes(total_bytes)}")
     if image_quality:
         reporter.say(f"图片重编码: 开（JPEG 质量 {image_quality}，不缩放；实际体积以写盘后为准）")
@@ -1465,6 +1519,7 @@ def build(
             official_scans=official_scans,
             package_version=PACKAGE_VERSION_OFFICIAL if official_files else PACKAGE_VERSION_FAN,
             bgm_files=len(bgm),
+            icon_files=len(icons),
             edition=edition,
             unsafe_targets=stats.unsafe_targets,
             broken_items=stats.broken_items,
@@ -1506,6 +1561,7 @@ def build(
             official_files=official_files,
             official_scans=official_scans,
             bgm_files=bgm,
+            icon_files=icons,
             compression=compression,
             reporter=reporter,
             edition=edition,
@@ -1560,6 +1616,7 @@ def build(
         official_scans=official_scans,
         package_version=int(outcome.manifest["version"]),
         bgm_files=outcome.bgm_count,
+        icon_files=outcome.icon_count,
         edition=edition,
         unsafe_targets=stats.unsafe_targets,
         broken_items=stats.broken_items,
@@ -1606,6 +1663,7 @@ def report(result: BuildResult, reporter: Reporter) -> None:
         + ("（含原书扫描图）" if result.official_scans else "")
     )
     reporter.say(f"  背景音乐  : {result.bgm_files} 首")
+    reporter.say(f"  界面图标  : {result.icon_files} 个字形")
     if result.reused_members:
         reporter.say(
             f"  增量复用  : {result.reused_members} 个成员直接取自底包（跳过读盘与重编码）"
@@ -1643,6 +1701,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--complete-only", action="store_true", help="只打正反面都齐了的条目")
     parser.add_argument("--no-story-data", action="store_true", help="不带故事正文与人物小传")
     parser.add_argument("--no-bgm", action="store_true", help="不带主控台背景音乐")
+    parser.add_argument("--no-icons", action="store_true", help="不带主控台界面图标（assets/icons/*.svg）")
     parser.add_argument("--no-story-files", action="store_true", help="不在包里额外落 story/data/*.js（默认落）")
     parser.add_argument("--no-official-story", action="store_true", help="不带官方故事书正文数据（格式版本回到 2）")
     parser.add_argument("--include-official-scans", action="store_true", help="官方版资料包：连官方原书扫描图一起打进包")
@@ -1715,6 +1774,7 @@ def main(argv: list[str] | None = None) -> int:
             complete_only=args.complete_only,
             include_story_data=not args.no_story_data,
             include_bgm=not args.no_bgm,
+            include_icons=not args.no_icons,
             include_story_files=not args.no_story_files,
             official_story=not args.no_official_story,
             official_scans=args.include_official_scans,

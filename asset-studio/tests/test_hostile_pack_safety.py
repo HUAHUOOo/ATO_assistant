@@ -36,7 +36,7 @@ from PIL import Image
 
 import app.packages as packages
 from app.db import Database
-from app.fixed_catalog import ensure_fixed_catalog
+from app.fixed_catalog import ensure_fixed_catalog, fixed_catalog_payload
 from app.installer import apply_install, install_plan
 from app.packages import export_compat, export_package, import_package, safe_member
 from app.storage import store_image
@@ -276,9 +276,15 @@ class HostilePackSafetyTests(unittest.TestCase):
         """内置清单的合法目标必须照旧通过校验、导出、安装。"""
         ensure_fixed_catalog(self.db)
         rows = self.db.all("SELECT id,faces_json FROM catalog_items")
-        self.assertEqual(2777, len(rows))
+        # 三个「退役素材」版本（2.1.3-rc.3 / 2.2.1-rc.3 / 3.1.0）陆续删过清单条目，
+        # 这两个数字一直没跟着更新。以 fixed_catalog_payload() 为准：用它直接算一遍，
+        # 数字对不上就说明清单被动过，测试仍然能抓到。
+        payload = fixed_catalog_payload()
+        expected_items = len(payload["items"])
+        expected_targets = sum(len(item["faces"]) for item in payload["items"])
+        self.assertEqual(expected_items, len(rows), "内置清单条目数与 fixed_catalog_payload() 不一致")
         targets = [target for row in rows for target in json.loads(row["faces_json"]).values()]
-        self.assertEqual(4299, len(targets))
+        self.assertEqual(expected_targets, len(targets), "内置清单面数与 fixed_catalog_payload() 不一致")
         rejected = []
         for target in targets:
             try:
