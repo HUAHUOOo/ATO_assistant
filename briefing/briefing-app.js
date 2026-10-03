@@ -6,9 +6,14 @@
   const els = {
     body: document.body,
     headSub: document.getElementById('headSub'),
+    title: document.getElementById('briefingTitle'),
+    recordedCount: document.getElementById('recordedCount'),
+    exploredCount: document.getElementById('exploredCount'),
+    unlockedCount: document.getElementById('unlockedCount'),
     cycleSelect: document.getElementById('cycleSelect'),
     refreshButton: document.getElementById('refreshButton'),
     exportFilesButton: document.getElementById('exportFilesButton'),
+    exportButtonLabel: document.getElementById('exportButtonLabel'),
     briefingBody: document.getElementById('briefingBody'),
     dayIndex: document.getElementById('dayIndex'),
     dayTitle: document.getElementById('dayTitle'),
@@ -42,6 +47,7 @@
     timer: 0,
     map: null,
     tech: null,
+    exporting: false,
   };
 
   function showNotice(title, text, actions) {
@@ -70,7 +76,10 @@
   }
 
   async function load(cycleId) {
+    if (state.exporting) return;
     stopPlay();
+    if (els.exportFilesButton) els.exportFilesButton.disabled = true;
+    setExportStatus('');
     els.headSub.textContent = '正在读取每日备份…';
     const query = new URLSearchParams();
     if (cycleId) query.set('cycle', cycleId);
@@ -178,7 +187,16 @@
       els.cycleSelect.appendChild(option);
     }
     const summary = payload.summary || {};
-    els.headSub.textContent = `${payload.cycle.label} · 已记录 ${summary.recordedDays || 0} 天 · 首次备份 ${summary.firstDay || '—'} · 最近 ${summary.lastDay || '—'}`;
+    const latest = (payload.timeline || []).slice().reverse().find((entry) => entry.present);
+    els.recordedCount.textContent = String(summary.recordedDays || 0);
+    els.exploredCount.textContent = String(latest && latest.map ? latest.map.exploredCount : 0);
+    els.unlockedCount.textContent = String(latest && latest.tech ? latest.tech.unlocked.length : 0);
+    const first = summary.firstDay == null || summary.firstDay === '' ? '—' : shortDay(summary.firstDay);
+    const last = summary.lastDay == null || summary.lastDay === '' ? '—' : shortDay(summary.lastDay);
+    els.headSub.textContent = summary.recordedDays
+      ? `${payload.cycle.label} · 记录范围 ${first} — ${last} · 以每日备份为准`
+      : `${payload.cycle.label} · 等待第一份每日备份`;
+    window.ATO_CYCLE_SYMBOLS && window.ATO_CYCLE_SYMBOLS.prependTitleIcon(els.title, payload.cycle.cycleId, '../');
   }
 
   function normalizeAssetPath(path) {
@@ -251,6 +269,9 @@
     els.dayRange.value = String(clamped);
 
     els.dayIndex.textContent = `${clamped + 1} / ${state.days.length}`;
+    els.prevButton.disabled = clamped === 0;
+    els.nextButton.disabled = clamped === state.days.length - 1;
+    els.playButton.disabled = state.days.length < 2 || state.exporting;
     els.dayTitle.textContent = entry.title;
     const meta = [];
     if (!entry.present) meta.push('无记录');
@@ -331,6 +352,15 @@
       item.className = `log-day${entry.present ? '' : ' gap'}`;
       item.dataset.index = String(entry.index);
 
+      const marker = document.createElement('span');
+      marker.className = 'log-day-marker';
+      marker.textContent = shortDay(entry.day);
+      marker.setAttribute('aria-hidden', 'true');
+      item.appendChild(marker);
+      const content = document.createElement('div');
+      content.className = 'log-day-content';
+      item.appendChild(content);
+
       const head = document.createElement('div');
       head.className = 'log-day-head';
       const title = document.createElement('span');
@@ -347,7 +377,7 @@
       if (entry.present && entry.tech) metaParts.push(`已点亮 ${entry.tech.unlocked.length} 项`);
       meta.textContent = metaParts.join(' · ');
       head.appendChild(meta);
-      item.appendChild(head);
+      content.appendChild(head);
 
       if (entry.present) {
         const detail = summarize(entry);
@@ -355,7 +385,7 @@
           const detailNode = document.createElement('p');
           detailNode.className = 'log-detail';
           detailNode.textContent = detail;
-          item.appendChild(detailNode);
+          content.appendChild(detailNode);
         }
         const tags = document.createElement('div');
         tags.className = 'log-tags';
@@ -365,14 +395,15 @@
           tag.textContent = change.items && change.items.length
             ? `${change.label}：${truncate(change.items.join('、'), 60)}`
             : change.label;
+          tag.title = tag.textContent;
           tags.appendChild(tag);
         });
-        if (tags.children.length) item.appendChild(tags);
+        if (tags.children.length) content.appendChild(tags);
       } else {
         const empty = document.createElement('p');
         empty.className = 'log-empty';
         empty.textContent = '这天没有留下备份：差分从上一份记录直接跳到下一份。';
-        item.appendChild(empty);
+        content.appendChild(empty);
       }
 
       if (entry.present) {
@@ -410,6 +441,8 @@
     const active = Array.from(list.children).find((node) => Number(node.dataset.index) === index) || null;
     Array.from(list.children).forEach((node) => {
       node.classList.toggle('active', node === active);
+      if (node === active) node.setAttribute('aria-current', 'true');
+      else node.removeAttribute('aria-current');
     });
     if (!active) return;
     const listTop = list.scrollTop;
@@ -424,10 +457,11 @@
   }
 
   function startPlay() {
-    if (state.days.length < 2) return;
+    if (state.days.length < 2 || state.exporting) return;
     if (state.index >= state.days.length - 1) selectDay(0);
     stopPlay();
     els.playButton.textContent = '暂停';
+    els.playButton.setAttribute('aria-pressed', 'true');
     els.playButton.classList.remove('primary-button');
     const tick = () => {
       if (state.index >= state.days.length - 1) {
@@ -444,6 +478,7 @@
     if (state.timer) window.clearTimeout(state.timer);
     state.timer = 0;
     els.playButton.textContent = '播放';
+    els.playButton.setAttribute('aria-pressed', 'false');
     els.playButton.classList.add('primary-button');
   }
 
@@ -477,9 +512,8 @@
     selectDay(Number(els.dayRange.value));
   });
   document.addEventListener('keydown', (event) => {
-    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) {
-      if (event.key !== ' ') return;
-    }
+    if (event.defaultPrevented) return;
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target.closest('button, a, [role="button"]')) return;
     if (event.key === 'ArrowLeft') { stopPlay(); selectDay(state.index - 1); }
     else if (event.key === 'ArrowRight') { stopPlay(); selectDay(state.index + 1); }
     else if (event.key === ' ') { event.preventDefault(); els.playButton.click(); }
@@ -488,6 +522,7 @@
     const observer = new ResizeObserver(() => {
       state.map && state.map.resize();
       state.tech && state.tech.resize();
+      if (state.days.length && !els.briefingBody.hidden) highlightLog(state.index);
     });
     observer.observe(els.mapCanvas);
     observer.observe(els.techCanvas);
@@ -495,20 +530,29 @@
     window.addEventListener('resize', () => {
       state.map && state.map.resize();
       state.tech && state.tech.resize();
+      if (state.days.length && !els.briefingBody.hidden) highlightLog(state.index);
     });
   }
   // 地图/科技树回放 GIF + 逐日简报 PDF（打成一个 zip）。渲染是逐帧的，几十帧要跑一会儿，
   // 所以按钮禁用 + 状态行显示进度，避免重复点击。
   const exportStatus = document.getElementById('exportStatus');
-  function setExportStatus(text) {
+  function setExportStatus(text, status) {
     if (!exportStatus) return;
     exportStatus.hidden = !text;
     exportStatus.textContent = text || '';
+    exportStatus.dataset.state = status || 'progress';
   }
   if (els.exportFilesButton) {
     els.exportFilesButton.addEventListener('click', async () => {
-      if (!window.ATO_BRIEFING_REPORT || !state.payload || !state.map) return;
+      if (!window.ATO_BRIEFING_REPORT || !state.payload || !state.payload.hasData || !state.map || state.exporting) return;
+      stopPlay();
+      state.exporting = true;
       els.exportFilesButton.disabled = true;
+      els.exportFilesButton.setAttribute('aria-busy', 'true');
+      els.exportButtonLabel.textContent = '正在导出…';
+      els.cycleSelect.disabled = true;
+      els.refreshButton.disabled = true;
+      els.playButton.disabled = true;
       setExportStatus('准备导出…');
       try {
         await window.ATO_BRIEFING_REPORT.run({
@@ -518,10 +562,15 @@
           onStatus: setExportStatus,
         });
       } catch (error) {
-        setExportStatus('');
-        window.alert(`导出失败：${String(error && error.message ? error.message : error)}`);
+        setExportStatus(`导出失败：${String(error && error.message ? error.message : error)}`, 'error');
       } finally {
+        state.exporting = false;
         els.exportFilesButton.disabled = false;
+        els.exportFilesButton.setAttribute('aria-busy', 'false');
+        els.exportButtonLabel.textContent = '导出 GIF / PDF';
+        els.cycleSelect.disabled = false;
+        els.refreshButton.disabled = false;
+        els.playButton.disabled = state.days.length < 2;
       }
     });
   }

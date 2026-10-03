@@ -212,7 +212,7 @@ button {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 6px 24px;
+  gap: 6px 30px;
 }
 
 .record-links .campaign-save-status {
@@ -236,6 +236,28 @@ button {
   content: "↗";
   margin-left: 8px;
   color: var(--gold);
+}
+
+/* 跳转行图标：字形是 assets/icons/<名称>.svg，由 .atopack 的 iconFiles 段随包安装
+   （程序包不带这些提取自原 App 的素材，见 tools/packaging/package_common.py）。
+   这里用 CSS 遮罩 + currentColor 上色，图标照旧跟随链接颜色与悬停色；没有字形时
+   这一格自然为空，文字标签不受影响。
+   每个字形按「等包围盒面积」缩放，尺寸由内联的 --nav-icon-w/h 给出，
+   否则扁长的字形（如 argo 120x81）会比近方形的字形明显偏小。 */
+.app .record-card-link > .nav-icon {
+  width: var(--nav-icon-w, 16px);
+  height: var(--nav-icon-h, 16px);
+  flex: 0 0 auto;
+  margin-right: 6px;
+  background-color: currentColor;
+  -webkit-mask-image: var(--icon-src);
+  mask-image: var(--icon-src);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
 }
 
 .app .record-card-link:hover {
@@ -555,6 +577,12 @@ button {
   background: transparent;
 }
 
+/* C4 可以一直往后推，没有上限。时间表之外的续推日用虚线隔开，表示它不是印刷
+   时间表里的一行（见 index.html 的 trackEntriesForRender）。 */
+.date-track-item.beyond-track {
+  border-top: 1px dashed var(--line);
+}
+
 .date-track-item:hover {
   background: var(--accent-soft);
 }
@@ -769,12 +797,19 @@ button {
   }
 
   .record-links {
-    gap: 4px 16px;
+    gap: 4px 20px;
   }
 
   .app .record-links .record-card-link {
     font-size: 12px;
     padding-inline: 0;
+  }
+
+  .app .record-links .record-card-link > .nav-icon {
+    /* 14/16，随窄屏字号一起收一点 */
+    width: calc(var(--nav-icon-w, 16px) * 0.875);
+    height: calc(var(--nav-icon-h, 16px) * 0.875);
+    margin-right: 4px;
   }
 
   .dashboard-navigation .title-cycle-control {

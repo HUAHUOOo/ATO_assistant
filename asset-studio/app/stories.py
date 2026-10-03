@@ -10,6 +10,7 @@ from docx import Document
 from pypdf import PdfReader
 
 from .db import Database
+from .storybook_format import format_storybook
 
 
 ENTRY_RE = re.compile(
@@ -265,10 +266,9 @@ def storybook_payload(
 def storybook_javascript(
     db: Database, reviewed_only: bool = True, book_ids: set[str] | None = None,
 ) -> bytes:
-    payload = json.dumps(
+    payload = format_storybook(
         storybook_payload(
             db, reviewed_only=reviewed_only, book_ids=book_ids, omit_empty=reviewed_only,
         ),
-        ensure_ascii=False, separators=(",", ":"),
     )
     return f"window.STORYBOOK_DATA = {payload};\n".encode("utf-8")

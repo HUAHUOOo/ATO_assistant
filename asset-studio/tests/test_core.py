@@ -384,7 +384,8 @@ class CoreTests(unittest.TestCase):
         with patch("tools.build_fan_pack.fixed_catalog_payload", return_value={"source": payload["source"], "items": [template]}):
             build_fan_pack(
                 ato_root=project, output=project_pack, library_path=None, cycles=[], modules=[],
-                complete_only=True, include_story_data=False, include_bgm=False, include_story_files=False,
+                complete_only=True, include_story_data=False, include_bgm=False, include_icons=False,
+                include_story_files=False,
                 official_story=False, official_scans=False, official_assets=False, skip_missing=False,
                 force=False, dry_run=False, compression_name="store", verify_mode="full", verify_sample=32,
                 reporter=Reporter(quiet=True),

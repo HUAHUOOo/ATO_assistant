@@ -32,6 +32,7 @@
     --dry-run                 只统计不写盘（先看体积、条目数、扫描图数量）
     --no-official-assets      不用官中覆盖图，图片全取工程目录
     --no-official-scans       不打包原书扫描图（只带官方正文数据）
+    --no-icons                不带主控台界面图标（assets/icons/*.svg）
     --story-source project    故事书 js 改回工程里的民间版（默认 official）
     --library D:\\delete       工程里缺图时用素材库兜底
     --verify full             改名之前把包内每个成员重新哈希一遍（慢，最稳）
@@ -83,6 +84,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--no-official-scans", action="store_true", help="不打包官方原书扫描图（默认打包）")
     parser.add_argument("--no-story-data", action="store_true", help="不带故事正文与人物小传")
     parser.add_argument("--no-bgm", action="store_true", help="不带主控台背景音乐")
+    parser.add_argument("--no-icons", action="store_true", help="不带主控台界面图标（assets/icons/*.svg）")
     parser.add_argument("--no-story-files", action="store_true", help="不在包里额外落 story/data/*.js（默认落）")
     parser.add_argument("--skip-missing", action="store_true", help="找不到文件的面跳过而不是中断")
     parser.add_argument("--force", action="store_true", help="允许覆盖已存在的输出")
@@ -137,6 +139,7 @@ def main(argv: list[str] | None = None) -> int:
             complete_only=args.complete_only,
             include_story_data=not args.no_story_data,
             include_bgm=not args.no_bgm,
+            include_icons=not args.no_icons,
             include_story_files=not args.no_story_files,
             # 官方版：官方正文数据必带（否则就不是官方版了），原书图默认一起打。
             official_story=True,

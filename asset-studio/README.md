@@ -122,6 +122,24 @@ PDF 必须带有可提取的文字层。扫描图片型 PDF 不支持 OCR；检�
 
 文件名不符合规范（例如带空格、大写扩展名）或不是音频的文件会被静默跳过，不会让导出失败。
 
+## 主控台界面图标（assets/icons）
+
+主控台的界面图标同样不进程序包：它们是从原 App 截图里提取出来的字形，便携版、Docker 镜像
+和 APK 都不带（排除规则见 `tools/packaging/package_common.py` 的 `is_icon_media` 与
+`ICON_SOURCE_TOP`，对应更新侧的 `api/app-update-policy.php`）。素材库负责把这批字形按
+资料包分发，口径与 BGM 完全一致：
+
+1. 导出 `.atopack` 时勾选“包含主控台界面图标”，`assets/icons/*.svg` 会原样写入包内的
+   `iconFiles` 段；根目录没有字形时退回素材库里已导入的副本。该段同样只是附加字段，
+   不改变资料包版本号，旧版本读取方会直接忽略。
+2. 导入资料包时字形存进素材库的 `sources/icons/`，再由“预览自动安装／安装”落回
+   ATO_assistant 的 `assets/icons/`。
+3. Android 端在“从 .atopack 导入资源”时会把这些字形解包到 Web 根目录的
+   `assets/icons/`（上限 256 个、单个 1MB），页面按相对路径取用。
+
+`assets/icons/manifest.json` 是本地清单（记录每个字形的来源与当前引用位置），**不进包**：
+收集器只认 `.svg`，名字不合规或不是 SVG 的文件一律静默跳过。
+
 ## 与朋友分享
 
 `.atopack` 包含所选卡图、清单映射、完成状态、文件哈希、校对后的结构化故事和人物小传索引；

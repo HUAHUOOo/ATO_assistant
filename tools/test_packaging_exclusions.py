@@ -42,12 +42,19 @@ LOCAL_ONLY_FILES = {
     "logs/session.txt": "local runtime log",
     "Thumbs.db": "windows os scratch",
     "__pycache__/package_common.cpython-312.pyc": "python bytecode cache",
+    # 界面图标与图标提取工作区：字形随资料包的 iconFiles 段分发，提取草稿更是纯本地
+    # 目录，两者都不进程序包，审计也必须能独立挡住被硬塞进产物的副本。
+    "assets/icons/argo.svg": "local UI glyph",
+    "assets/icons/manifest.json": "local UI glyph manifest",
+    "icon-extract/svg/argo.svg": "local icon extraction workspace",
+    "icon-extract/png/argo.png": "local icon extraction bitmap",
 }
 
 # 负向验证：摘掉一条规则后，对应的文件必须真的进包、并被审计报错。
 NEGATIVE_RULES = (
     (".atopack", "suffix", "personal.atopack"),
     ("tmp", "top", "tmp/private-note.txt"),
+    ("icon-extract", "top", "icon-extract/svg/argo.svg"),
 )
 
 # 启动入口与公共前端模块：Dockerfile 的 CMD 与两个便携启动器都把 router.php 交给 php -S
@@ -255,6 +262,17 @@ def main() -> int:
     ):
         if forbidden in packaged:
             failures.append(f"不应进包：{forbidden}")
+
+    # 主控台界面图标：字形走资料包的 iconFiles 段，程序包里一个都不该出现；提取工作区
+    # 更是纯本地目录（发布走 os.walk 不看 Git，漏一条就会把提取素材整批发出去）。
+    for forbidden in (
+        "assets/icons/argo.svg", "assets/icons/manifest.json",
+        "icon-extract/svg/argo.svg", "icon-extract/png/argo.png",
+    ):
+        if forbidden in packaged:
+            failures.append(f"不应进包：{forbidden}")
+        if not pc.excluded(Path(forbidden)):
+            failures.append(f"排除规则没有挡住：{forbidden}")
 
     for forbidden in ("tools/export_portable.py", "data/ato-campaign-x.json", "story/data/storybook-data.js"):
         if forbidden in packaged:

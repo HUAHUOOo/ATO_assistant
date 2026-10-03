@@ -19,6 +19,7 @@ sys.path.insert(0, str(PROJECT))
 
 from app.bgm_resources import add_to_archive as add_bgm_to_archive  # noqa: E402
 from app.bgm_resources import allowed_target as is_bgm_target  # noqa: E402
+from app.icon_resources import add_to_archive as add_icon_to_archive  # noqa: E402
 from app.official_resources import add_to_archive
 from app.official_assets import resolve as resolve_official_asset  # noqa: E402
 from app.fixed_catalog import fixed_catalog_payload  # noqa: E402
@@ -62,6 +63,7 @@ def update_full_pack(
     official_asset_count = 0
     reused_count = 0
     bgm_count = 0
+    icon_count = 0
     try:
         with zipfile.ZipFile(base_pack) as source_zip:
             source_manifest = json.loads(source_zip.read("manifest.json").decode("utf-8"))
@@ -178,7 +180,12 @@ def update_full_pack(
                 bgm_count = add_bgm_to_archive(
                     output_zip, manifest, overlay_root, fallback_library=bgm_library
                 )
+                # 主控台界面图标：同样是本地私有的字形，随 iconFiles 段分发。
+                icon_count = add_icon_to_archive(
+                    output_zip, manifest, overlay_root, fallback_library=bgm_library
+                )
                 manifest.setdefault("build", {})["audioIncluded"] = bool(bgm_count)
+                manifest["build"]["iconsIncluded"] = bool(icon_count)
                 output_zip.writestr(
                     "manifest.json",
                     json.dumps(manifest, ensure_ascii=False, separators=(",", ":")),
@@ -210,6 +217,7 @@ def update_full_pack(
         "reused_assets": reused_count,
         "official_files": len(manifest.get("resourceFiles", [])),
         "bgm_files": bgm_count,
+        "icon_files": icon_count,
         "bytes": destination.stat().st_size,
     }
 

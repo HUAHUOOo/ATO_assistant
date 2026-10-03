@@ -124,3 +124,342 @@ textarea { background: var(--bg); }
   .topbar { margin-bottom: 12px; padding-bottom: 12px; }
   .panel { background: #fff; }
 }
+
+/* 模块标题图标：字形是 assets/icons/<名称>.svg，由 .atopack 的 iconFiles 段随包安装
+   （程序包不带这些提取自原 App 的素材，见 tools/packaging/package_common.py）。
+   用 CSS 遮罩 + currentColor 保留原来的 --accent 上色；字形缺席时只剩标题文字。
+   尺寸按「等包围盒面积」由内联的 --panel-icon-w/h 给出。 */
+.panel-icon {
+  width: var(--panel-icon-w, 17px);
+  height: var(--panel-icon-h, 17px);
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 7px;
+  color: var(--accent);
+  flex: 0 0 auto;
+  background-color: currentColor;
+  -webkit-mask-image: var(--icon-src);
+  mask-image: var(--icon-src);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+/* .panel 用 overflow: hidden 给圆角裁边，会把 .identity-mark-notes-panel 这个
+   绝对定位的下拉一起裁掉（它在页面里的位置会超出面板盒子）。含下拉的面板由
+   mark-notes.js 打上 has-mark-notes，放开裁剪。 */
+.panel.has-mark-notes {
+  overflow: visible;
+}
+
+/* 图标与标题文字一律用 flex 居中。原来靠 vertical-align: -3px 的固定偏移，
+   图标一高一矮（argo 14px、笔记 21px）就和文字对不齐了。 */
+.panel-heading h2,
+.titan-list-head strong,
+.matrix-head h2,
+.panel-heading.compact h2 {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 循环记录的 h2 会被页面重写 textContent，图标放在它外面才不会被清掉；
+   .panel-heading 是 space-between，多一个图标会把标题挤到中间，
+   所以让标题吃掉右侧余量，回到紧贴图标的位置 */
+.panel-heading > .panel-icon {
+  margin-right: 0;
+}
+
+.panel-heading > .panel-icon + h2 {
+  margin-right: auto;
+}
+
+.panel-heading.compact {
+  /* 上下留白要对等，内容才会在标题栏里居中；原来写的是 12px/0，
+     内容贴在了栏底（实测上 14px、下 3px） */
+  padding: 9px 16px 8px;
+}
+
+.panel-heading.compact h2 {
+  /* 新增的 7 个模块标题用黑体：原来继承了 record.css 给 h2 的宋体 */
+  font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC",
+               system-ui, sans-serif;
+  font-size: 15px;
+  letter-spacing: normal;
+  display: flex;
+  align-items: center;
+}
+
+/* 循环记录那格的标题也是黑体（运行期被赋成「循环 II」这类文字）。
+   id 选择器压得住 record.css 里给 h2 的宋体规则。 */
+#cycleTitle {
+  font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC",
+               system-ui, sans-serif;
+  letter-spacing: normal;
+}
+
+/* 抉择矩阵的标题和其余模块标题统一：原来只有它是「宋体 + accent-soft 粉底」。
+   底色去掉后露出面板本身的颜色，并补上其余标题都有的下边框；内边距也用
+   .panel-heading.compact 那一套，否则它比其余标题栏高出 8px 多。 */
+.matrix-head {
+  background: transparent;
+  border-bottom: 1px solid var(--line);
+  padding: 9px 16px 8px;
+}
+
+.matrix-head h2 {
+  font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC",
+               system-ui, sans-serif;
+  /* 和其余模块标题同一个字号；原来 22px，只有它和循环记录偏大 */
+  font-size: 15px;
+  letter-spacing: normal;
+}
+
+/* flex 的 align-items: center 对齐的是文字的行盒，而黑体的中文墨迹在行盒里
+   比几何中心略低，于是图标看着偏高。补一个随字号缩放的等量下移
+   （15px 时约 0.75px）。宋体的两个大标题方向相反，不套用。 */
+.panel-heading.compact h2 .panel-icon,
+.titan-list-head strong .panel-icon {
+  transform: translateY(0.05em);
+}
+/* ==== end module icons ==== */
+
+/* ==== 记录表项目图标（字形来自 assets/icons/，见文件上方的模块标题图标说明）====
+   字段标签里的 .item-label、运行期轨道标题里的 .track-item-icon，
+   尺寸同样按「等包围盒面积」由内联变量给出。 */
+.item-label {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.item-icon {
+  width: var(--item-icon-w, 13px);
+  height: var(--item-icon-h, 13px);
+  flex: 0 0 auto;
+  margin-right: 5px;
+  color: var(--accent);
+  background-color: currentColor;
+  -webkit-mask-image: var(--icon-src);
+  mask-image: var(--icon-src);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.track-item-icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  color: var(--accent);
+  background-color: currentColor;
+  -webkit-mask-image: var(--icon-src);
+  mask-image: var(--icon-src);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.crew-counter-label.with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 「解锁最大值」按钮和 C2 的「合计 N / M」由脚本挪到 .track-row 的最后一列，
+   合计在上、按钮在下；网格默认只有两列，第三个子元素会掉到下一行最左，
+   所以标记过的行要开第三列。 */
+.track-row.has-lock-slot {
+  grid-template-columns: minmax(124px, max-content) minmax(0, 1fr) auto;
+}
+
+.track-row-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.track-row-side .track-lock-button {
+  margin-top: 0;
+}
+
+/* 合计现在不在网格里了，grid-column 不再需要 */
+.track-row-side .crew-counter-total {
+  grid-column: auto;
+}
+/* ==== end item icons ==== */
+
+/* 收割 / 播种的「记录」下拉（原来的自由文本框）。
+   结构在 record/index.html 里，行为在 record/mark-notes.js 里。 */
+.identity-mark-notes {
+  position: relative;
+  justify-self: start;
+}
+
+.identity-mark-notes > summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.identity-mark-notes > summary::-webkit-details-marker { display: none; }
+
+.identity-mark-notes > summary::after {
+  content: "▾";
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.identity-mark-notes[open] > summary::after { content: "▴"; }
+
+.identity-mark-notes-panel {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 260px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: 0 10px 24px rgba(36, 33, 29, 0.16);
+}
+
+/* 下方空间不够时由 mark-notes.js 加这个类，改成向上展开 */
+.identity-mark-notes-panel.above {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
+.identity-mark-notes-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.identity-mark-notes-list:empty { margin-bottom: 0; }
+
+.identity-mark-notes-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.identity-mark-notes-list li span {
+  flex: 1 1 auto;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.identity-mark-notes-list li button {
+  flex: 0 0 auto;
+  min-height: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.identity-mark-notes-list li button:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.identity-mark-notes-empty {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.identity-mark-notes-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+.identity-mark-notes-add input {
+  min-width: 0;
+  min-height: 30px;
+  font-size: 12px;
+}
+
+.identity-mark-notes-add button {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+/* 记录表里会横向溢出的两处（外交刻度和抉择矩阵）用的是系统默认滚动条：
+   灰槽 + 两端箭头，很扎眼。改成主题里的细条——透明轨道、圆角滑块，
+   颜色是当前周期强调色掺进面板色，所以每个循环都跟着变。
+   注意三点：
+   1. 这里不能用 `--line-strong`：本文件第 5 行把它定义成了 `var(--accent)`，
+      直接用它滑块会是实心深红，太重。
+   2. Blink 只要看到 `scrollbar-width` / `scrollbar-color` 就会**完全忽略**
+      `::-webkit-scrollbar` 伪元素，两端的箭头按钮就删不掉了。所以标准属性放进
+      `@supports not selector(::-webkit-scrollbar)`，只给 Firefox 用。
+   3. 颜色写成两条声明做回退：不支持 `color-mix` 时退回 `--line`。 */
+@supports not selector(::-webkit-scrollbar) {
+  .diplomacy-scale,
+  .matrix-wrap {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line) transparent;
+    scrollbar-color: color-mix(in srgb, var(--accent) 45%, var(--panel)) transparent;
+  }
+}
+
+.diplomacy-scale::-webkit-scrollbar,
+.matrix-wrap::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.diplomacy-scale::-webkit-scrollbar-track,
+.matrix-wrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.diplomacy-scale::-webkit-scrollbar-thumb,
+.matrix-wrap::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--line);
+  background: color-mix(in srgb, var(--accent) 45%, var(--panel));
+}
+
+.diplomacy-scale::-webkit-scrollbar-thumb:hover,
+.matrix-wrap::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* 去掉两端的箭头按钮 */
+.diplomacy-scale::-webkit-scrollbar-button,
+.matrix-wrap::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}

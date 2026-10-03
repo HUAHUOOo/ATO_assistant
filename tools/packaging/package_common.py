@@ -30,6 +30,9 @@ PRIVATE_PACK_SUFFIXES = (".atopack", ".atopack.partial")
 LOCAL_SCRATCH_TOP = {".claude", "log", "logs", "tmp"}
 # 官中图片由 .atopack 导出器按需读取，不能随着便携版 / Docker / APK 的源码树发布。
 PRIVATE_ASSET_TOP = {"official-assets"}
+# 图标提取工作区：截图、灰度掩膜、位图变体与提取脚本都在这里，是从原 App 里提取界面
+# 素材的本地草稿，整棵都不能随程序包发布（发布走的 os.walk 不看 Git，必须在这里挡）。
+ICON_SOURCE_TOP = {"icon-extract"}
 # 编辑器 / 操作系统 / 运行时残留：.ds_store 原已在文件名表里，这里补齐同类的 Windows
 # 版文件与 Python 字节码缓存目录（.gitignore 的「Local/editor/runtime files」一节）。
 LOCAL_SCRATCH_LEAVES = {"__pycache__", "desktop.ini", "thumbs.db"}
@@ -40,7 +43,7 @@ BLOCKED_TOP = {
     # tests/ 是仓库根目录的开发测试（agent 回归测试同样住在这里），不是运行时要用的
     # 东西：它们既没有理由进便携版 ZIP / Docker 镜像，也没有理由进 APK。
     "tests",
-} | LOCAL_SCRATCH_TOP
+} | LOCAL_SCRATCH_TOP | ICON_SOURCE_TOP
 BLOCKED_LEAVES = {
     ".ds_store", ".gitattributes", ".gitignore", "dockerfile",
     "docker-compose.yml", "docker-compose.yaml",
@@ -64,6 +67,11 @@ BGM_MEDIA_SUFFIXES = (
     ".mp3", ".ogg", ".m4a", ".aac", ".wav", ".flac", ".opus", ".wma",
 )
 
+# 主控台界面图标：字形同样由使用者自备，通过 asset-studio 的资料包（iconFiles 段）
+# 或手动放置安装，不进便携版 / Docker / APK。这一目录里没有随包发布的程序代码
+# （BGM 那边还有 bgm.js / manifest.js 要留着），所以连清单一起整目录排除。
+ICON_MEDIA_DIR = "assets/icons"
+
 LICENSE_FILENAME = "LICENSE"
 LICENSE_MARKERS = (
     "PolyForm Noncommercial License 1.0.0",
@@ -78,6 +86,12 @@ def is_bgm_media(relative: Path) -> bool:
     if parts[0] == LEGACY_BGM_MEDIA_DIR:
         return True
     return len(parts) >= 3 and parts[0] == "assets" and "/".join(parts[:2]) == BGM_MEDIA_DIR
+
+
+def is_icon_media(relative: Path) -> bool:
+    """assets/icons/ 下的字形（含清单）：整目录都由资料包通道分发。"""
+    parts = [part.lower() for part in relative.parts]
+    return len(parts) >= 2 and parts[0] == "assets" and parts[1] == "icons"
 
 
 def version_text(value: str | None) -> str:
@@ -99,6 +113,8 @@ def excluded(relative: Path) -> bool:
     if parts[0] in BLOCKED_TOP:
         return True
     if is_bgm_media(relative):
+        return True
+    if is_icon_media(relative):
         return True
     leaf = parts[-1]
     if leaf in BLOCKED_LEAVES:
@@ -190,6 +206,10 @@ def audit_export_tree(root: Path) -> None:
             raise RuntimeError(f"导出内容包含本地草稿目录：{relative}")
         if parts[0] in PRIVATE_ASSET_TOP:
             raise RuntimeError(f"导出内容包含本地官中资源目录：{relative}")
+        if parts[0] in ICON_SOURCE_TOP:
+            raise RuntimeError(f"导出内容包含本地图标提取工作区：{relative}")
+        if is_icon_media(relative):
+            raise RuntimeError(f"导出内容包含本地界面图标（应由 .atopack 分发）：{relative}")
         if parts[-1] in LOCAL_SCRATCH_LEAVES:
             raise RuntimeError(f"导出内容包含本地临时文件：{relative}")
         if parts[-1].startswith('.ato-update-'):

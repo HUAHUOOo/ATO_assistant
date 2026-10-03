@@ -306,7 +306,11 @@
     .identity-grid .fate-rollback {
       width: 48px;
       padding: 0 6px;
-      background: var(--accent-2);
+      /* 原来是 --accent-2 实心金底；改成白底，描边和文字保留金色，
+         否则 button 的默认白字会看不见 */
+      border: 1px solid var(--accent-2);
+      background: #fff;
+      color: var(--accent-2);
       font-size: 11px;
       white-space: nowrap;
     }
@@ -347,34 +351,19 @@
       font-weight: 900;
     }
 
-    .identity-mark-row {
-      grid-column: 1 / -1;
-      display: grid;
-      grid-template-columns: repeat(2, max-content);
-      gap: 16px;
-      align-items: center;
-      min-width: 0;
-    }
-
+    /* 收割 / 播种：只剩一个「记录」下拉，排进身份网格、跟在巴比伦债务后面。
+       字重和颜色跟字段标签（.item-label / label）一致，字号保持继承来的大小。 */
     .identity-mark-field {
-      display: grid;
-      grid-template-columns: max-content 100px;
-      gap: 8px;
+      display: inline-flex;
       align-items: center;
+      gap: 8px;
       min-width: 0;
     }
 
-    .identity-mark-field > label {
-      display: grid;
-      grid-template-columns: max-content max-content;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .identity-mark-field .identity-mark-note {
-      width: 100px;
-      min-width: 0;
-      min-height: 34px;
+    .identity-mark-field .identity-mark-name {
+      white-space: nowrap;
+      font-weight: 600;
+      color: var(--muted);
     }
 
     .titan-list-panel {
@@ -843,6 +832,40 @@
     .chip.triangle-marker {
       min-width: 30px;
       padding: 0 6px;
+    }
+
+    /* 共用计数器（C4 两个 boss 的 VI）：左边是等级 VI（和其余格子同字号），
+       右边是计数，点一下 +1、右键 -1。计数 > 0 时和别的格子一样点亮（.active）。 */
+    .chip.counter-chip {
+      display: inline-flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-width: 54px;
+      padding: 0 10px;
+      line-height: 1;
+    }
+
+    .chip.counter-chip .counter-chip-label {
+      font-size: inherit;
+      font-weight: inherit;
+      letter-spacing: inherit;
+    }
+
+    /* 前面的等级没全部点亮时不能加数：变暗 + 提示光标。
+       注意不是原生 disabled——右键减数仍然有效。 */
+    .chip.counter-chip.counter-locked {
+      opacity: 0.45;
+      cursor: default;
+    }
+
+    .chip.counter-chip .counter-chip-value {
+      font-weight: 900;
+    }
+
+    .chip.counter-chip:not(.active):hover {
+      background: var(--accent-soft);
     }
 
     .chip.warning.active {
@@ -1426,14 +1449,6 @@
         grid-column: 1;
       }
 
-      .identity-mark-row {
-        grid-template-columns: 1fr;
-      }
-
-      .identity-mark-field {
-        grid-template-columns: max-content 120px;
-      }
-
       .summon-usage {
         grid-template-columns: minmax(68px, auto) auto;
         justify-content: start;
@@ -1463,7 +1478,7 @@
     }
   </style>
   <link rel="stylesheet" href="../cycle-theme.css">
-  <link rel="stylesheet" href="./record.css">
+  <link rel="stylesheet" href="./record.css?v=20261003-icons">
   <script src="../assets/theme.js?v=20261001" defer></script>
 </head>
 <body>
@@ -1498,61 +1513,80 @@
       <div class="stack">
         <section class="panel">
           <div class="panel-heading">
-            <h2 id="cycleTitle">循环记录</h2>
+            <span class="panel-icon" aria-hidden="true" style="--panel-icon-w:17px;--panel-icon-h:17px;--icon-src:url(../assets/icons/timeline.svg)"></span><h2 id="cycleTitle">循环记录</h2>
             <span id="cycleWarning" class="status-line"></span>
           </div>
           <div class="panel-body identity-grid" id="identityGridPanel">
             <span id="cycleTag" class="hidden"></span>
             <label data-cycle-field="c1 c2 c3 c4 c5">
-              阿尔戈号命运
+              <span class="item-label"><span class="item-icon" aria-hidden="true" style="--item-icon-w:14px;--item-icon-h:12px;--icon-src:url(../assets/icons/argo-fate.svg)"></span>阿尔戈号命运</span>
               <input data-cycle-bind="fate" type="number" min="0" max="12">
             </label>
+            <label data-cycle-field="c4"><span class="item-label"><span class="item-icon" aria-hidden="true" style="--item-icon-w:13px;--item-icon-h:13px;--icon-src:url(../assets/icons/babelian-debt.svg)"></span>巴比伦债务</span><input data-cycle-bind="babelianDebt" type="number" min="0"></label>
+            <div class="identity-mark-field" data-cycle-field="c4">
+              <span class="identity-mark-name">收割</span>
+              <input type="hidden" data-cycle-bind="reapMarkNotes">
+              <details class="identity-mark-notes" data-mark-notes="reapMarkNotes">
+                <summary aria-label="收割记录">记录</summary>
+                <div class="identity-mark-notes-panel">
+                  <p class="identity-mark-notes-empty">还没有记录</p>
+                  <ul class="identity-mark-notes-list"></ul>
+                  <form class="identity-mark-notes-add">
+                    <input type="text" placeholder="名称或说明" aria-label="收割记录条目">
+                    <button type="submit">添加</button>
+                  </form>
+                </div>
+              </details>
+            </div>
+            <div class="identity-mark-field" data-cycle-field="c4">
+              <span class="identity-mark-name">播种</span>
+              <input type="hidden" data-cycle-bind="sowMarkNotes">
+              <details class="identity-mark-notes" data-mark-notes="sowMarkNotes">
+                <summary aria-label="播种记录">记录</summary>
+                <div class="identity-mark-notes-panel">
+                  <p class="identity-mark-notes-empty">还没有记录</p>
+                  <ul class="identity-mark-notes-list"></ul>
+                  <form class="identity-mark-notes-add">
+                    <input type="text" placeholder="名称或说明" aria-label="播种记录条目">
+                    <button type="submit">添加</button>
+                  </form>
+                </div>
+              </details>
+            </div>
             <label data-cycle-field="c1 c2 c3 c4 c5">
               AA 上限
               <input data-cycle-bind="aaLimit" type="number" min="0">
             </label>
             <label data-cycle-field="c1">
-              陌生人
+              <span class="item-label"><span class="item-icon" aria-hidden="true" style="--item-icon-w:11px;--item-icon-h:15px;--icon-src:url(../assets/icons/strangers.svg)"></span>陌生人</span>
               <input data-cycle-bind="strangers" type="number" min="0">
             </label>
             <label data-cycle-field="c2">
-              人性
+              <span class="item-label"><span class="item-icon" aria-hidden="true" style="--item-icon-w:13px;--item-icon-h:13px;--icon-src:url(../assets/icons/humanity.svg)"></span>人性</span>
               <input data-cycle-bind="humanity" type="number" min="0">
             </label>
             <label data-cycle-field="c2">
-              变节者
+              <span class="item-label"><span class="item-icon" aria-hidden="true" style="--item-icon-w:14px;--item-icon-h:12px;--icon-src:url(../assets/icons/defectors.svg)"></span>变节者</span>
               <input data-cycle-bind="renegade" type="number" min="0">
             </label>
-            <label data-cycle-field="c3">轮回长度<input data-cycle-bind="loopLength" type="number" min="0"></label>
-            <label data-cycle-field="c3">凝固时光<input data-cycle-bind="frozenTime" type="number" min="0"></label>
-            <label data-cycle-field="c3">悖论<input data-cycle-bind="paradox" type="number" min="0" max="12"></label>
-            <label data-cycle-field="c4">巴比伦债务<input data-cycle-bind="babelianDebt" type="number" min="0"></label>
+            <label data-cycle-field="c3"><span class="item-label"><span class="item-icon" aria-hidden="true" style="--item-icon-w:11px;--item-icon-h:15px;--icon-src:url(../assets/icons/loop-length.svg)"></span>轮回长度</span><input data-cycle-bind="loopLength" type="number" min="0"></label>
+            <label data-cycle-field="c3"><span class="item-label"><span class="item-icon" aria-hidden="true" style="--item-icon-w:14px;--item-icon-h:12px;--icon-src:url(../assets/icons/frozen-time.svg)"></span>凝固时光</span><input data-cycle-bind="frozenTime" type="number" min="0"></label>
+            <label data-cycle-field="c3"><span class="item-label"><span class="item-icon" aria-hidden="true" style="--item-icon-w:12px;--item-icon-h:14px;--icon-src:url(../assets/icons/paradox.svg)"></span>悖论</span><input data-cycle-bind="paradox" type="number" min="0" max="12"></label>
             <label data-cycle-field="c5">
-              氧气
+              <span class="item-label"><span class="item-icon" aria-hidden="true" style="--item-icon-w:12px;--item-icon-h:14px;--icon-src:url(../assets/icons/oxygen.svg)"></span>氧气</span>
               <span class="oxygen-value-pair">
                 <input data-cycle-bind="oxygenCurrent" type="number" min="0" aria-label="当前氧气">
                 <span aria-hidden="true">/</span>
                 <input data-cycle-bind="oxygenLimit" type="number" min="0" aria-label="氧气上限">
               </span>
             </label>
-            <label data-cycle-field="c5">猜忌<input data-cycle-bind="paranoia" type="number" min="0"></label>
-            <label data-cycle-field="c5">补给<input data-cycle-bind="supply" type="number" min="0"></label>
-            <div class="identity-mark-row" data-cycle-field="c4">
-              <div class="identity-mark-field">
-                <label>收割计数标记<input data-cycle-bind="reapMark" type="number" min="0"></label>
-                <input class="identity-mark-note" data-cycle-bind="reapMarkNotes" type="text" aria-label="收割计数标记备注" placeholder="名称或说明">
-              </div>
-              <div class="identity-mark-field">
-                <label>播种计数标记<input data-cycle-bind="sowMark" type="number" min="0"></label>
-                <input class="identity-mark-note" data-cycle-bind="sowMarkNotes" type="text" aria-label="播种计数标记备注" placeholder="名称或说明">
-              </div>
-            </div>
+            <label data-cycle-field="c5"><span class="item-label"><span class="item-icon" aria-hidden="true" style="--item-icon-w:13px;--item-icon-h:13px;--icon-src:url(../assets/icons/paranoia.svg)"></span>猜忌</span><input data-cycle-bind="paranoia" type="number" min="0"></label>
           </div>
         </section>
 
         <details class="panel titan-list-panel">
           <summary class="titan-list-head">
-            <strong>泰坦列表</strong>
+            <strong><span class="panel-icon" aria-hidden="true" style="--panel-icon-w:15px;--panel-icon-h:19px;--icon-src:url(../assets/icons/titans.svg)"></span>泰坦列表</strong>
             <span id="titanListCount"></span>
           </summary>
           <div id="titanList" class="titan-list"></div>
@@ -1575,6 +1609,9 @@
         </details>
 
         <section class="panel">
+          <div class="panel-heading compact module-head">
+            <h2><span class="panel-icon" aria-hidden="true" style="--panel-icon-w:17px;--panel-icon-h:17px;--icon-src:url(../assets/icons/godforms-summons.svg)"></span>神之形态与宁芙</h2>
+          </div>
           <div class="panel-body summon-panel">
             <div class="summon-controls">
               <label class="summon-usage">
@@ -1625,6 +1662,9 @@
         </section>
 
         <section class="panel">
+          <div class="panel-heading compact module-head">
+            <h2><span class="panel-icon" aria-hidden="true" style="--panel-icon-w:21px;--panel-icon-h:14px;--icon-src:url(../assets/icons/argo.svg)"></span>船体与船员</h2>
+          </div>
           <div class="panel-body track">
             <div id="hullTrack" class="track-row"></div>
             <div id="crewTrack" class="track-row"></div>
@@ -1632,21 +1672,30 @@
         </section>
 
         <section class="panel">
+          <div class="panel-heading compact module-head">
+            <h2><span class="panel-icon" aria-hidden="true" style="--panel-icon-w:17px;--panel-icon-h:17px;--icon-src:url(../assets/icons/evolution.svg)"></span>敌人</h2>
+          </div>
           <div id="enemyTracks" class="panel-body track"></div>
         </section>
 
         <section class="panel">
+          <div class="panel-heading compact module-head">
+            <h2><span class="panel-icon" aria-hidden="true" style="--panel-icon-w:17px;--panel-icon-h:17px;--icon-src:url(../assets/icons/diplomacy.svg)"></span>外交</h2>
+          </div>
           <div id="diplomacyTracks" class="panel-body track"></div>
         </section>
 
         <section class="panel">
           <span id="adventureMeta" class="hidden"></span>
+          <div class="panel-heading compact module-head">
+            <h2><span class="panel-icon" aria-hidden="true" style="--panel-icon-w:18px;--panel-icon-h:16px;--icon-src:url(../assets/icons/adventures.svg)"></span>冒险</h2>
+          </div>
           <div id="adventureList" class="panel-body adventure-list"></div>
         </section>
 
         <details class="panel">
           <summary class="matrix-head">
-            <h2>抉择矩阵</h2>
+            <h2><span class="panel-icon" aria-hidden="true" style="--panel-icon-w:17px;--panel-icon-h:17px;--icon-src:url(../assets/icons/choice-matrix.svg)"></span>抉择矩阵</h2>
           </summary>
           <div class="panel-body">
             <div class="matrix-tools">
@@ -1663,10 +1712,16 @@
 
       <aside class="stack">
         <section class="panel">
+          <div class="panel-heading compact module-head">
+            <h2><span class="panel-icon" aria-hidden="true" style="--panel-icon-w:17px;--panel-icon-h:17px;--icon-src:url(../assets/icons/cargo-hold.svg)"></span>资源</h2>
+          </div>
           <div id="resourceGrid" class="panel-body resource-grid"></div>
         </section>
 
         <section class="panel">
+          <div class="panel-heading compact module-head">
+            <h2><span class="panel-icon" aria-hidden="true" style="--panel-icon-w:11px;--panel-icon-h:21px;--icon-src:url(../assets/icons/campaign-notes.svg)"></span>笔记</h2>
+          </div>
           <div class="panel-body notes-grid">
             <label>
               恩惠
@@ -1681,7 +1736,7 @@
               <textarea data-bind="counters" placeholder="需要随时擦写的标记、倒计时"></textarea>
             </label>
             <label class="wide">
-              战役笔记
+              <span class="item-label"><span class="item-icon" aria-hidden="true" style="--item-icon-w:9px;--item-icon-h:16px;--icon-src:url(../assets/icons/campaign-notes.svg)"></span>战役笔记</span>
               <textarea data-bind="notes" placeholder="故事选择、待办事项、下次开局提醒"></textarea>
             </label>
             <label class="wide">
@@ -1696,6 +1751,8 @@
   </main>
 
   <script src="../assets/page-focus-router.js?v=20260813-no-screen-focus1"></script>
+  <script src="./mark-notes.js"></script>
+  <script src="./item-icons.js"></script>
   <script src="./matrix-summaries.js"></script>
   <script src="../assets/cycle-symbols.js?v=20260918"></script>
   <script src="../assets/campaign-session.js?v=20260917"></script>
@@ -1985,8 +2042,7 @@
               { id: "5b", label: "V", sharedWith: ["midascore", "demidjinn"] },
               { id: "5c", label: "V" },
               { id: "5d", label: "V", sharedWith: ["midascore", "demidjinn"] },
-              { id: "6a", label: "VI", sharedWith: ["midascore", "demidjinn"] },
-              { id: "6b", label: "VI", sharedWith: ["midascore", "demidjinn"] },
+              { id: "6", label: "VI", marker: "counter", sharedWith: ["midascore", "demidjinn"] },
             ],
           },
           {
@@ -2007,8 +2063,7 @@
               { id: "5b", label: "V", sharedWith: ["midascore", "demidjinn"] },
               { id: "5c", label: "V" },
               { id: "5d", label: "V", sharedWith: ["midascore", "demidjinn"] },
-              { id: "6a", label: "VI", sharedWith: ["midascore", "demidjinn"] },
-              { id: "6b", label: "VI", sharedWith: ["midascore", "demidjinn"] },
+              { id: "6", label: "VI", marker: "counter", sharedWith: ["midascore", "demidjinn"] },
             ],
           },
           { key: "babelianLunacy", zh: "巴比伦疯塔", en: "Babelian Lunacy", stages: ["1", "2", "3", "4", "5", "6"] },
@@ -2213,7 +2268,7 @@
     const cycleIdentityKeys = [
       "storyCard", "doomCard", "mapTiles", "fate", "aaLimit", "strangers", "humanity", "renegade",
       "loopLength", "frozenTime", "paradox", "babelianDebt", "oxygenCurrent", "oxygenLimit",
-      "reapMark", "reapMarkNotes", "sowMark", "sowMarkNotes", "paranoia", "supply",
+      "reapMarkNotes", "sowMarkNotes", "paranoia",
     ];
 
     const defaultState = {
@@ -2235,15 +2290,12 @@
       aaLimit: "",
       humanity: "",
       renegade: "",
-      reapMark: "",
       reapMarkNotes: "",
-      sowMark: "",
       sowMarkNotes: "",
       babelianDebt: "",
       oxygenCurrent: "",
       oxygenLimit: "",
       paranoia: "",
-      supply: "",
       hull: "5",
       crew: "5",
       crewBoxes: {},
@@ -2545,6 +2597,24 @@
       return String(Math.max(0, Math.floor(Number(text) || 0)));
     }
 
+    // C4 的迈达斯之主 / 半神迪精 VI 原本是两个独立等级（id 6a / 6b，键尾 :6a、:6b），现在
+    // 合并成一个共用计数器（id 6）。旧存档里点亮过的那两格要折算成计数写进 :6，否则老档
+    // 这段进度会看起来凭空消失。折算口径：亮过几格就记几次；折算后删掉旧键，因此对同一份
+    // 数据重复归一化不会重复累加。6a / 6b 这两个 id 在本文件里已无其它用处（见敌人轨道表）。
+    function migrateEnemyStages(enemies) {
+      if (!isPlainObject(enemies)) return {};
+      const migrated = { ...enemies };
+      Object.keys(migrated).forEach((key) => {
+        const match = /^(.+:shared:[^:]+):(6a|6b)$/.exec(key);
+        if (!match) return;
+        const target = `${match[1]}:6`;
+        const lit = migrated[key] === true || Number(migrated[key]) > 0;
+        if (lit) migrated[target] = Math.max(0, Number(migrated[target]) || 0) + 1;
+        delete migrated[key];
+      });
+      return migrated;
+    }
+
     function normalizeState(value) {
       const legacySummonLimit = value?.summonLimit ?? "";
       const titans = normalizeTitanList(value?.titans, value?.titan);
@@ -2567,7 +2637,7 @@
         nymphCharges: normalizeCount(value?.nymphCharges),
         hull: value?.hull === "" || value?.hull === null || value?.hull === undefined ? defaultState.hull : String(value.hull),
         crew: value?.crew === "" || value?.crew === null || value?.crew === undefined ? defaultState.crew : String(value.crew),
-        enemies: isPlainObject(value?.enemies) ? value.enemies : {},
+        enemies: migrateEnemyStages(value?.enemies),
         crewBoxes: isPlainObject(value?.crewBoxes) ? value.crewBoxes : {},
         cycleStats: normalizeCycleStats(value),
         cycleDays: isPlainObject(value?.cycleDays)
@@ -3035,11 +3105,8 @@
         loopLength: { min: 0, max: null },
         frozenTime: { min: 0, max: null },
         paradox: { min: 0, max: 12 },
-        reapMark: { min: 0, max: null },
-        sowMark: { min: 0, max: null },
         babelianDebt: { min: 0, max: null },
         paranoia: { min: 0, max: null },
-        supply: { min: 0, max: null },
       };
 
       Object.entries(config).forEach(([bindKey, limits]) => {
@@ -3401,6 +3468,8 @@
     function makeTrackTitle(zh, en, options = {}) {
       const title = document.createElement("div");
       title.className = "track-name";
+      const itemSpec = options.iconPath
+        || (window.RECORD_ITEM_ICONS && window.RECORD_ITEM_ICONS[zh]);
       if (options.icon) {
         title.classList.add("with-icon");
         const icon = document.createElement("img");
@@ -3409,6 +3478,9 @@
         icon.alt = "";
         icon.loading = "lazy";
         title.appendChild(icon);
+      } else if (itemSpec) {
+        title.classList.add("with-icon");
+        title.appendChild(buildItemIcon(itemSpec, "track-item-icon"));
       }
       const text = document.createElement("div");
       text.className = "track-name-text";
@@ -3497,6 +3569,20 @@
         }
       });
       container.append(title, chips);
+      // item-icons: the lock button is built inside .track-name, where it lands on
+      // a second line under the label.  Moving it into a right-hand column of the
+      // row puts it flush with the edge, and the crew total (which the grid lays
+      // out on a full-width row underneath the cards) rides above it.
+      const lockSlot = title.querySelector(".track-lock-button");
+      if (lockSlot) {
+        const side = document.createElement("div");
+        side.className = "track-row-side";
+        const total = container.querySelector(".crew-counter-total");
+        if (total) side.appendChild(total);
+        side.appendChild(lockSlot);
+        container.classList.add("has-lock-slot");
+        container.appendChild(side);
+      }
     }
 
     function c2CrewMax() {
@@ -3539,6 +3625,15 @@
       const labelEl = document.createElement("div");
       labelEl.className = "crew-counter-label";
       labelEl.textContent = label;
+      // item-icons: label icon from the shared table
+      const counterIcon = window.RECORD_ITEM_ICONS && window.RECORD_ITEM_ICONS[label];
+      if (counterIcon && window.buildItemIcon) {
+        labelEl.classList.add("with-icon");
+        labelEl.textContent = "";
+        labelEl.appendChild(window.buildItemIcon(counterIcon, "track-item-icon", 13));
+        labelEl.appendChild(document.createTextNode(label));
+      }
+
       const controls = document.createElement("div");
       controls.className = "crew-counter-controls";
       const minus = document.createElement("button");
@@ -3592,6 +3687,20 @@
       total.textContent = `合计 ${c2CrewCounterTotal()} / ${c2CrewMax()}`;
       grid.appendChild(total);
       container.append(title, grid);
+      // item-icons: the lock button is built inside .track-name, where it lands on
+      // a second line under the label.  Moving it into a right-hand column of the
+      // row puts it flush with the edge, and the crew total (which the grid lays
+      // out on a full-width row underneath the cards) rides above it.
+      const lockSlot = title.querySelector(".track-lock-button");
+      if (lockSlot) {
+        const side = document.createElement("div");
+        side.className = "track-row-side";
+        const total = container.querySelector(".crew-counter-total");
+        if (total) side.appendChild(total);
+        side.appendChild(lockSlot);
+        container.classList.add("has-lock-slot");
+        container.appendChild(side);
+      }
     }
 
     function getEvolutionStage(value, index) {
@@ -3668,6 +3777,58 @@
           spacer.className = "chip";
           spacer.style.visibility = "hidden";
           chips.appendChild(spacer);
+          return;
+        }
+        if (stage.marker === "counter") {
+          // 共用计数器：两行 boss 的 sharedWith 和 id 相同，getEvolutionStageKey
+          // 算出同一个键，所以点哪一行都是加在同一个数上。
+          const counterKey = getEvolutionStageKey(key, stage);
+          const count = Number(state.enemies[counterKey]) || 0;
+          // 前面的等级格必须全部点亮才允许**加数**（占位格和三角标记不算）。
+          // 减数不受门控——否则计错了又取消点亮就再也减不回去。
+          const locked = normalizedValues.some((other) =>
+            other.id !== stage.id && other.marker !== "spacer" && other.marker !== "triangle"
+            && !isEvolutionStageActive(key, other));
+          const counter = document.createElement("button");
+          counter.type = "button";
+          // 有计数就算点亮，和其余等级格用同一套 active 样式（敌人轨是 green）
+          counter.className = ["chip", options.className || "",
+                               count > 0 ? "active" : "",
+                               locked ? "counter-locked" : "",
+                               "counter-chip"].filter(Boolean).join(" ");
+          // 不用原生 disabled：那会让右键也失灵，而减数是要保留的
+          if (locked) counter.setAttribute("aria-disabled", "true");
+          const counterLabel = document.createElement("span");
+          counterLabel.className = "counter-chip-label";
+          counterLabel.textContent = stage.label;
+          counter.appendChild(counterLabel);
+          // 计数为 0 时不显示数字，只留等级；出现计数才点亮并显示数字
+          if (count > 0) {
+            const counterValue = document.createElement("span");
+            counterValue.className = "counter-chip-value";
+            counterValue.textContent = String(count);
+            counter.appendChild(counterValue);
+          }
+          counter.title = locked
+            ? `前面的等级全部点亮后才能加数（右键仍可减，当前 ${count}）`
+            : `${stage.label} 计数：点一下 +1，右键 -1`;
+          counter.setAttribute("aria-label", `${stage.label} 计数 ${count}`);
+          counter.addEventListener("click", () => {
+            if (locked) return;   // 加数受门控
+            state.enemies[counterKey] = (Number(state.enemies[counterKey]) || 0) + 1;
+            renderAll();
+            queueSave();
+          });
+          counter.addEventListener("contextmenu", (event) => {
+            event.preventDefault();
+            // 减数不受门控
+            const next = (Number(state.enemies[counterKey]) || 0) - 1;
+            if (next > 0) state.enemies[counterKey] = next;
+            else delete state.enemies[counterKey];
+            renderAll();
+            queueSave();
+          });
+          chips.appendChild(counter);
           return;
         }
         const active = group === "enemies"

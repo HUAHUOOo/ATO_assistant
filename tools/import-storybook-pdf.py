@@ -7,6 +7,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "asset-studio"))
+from app.storybook_format import format_storybook
+
 STORYBOOK_DATA_PATH = ROOT / "story" / "data" / "storybook-data.js"
 STORYBOOK_PREFIX = "window.STORYBOOK_DATA = "
 
@@ -72,7 +75,7 @@ def read_storybook_data(path):
 
 
 def write_storybook_data(path, data):
-    payload = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    payload = format_storybook(data)
     path.write_text(f"{STORYBOOK_PREFIX}{payload};\n", encoding="utf-8")
 
 

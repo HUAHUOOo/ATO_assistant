@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { stringifyStorybook } from "./storybook-format.mjs";
 
 const LOCAL_DATA_PATH = path.resolve("story/data/storybook-data.js");
 const REMOTE_BOOK_FILES = {
@@ -155,7 +156,7 @@ async function main() {
   }
 
   data.generatedAt = new Date().toISOString();
-  await fs.writeFile(LOCAL_DATA_PATH, `window.STORYBOOK_DATA = ${JSON.stringify(data)};\n`, "utf8");
+  await fs.writeFile(LOCAL_DATA_PATH, `window.STORYBOOK_DATA = ${stringifyStorybook(data)};\n`, "utf8");
   console.log(`updated ${LOCAL_DATA_PATH}`);
 }
 
