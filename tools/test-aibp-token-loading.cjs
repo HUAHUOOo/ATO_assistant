@@ -61,21 +61,34 @@ function harness(files) {
   return { context, grid, requests };
 }
 
-test('页面自带的 token 名单和 ps/other/token/ 里的图片一致', () => {
+test('页面自带的 token 名单格式正确', () => {
   assert.ok(tokenFileNames.length > 0, '名单不能是空的');
   assert.equal(new Set(tokenFileNames).size, tokenFileNames.length, '名单里有重复项');
   tokenFileNames.forEach((name) => assert.match(name, /\.(?:png|jpe?g)$/i, name));
+});
 
-  // 卡图是使用者自备的本地素材，公开克隆里没有这个目录，所以只在本地有图时核对。
+// 自备素材体检：只在本地真的有 token 图片时跑（公开克隆里没有这个目录）。
+// 名单里的图在本机缺失才算缺陷——选项会挂一张空图；本地多出来的图只提醒，
+// 因为那既可能是刚放进来的个人素材，也可能是还没加进名单的官方图，
+// 需要人来判断，不该让整个测试套件因此变红。
+test('本地素材体检：名单里的图都在，多出来的图只提醒', (t) => {
   const onDisk = fs.existsSync(tokenDir)
     ? fs.readdirSync(tokenDir).filter((name) => /\.(?:png|jpe?g)$/i.test(name))
     : [];
-  if (onDisk.length === 0) return;
-  assert.deepEqual(
-    tokenFileNames.slice().sort(),
-    onDisk.slice().sort(),
-    '写死的名单必须和 token 文件夹里的图片一一对应',
-  );
+  if (onDisk.length === 0) {
+    t.skip('本地没有 aibp/ps/other/token/ 图片，跳过自备素材体检');
+    return;
+  }
+  const onDiskSet = new Set(onDisk);
+  const missing = tokenFileNames.filter((name) => !onDiskSet.has(name));
+  assert.deepEqual(missing, [], '名单里的图在本机不存在，页面上会显示成占位图');
+  const extra = onDisk.filter((name) => !tokenFileNames.includes(name));
+  if (extra.length) {
+    console.warn(
+      `提示：aibp/ps/other/token/ 里多出 ${extra.length} 张不在内置名单里的图：${extra.join('、')}。\n`
+      + '      它们不会出现在页面的 token 选项里；如果本来要用，请把文件名加进 aibp/index.html 的 tokenFileNames。'
+    );
+  }
 });
 
 test('弹窗按名单整份渲染，不列举目录、也不探测文件名', () => {
@@ -87,9 +100,6 @@ test('弹窗按名单整份渲染，不列举目录、也不探测文件名', ()
     h.requests.slice().sort(),
     tokenFileNames.map((name) => `ps/other/token/${name}`).sort(),
   );
-  h.requests.forEach((file) => {
-    assert.ok(fs.existsSync(path.join(root, 'aibp', file)), file);
-  });
 });
 
 test('名单里的图缺失时仍然保留该选项，只把图换成占位', () => {

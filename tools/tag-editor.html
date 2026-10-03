@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ATO 地图打标 GUI</title>
   <link rel="stylesheet" href="./styles.css?v=20260607-map-editor">
-  <link rel="stylesheet" href="./tag-editor.css?v=20260607-map-editor">
+  <link rel="stylesheet" href="./tag-editor.css?v=20261003-conflict-guard">
 </head>
 <body>
   <main class="app tag-editor-app">
@@ -47,6 +47,14 @@
         <span id="statusMeta"></span>
         <span class="shortcut-tip">切换：K / ← 上一张，J / → 下一张</span>
       </div>
+    </section>
+
+    <section id="conflictBar" class="conflict-bar" role="alert" hidden>
+      <span id="conflictText"></span>
+      <span class="conflict-actions">
+        <button id="conflictReload" type="button">载入服务器版本</button>
+        <button id="conflictOverwrite" type="button" class="secondary">用本页覆盖</button>
+      </span>
     </section>
 
     <section class="editor-layout">
@@ -99,6 +107,6 @@
   </main>
 
   <script src="./map-data.js"></script>
-  <script src="./tag-editor.js?v=20260626-adventure-tag"></script>
+  <script src="./tag-editor.js?v=20261003-conflict-guard"></script>
 </body>
 </html>

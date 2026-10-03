@@ -20,6 +20,11 @@ class SigningWorkflowTest(unittest.TestCase):
         script = '\n'.join(line[10:] for line in step.split('        run: |\n', 1)[1].splitlines())
         shell = shutil.which('pwsh') or shutil.which('powershell')
         self.assertIsNotNone(shell, 'PowerShell is needed for this test')
+        if Path(shell).name.lower().startswith('powershell'):
+            # 工作流里这一步写的是 shell: pwsh（PowerShell 7）。Windows PowerShell 5.1 的
+            # Add-Content 默认写 UTF-16LE，$env:GITHUB_ENV 的字节编码与断言不一致，测下去
+            # 只会证明「解释器不同」，所以本机只有 5.1 时明确跳过，而不是假装通过或失败。
+            self.skipTest('需要 PowerShell 7 (pwsh)；本机只有 Windows PowerShell 5.1')
         synthetic = {name: 'synthetic-test-value' for name, _ in mappings}
         synthetic['KEYSTORE_BASE64'] = base64.b64encode(b'test-keystore').decode()
         for missing in [None] + list(synthetic):
@@ -37,7 +42,11 @@ class SigningWorkflowTest(unittest.TestCase):
                 env['GITHUB_ENV'] = str(task_dir / 'github-env')
                 script_path = task_dir / 'signing.ps1'
                 script_path.write_text("$ErrorActionPreference = 'Stop'\n" + script, encoding='utf-8-sig')
-                result = subprocess.run([shell, '-NoProfile', '-File', str(script_path)], env=env, capture_output=True)
+                # 本机执行策略为 Restricted 时，PowerShell 连自己生成的 .ps1 都不肯加载，
+                # 会让「缺少密钥」的失败用例假通过、正常用例假失败。仓库文档里跑这些脚本
+                # 本来就带 -ExecutionPolicy Bypass，测试里保持一致，测的是签名逻辑而不是机器策略。
+                result = subprocess.run([shell, '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(script_path)],
+                                        env=env, capture_output=True)
                 if missing:
                     self.assertNotEqual(result.returncode, 0)
                     self.assertFalse((task_dir / 'ato-release.jks').exists())

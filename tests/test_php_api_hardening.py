@@ -12,7 +12,13 @@ Covers the defects confirmed by the adversarial review of api/campaign-state.php
   4. oversized POST bodies were answered with HTTP 200 + HTML + AUTH_REQUIRED;
   5. campaign_backup_component() truncated 71-80 char ids without a hash;
   6. session dirs were created world-accessible (verified by source, see below);
-  7. ?action=second-screen handed out campaign content to anonymous callers.
+  7. ?action=second-screen handed out campaign content to anonymous callers;
+  8. map-tile-tags.php rewrote the whole file from a whitelist of fields (dropping
+     the per-tile factions/factionUpdatedAt and the per-definition cycles that the
+     map page reads) and had no revision check, so two editor pages overwrote each
+     other while both reported success;
+  9. a full-campaign import was sent as one request per section, so a single failure
+     left the save file mixing sections from two different archives.
 """
 import http.cookiejar
 import json
@@ -45,6 +51,10 @@ class HardeningTest(unittest.TestCase):
         (cls.root / 'data' / 'sessions').mkdir(parents=True)
         shutil.copyfile(cls.source / 'api' / 'campaign-state.php',
                         cls.root / 'api' / 'campaign-state.php')
+        shutil.copyfile(cls.source / 'api' / 'map-tile-tags.php',
+                        cls.root / 'api' / 'map-tile-tags.php')
+        (cls.root / 'map').mkdir(parents=True)
+        (cls.root / 'map' / 'map-tile-tags.js').write_text(cls.map_tags_fixture(), encoding='utf-8')
         cls.addClassCleanup(cls.cleanup_files)
         cls.processes = []
         cls.logs = []
@@ -340,6 +350,175 @@ class HardeningTest(unittest.TestCase):
         self.assertEqual(status, 200)
         status, body = self.json_request(self.ports[0], '?action=second-screen&token=' + token)
         self.assertEqual((status, body['code']), (404, 'SCREEN_NOT_FOUND'))
+
+    # 8 ---------------------------------------------------------------------
+    @classmethod
+    def map_tags_fixture(cls):
+        """Synthetic map-tile-tags.js: the extra fields the editor must not destroy."""
+        return (
+            'window.ATO_MAP_TILE_TAGS = {\n'
+            '    "version": 2,\n'
+            '    "source": "map/map-data.js",\n'
+            '    "updatedAt": "2026-01-01T00:00:00.000Z",\n'
+            '    "tagDefinitions": [\n'
+            '        {"id": "progress", "label": "\u8fdb\u5c55", "shortcut": "1", "cycles": ["c1"]}\n'
+            '    ],\n'
+            '    "tiles": {\n'
+            '        "c1:001": {"cycleId": "c1", "tileId": "001", "reviewed": true, "tags": ["progress"],'
+            ' "notes": "", "updatedAt": "2026-01-01T00:00:00.000Z", "factions": ["cyclopes"],'
+            ' "factionUpdatedAt": "2026-01-02T00:00:00.000Z"},\n'
+            '        "c1:002": {"cycleId": "c1", "tileId": "002", "reviewed": false, "tags": [],'
+            ' "notes": "", "updatedAt": "2026-01-01T00:00:00.000Z", "factions": []}\n'
+            '    }\n'
+            '};\n'
+        )
+
+    @classmethod
+    def map_tags_request(cls, port, payload=None, opener=None, timeout=60):
+        raw = None if payload is None else json.dumps(payload).encode()
+        request = urllib.request.Request(
+            f'http://127.0.0.1:{port}/api/map-tile-tags.php',
+            data=raw, headers={'Content-Type': 'application/json'})
+        client = opener or urllib.request.build_opener()
+        try:
+            result = client.open(request, timeout=timeout)
+        except urllib.error.HTTPError as error:
+            result = error
+        with result:
+            return result.status, json.loads(result.read().decode('utf-8', 'replace'))
+
+    def test_map_tile_tags_keeps_unknown_fields_and_rejects_stale_saves(self):
+        account = 'maptags' + uuid.uuid4().hex[:6]
+        client = self.opener()
+        self.assertEqual(self.register(account, opener=client)[0], 200)
+
+        status, body = self.map_tags_request(self.ports[0], opener=client)
+        self.assertEqual(status, 200, body)
+        self.assertEqual(body['revision'], 0, 'a file without a revision starts at 0')
+        data = body['data']
+        self.assertEqual(data['version'], 2)
+        self.assertEqual(data['tagDefinitions'][0]['cycles'], ['c1'], 'definition cycles must survive')
+        self.assertEqual(data['tiles']['c1:001']['factions'], ['cyclopes'], 'tile factions must survive')
+        self.assertEqual(data['tiles']['c1:001']['factionUpdatedAt'], '2026-01-02T00:00:00.000Z')
+
+        # First save based on revision 0 succeeds and bumps the revision.
+        data['tiles']['c1:001']['notes'] = 'A'
+        status, saved = self.map_tags_request(
+            self.ports[0], {'data': data, 'expectedRevision': 0}, opener=client)
+        self.assertEqual(status, 200, saved)
+        self.assertEqual(saved['revision'], 1)
+        self.assertEqual(saved['data']['tiles']['c1:001']['factions'], ['cyclopes'])
+        self.assertEqual(saved['data']['version'], 2, 'an old client must not downgrade version')
+
+        # A second page that read revision 0 must be refused, and nothing may be written.
+        stale = json.loads(json.dumps(saved['data']))
+        stale['tiles']['c1:002']['notes'] = 'B'
+        status, conflict = self.map_tags_request(
+            self.ports[0], {'data': stale, 'expectedRevision': 0}, opener=client)
+        self.assertEqual(status, 409, conflict)
+        self.assertEqual(conflict['code'], 'SAVE_CONFLICT')
+        self.assertEqual(conflict['revision'], 1)
+        status, after = self.map_tags_request(self.ports[0], opener=client)
+        self.assertEqual(after['revision'], 1, 'a refused save must not bump the revision')
+        self.assertEqual(after['data']['tiles']['c1:002'].get('notes', ''), '',
+                         'a refused save must not reach the file')
+
+        # Re-reading and retrying with the current revision succeeds without losing
+        # the first page's edit.
+        retry = json.loads(json.dumps(after['data']))
+        retry['tiles']['c1:002']['notes'] = 'B'
+        status, body = self.map_tags_request(
+            self.ports[0], {'data': retry, 'expectedRevision': after['revision']}, opener=client)
+        self.assertEqual(status, 200, body)
+        self.assertEqual(body['revision'], 2)
+        self.assertEqual(body['data']['tiles']['c1:001']['notes'], 'A', 'the earlier edit must still be there')
+        self.assertEqual(body['data']['tiles']['c1:001']['factions'], ['cyclopes'])
+        on_disk = (self.root / 'map' / 'map-tile-tags.js').read_text(encoding='utf-8')
+        self.assertIn('"factions"', on_disk)
+        self.assertIn('"cyclopes"', on_disk)
+        self.assertIn('"cycles"', on_disk)
+        self.assertIn('"version": 2', on_disk)
+
+        # Two writers holding the same revision: exactly one may win.
+        current = body
+        results = []
+        lock = threading.Lock()
+
+        def writer(notes):
+            payload = json.loads(json.dumps(current['data']))
+            payload['tiles']['c1:001']['notes'] = notes
+            status, _ = self.map_tags_request(
+                self.ports[0], {'data': payload, 'expectedRevision': current['revision']}, opener=client)
+            with lock:
+                results.append(status)
+
+        threads = [threading.Thread(target=writer, args=(name,)) for name in ('X', 'Y')]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=30)
+        self.assertEqual(sorted(results), [200, 409],
+                         f'exactly one concurrent save may win, got {results}')
+
+    # 9 ---------------------------------------------------------------------
+    def test_full_import_is_all_or_nothing(self):
+        account = 'import' + uuid.uuid4().hex[:6]
+        client = self.opener()
+        self.assertEqual(self.register(account, opener=client)[0], 200)
+        _, me = self.json_request(self.ports[0], '?action=me', opener=client)
+        account_id = me['user']['id']
+        self.assertEqual(self.json_request(self.ports[0], '',
+                         {'section': 'dashboard', 'state': {'v': 'old-dashboard'}, 'expectedRevision': 0},
+                         opener=client)[0], 200)
+        self.assertEqual(self.json_request(self.ports[0], '',
+                         {'section': 'heroes', 'state': {'v': 'old-heroes'}, 'expectedRevision': 0},
+                         opener=client)[0], 200)
+        _, before = self.json_request(self.ports[0], '', opener=client)
+        revisions = before['campaign']['sectionRevisions']
+
+        # One stale expected revision: nothing may be written, not even the valid section.
+        status, body = self.json_request(self.ports[0], '?action=import-sections', {
+            'sections': {'dashboard': {'v': 'new-dashboard'}, 'heroes': {'v': 'new-heroes'}},
+            'expectedRevisions': {'dashboard': revisions['dashboard'], 'heroes': 99},
+            'expectedAccountId': account_id,
+        }, opener=client)
+        self.assertEqual(status, 409, body)
+        self.assertEqual(body['code'], 'SAVE_CONFLICT')
+        self.assertIn('heroes', body['sections'])
+        _, after = self.json_request(self.ports[0], '', opener=client)
+        self.assertEqual(after['campaign']['sections']['dashboard']['v'], 'old-dashboard',
+                         'a refused import must not write the sections that did match')
+        self.assertEqual(after['campaign']['sections']['heroes']['v'], 'old-heroes')
+        self.assertEqual(after['campaign']['sectionRevisions'], revisions,
+                         'a refused import must not advance any revision')
+
+        # Correct revisions: every section lands, each revision advances once.
+        status, body = self.json_request(self.ports[0], '?action=import-sections', {
+            'sections': {'dashboard': {'v': 'new-dashboard'}, 'heroes': {'v': 'new-heroes'}},
+            'expectedRevisions': {'dashboard': revisions['dashboard'], 'heroes': revisions['heroes']},
+            'expectedAccountId': account_id,
+        }, opener=client)
+        self.assertEqual(status, 200, body)
+        self.assertEqual(sorted(body['sections']), ['dashboard', 'heroes'])
+        _, after = self.json_request(self.ports[0], '', opener=client)
+        self.assertEqual(after['campaign']['sections']['dashboard']['v'], 'new-dashboard')
+        self.assertEqual(after['campaign']['sections']['heroes']['v'], 'new-heroes')
+        self.assertEqual(after['campaign']['sectionRevisions']['dashboard'], revisions['dashboard'] + 1)
+        self.assertEqual(after['campaign']['sectionRevisions']['heroes'], revisions['heroes'] + 1)
+
+        # A page that says it belongs to another account may not import anything.
+        status, body = self.json_request(self.ports[0], '?action=import-sections', {
+            'sections': {'dashboard': {'v': 'x'}},
+            'expectedRevisions': {},
+            'expectedAccountId': 'someone-else',
+        }, opener=client)
+        self.assertEqual((status, body['code']), (409, 'ACCOUNT_MISMATCH'))
+        # Unknown section names are rejected before anything is written.
+        status, body = self.json_request(self.ports[0], '?action=import-sections', {
+            'sections': {'not-a-section': {}},
+            'expectedRevisions': {},
+        }, opener=client)
+        self.assertEqual(status, 400, body)
 
 
 if __name__ == '__main__':

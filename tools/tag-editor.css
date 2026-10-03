@@ -49,6 +49,34 @@
   box-shadow: var(--shadow);
 }
 
+/* 保存被服务器拒绝（文件已被别人改过）时的选择条：不解决就不写入，且本页改动保留。 */
+.conflict-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid #d9a13a;
+  border-left: 4px solid #d9a13a;
+  border-radius: 10px;
+  background: #fff8e6;
+  color: #6b4b00;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: var(--shadow);
+}
+
+.conflict-bar[hidden] {
+  display: none;
+}
+
+.conflict-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .editor-status strong {
   color: var(--accent-strong);
   font-size: 14px;

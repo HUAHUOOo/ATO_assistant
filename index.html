@@ -8966,23 +8966,27 @@
       return !campaignHasUnsavedChanges();
     }
 
-    async function saveImportedCampaignSection(section, sectionState, expectedRevision) {
-      if (sectionState === undefined) return null;
-      const response = await fetch(`${authUrl}?section=${encodeURIComponent(section)}`, {
+    // 整份存档导入：所有模块在一次请求里交给服务端，服务端在同一把写锁里「全部校验通过
+    // 才全部写入」。逐个模块 POST 时，任何一个失败（版本冲突 / 网络中断 / 500）都会在服务器
+    // 上留下「一半来自导入存档、一半还是原来」的组合，而界面只能报一句「导入失败」。
+    async function importCampaignSections(sections, expectedRevisions) {
+      const response = await fetch(`${authUrl}?action=import-sections`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          section,
-          state: sectionState,
+          sections,
+          expectedRevisions,
           expectedAccountId: sessionUser?.id || "",
-          expectedRevision: Math.max(0, Number(expectedRevision || 0)),
         }),
       });
       const payload = await response.json().catch(() => null);
       if (!response.ok || !payload?.ok) {
         // Never swallow this: the caller must not report a successful import
         // while a section was actually rejected or lost.
-        throw new Error(`${section}：${payload?.error || `HTTP ${response.status}`}`);
+        const error = new Error(payload?.error || `HTTP ${response.status}`);
+        error.code = payload?.code || "";
+        error.sections = payload?.sections || null;
+        throw error;
       }
       return payload;
     }
@@ -9102,41 +9106,42 @@
                 },
               });
 
-          archive = nextArchive;
-          state = currentCycle().state;
+          const importEntries = backupSectionIds
+            .map((section) => [section, section === "dashboard" ? nextArchive : sections?.[section]])
+            .filter(([, sectionState]) => sectionState !== undefined && (isFullBackup || sectionState !== null));
+          // 先等这次防抖保存落盘：否则它的定时器会在导入之后触发，把导入前的内存状态
+          // 又写回 dashboard，覆盖刚导入的存档。
+          clearTimeout(campaignSaveTimer);
+          campaignSaveTimer = null;
+          await flushCampaignSave();
           const currentCampaign = await loadFullCampaign();
           const currentRevisions = currentCampaign?.sectionRevisions || {};
-          const saveTargets = backupSectionIds
-            .map((section) => [section, section === "dashboard" ? archive : sections?.[section]])
-            .filter(([, sectionState]) => sectionState !== undefined && (isFullBackup || sectionState !== null));
-          const settled = await Promise.allSettled(
-            saveTargets.map(([section, sectionState]) => saveImportedCampaignSection(
+          const result = await importCampaignSections(
+            Object.fromEntries(importEntries),
+            Object.fromEntries(importEntries.map(([section]) => [
               section,
-              sectionState,
-              currentRevisions[section] ?? 0
-            ))
+              Math.max(0, Number(currentRevisions[section] ?? 0)),
+            ]))
           );
-          const failedSections = saveTargets
-            .filter((_, index) => settled[index].status === "rejected")
-            .map(([section]) => section);
-          if (failedSections.length) {
-            // Keep the imported data in this page, but never claim success and
-            // never advance the save baseline for a partial import.
-            throw new Error(`以下部分未写入服务器：${failedSections.join("、")}`);
-          }
-          const dashboardIndex = saveTargets.findIndex(([section]) => section === "dashboard");
-          const dashboardSave = dashboardIndex >= 0 && settled[dashboardIndex].status === "fulfilled"
-            ? settled[dashboardIndex].value
-            : null;
-          campaignSectionRevision = Math.max(0, Number(dashboardSave?.revision || campaignSectionRevision));
-          campaignSectionExists = Boolean(dashboardSave?.ok || campaignSectionExists);
+          // 服务器已经整份写入，这一页这时才切到导入后的状态：失败时本页与服务器都保持原样。
+          archive = nextArchive;
+          state = currentCycle().state;
+          campaignSectionRevision = Math.max(0, Number(result.sections?.dashboard ?? campaignSectionRevision));
+          campaignSectionExists = Boolean(result.sections?.dashboard || campaignSectionExists);
           campaignSectionBaseline = cloneJson(archive);
           campaignServerBaseline = cloneJson(archive);
           campaignSyncChannel?.postMessage({ revision: campaignSectionRevision });
           renderDashboardArchive(archive);
           window.alert("导入完成。");
         } catch (error) {
-          window.alert(`导入失败：${String(error.message || error)}`);
+          if (error?.code === "SAVE_CONFLICT" && error.sections) {
+            const detail = Object.entries(error.sections)
+              .map(([section, info]) => `${section}（本页读到版本 ${info.expected}，服务器已是 ${info.revision}）`)
+              .join("、");
+            window.alert(`导入失败：以下部分已被其他页面修改，整份存档没有写入：${detail}\n\n请刷新页面后重试。`);
+          } else {
+            window.alert(`导入失败：${String(error.message || error)}\n\n整份存档没有写入，服务器仍是导入前的状态。`);
+          }
         } finally {
           elements.importInput.value = "";
         }

@@ -333,6 +333,25 @@
       opacity: 0.55;
     }
 
+    .title-actions .second-screen-sync-status {
+      display: inline-flex;
+      align-items: center;
+      min-height: 36px;
+      max-width: 220px;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    /* 空闲时不占位，标题栏布局和以前完全一致。 */
+    .title-actions .second-screen-sync-status:empty { display: none; }
+
+    .title-actions .second-screen-sync-status[data-state="synced"] { color: #8fd6a3; }
+    .title-actions .second-screen-sync-status[data-state="failed"] { color: #ff9d9d; }
+
     .title-actions .return-main-link {
       border: 1px solid rgba(199, 173, 114, 0.42);
       background: var(--panel);
@@ -2322,6 +2341,7 @@
             <input type="checkbox" id="secondScreenBattleModeToggle">
             第二屏显示决战版图
           </label>
+          <span class="second-screen-sync-status" id="secondScreenSyncStatus" role="status" aria-live="polite"></span>
           <a class="return-main-link" href="../index.html">返回主控制台</a>
           <div class="path" id="folderPath"></div>
           <button type="button" id="traitButton">Trait</button>
@@ -3179,6 +3199,10 @@
     let secondScreenSnapshotTimer = null;
     let secondScreenSnapshotInFlight = false;
     let secondScreenSnapshotQueued = false;
+    // 两个 AIBP 页面同时打开时，用这份基线判断存档有没有被对方改过：
+    // aibpPilesBaseline 是本页最后读到/写回的原文，aibpPilesExternalRaw 是 storage 事件里对方写入的原文。
+    let aibpPilesBaseline = null;
+    let aibpPilesExternalRaw = null;
     let secondScreenModeBusy = false;
     let battleMapControl = null;
     const undoStacks = {};
@@ -3207,7 +3231,11 @@
 
     function loadSavedPiles() {
       try {
-        const saved = JSON.parse(localStorage.getItem(storageKey) || "{}");
+        const raw = localStorage.getItem(storageKey);
+        // 记下本页读到的原文：写回之前会拿它确认这段时间里没有别的页面改过存档。
+        aibpPilesBaseline = raw == null ? "" : String(raw);
+        aibpPilesExternalRaw = null;
+        const saved = JSON.parse(raw || "{}");
         migrateLegacyHealedPiles(saved);
         const session = saved.activeScry;
         const history = saved.undoStacks;
@@ -3239,16 +3267,58 @@
         }
         if (hadC3) savePiles();
       } catch {
-        localStorage.removeItem(storageKey);
+        aibpPilesBaseline = "";
+        aibpPilesExternalRaw = null;
+        try {
+          localStorage.removeItem(storageKey);
+        } catch {
+          // 存储不可用时连删除都会失败；忽略即可，本页继续使用内存里的状态。
+        }
       }
     }
 
     function savePiles() {
       captureUndoEffects();
       // 牌堆、回溯记录和观星会话一起保存，刷新后仍能沿同一条时间线回退。
-      localStorage.setItem(storageKey, JSON.stringify({ ...piles, undoStacks, ...(activeScry ? { activeScry } : {}) }));
+      const payload = JSON.stringify({ ...piles, undoStacks, ...(activeScry ? { activeScry } : {}) });
+      // 跨标签页保护：另一个 AIBP 页面改过存档时不能悄悄覆盖对方的抽牌，先问一句再决定谁的状态留下。
+      let externalChange = false;
+      try {
+        const stored = localStorage.getItem(storageKey);
+        const storedValue = stored == null ? "" : String(stored);
+        externalChange = typeof aibpPilesBaseline === "string"
+          && (storedValue !== aibpPilesBaseline
+            || (typeof aibpPilesExternalRaw === "string" && aibpPilesExternalRaw !== aibpPilesBaseline));
+      } catch {
+        // localStorage 不可用（隐私模式 / 配额）时读不出对方的值，只能按原来的方式直接写入。
+        externalChange = false;
+      }
+      if (typeof aibpPilesExternalRaw === "string") aibpPilesExternalRaw = null;
+      if (externalChange) {
+        const loadExternal = window.confirm("另一个 AIBP 页面刚刚改过牌堆。\n确定：载入对方的最新牌堆（放弃本页刚才的改动）\n取消：用本页状态覆盖对方改动");
+        if (loadExternal) {
+          // 采用对方的状态：走一遍现有的读取逻辑（含旧档迁移），本次不写回，避免把对方的抽牌覆盖掉。
+          activeScry = null;
+          loadSavedPiles();
+          if (typeof renderApostle === "function") renderApostle(currentApostle);
+          else if (typeof renderAibpCards === "function") renderAibpCards();
+          return;
+        }
+      }
+      try {
+        localStorage.setItem(storageKey, payload);
+        aibpPilesBaseline = payload;
+      } catch {
+        // 写不进去（配额 / 存储被禁用）也不能把异常抛给调用方：内存状态仍然可用。
+      }
       scheduleSecondScreenSnapshot();
     }
+
+    // 另一个 AIBP 页面写存档时会收到 storage 事件：记下对方写入的原文，savePiles() 据此询问用户。
+    window.addEventListener("storage", (event) => {
+      if (event?.key !== storageKey) return;
+      aibpPilesExternalRaw = event.newValue == null ? "" : String(event.newValue);
+    });
 
     async function setSecondScreenMode(mode) {
       try {
@@ -3441,13 +3511,43 @@
         error.code = "SAVE_CONFLICT";
         throw error;
       }
-      if (!response.ok || !payload?.ok) throw new Error(payload?.error || `HTTP ${response.status}`);
+      if (!response.ok || !payload?.ok) {
+        // 把 HTTP 状态码和「响应没有 JSON」一起交给调用方：第二屏同步状态才能区分
+        // 可以重试的临时故障（网络 / 5xx / 没有 JSON）和必须刷新页面的登录失效。
+        const error = new Error(payload?.error || `HTTP ${response.status}`);
+        error.status = response.status;
+        error.noJson = payload === null;
+        if (payload?.code) error.code = payload.code;
+        throw error;
+      }
       aibpSectionRevision = Math.max(0, Number(payload.revision || aibpSectionRevision));
       return payload;
     }
 
     async function sendSecondScreenSnapshot() {
-      if (campaignSession?.changed) return;
+      // 状态提示、时钟和重试参数都放在函数体里，单独提取这个函数时也能照常运行。
+      const syncStatus = typeof document === "undefined" ? null : document.getElementById("secondScreenSyncStatus");
+      const reportSyncStatus = (state, detail = "") => {
+        if (!syncStatus) return;
+        syncStatus.dataset.state = state;
+        syncStatus.textContent = state === "syncing"
+          ? "同步中"
+          : state === "synced"
+            ? `已同步（${detail}）`
+            : `同步失败（${detail}）`;
+      };
+      const syncClock = () => {
+        const now = new Date();
+        const pad = (value) => String(value).padStart(2, "0");
+        return `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+      };
+      const maxAttempts = 3;
+      const retryDelays = [1000, 3000];
+      if (campaignSession?.changed) {
+        // 账号已经对不上：提示刷新页面，不要排队重试。
+        reportSyncStatus("failed", "登录已失效，请刷新页面");
+        return;
+      }
       if (secondScreenSnapshotInFlight) {
         secondScreenSnapshotQueued = true;
         return;
@@ -3455,19 +3555,47 @@
       secondScreenSnapshotInFlight = true;
       try {
         let conflicts = 0;
+        let transientFailures = 0;
         do {
           secondScreenSnapshotQueued = false;
           try {
+            reportSyncStatus("syncing");
             await postSecondScreenSnapshot(buildSecondScreenSnapshot());
+            // 一次成功就是整条链的终点：重试只在本次调用里排队，成功了就不会再有更旧的重试
+            // 覆盖这份最新快照（同一时刻只有一个在途请求，其它调用只会置 queued）。
+            reportSyncStatus("synced", syncClock());
             return;
           } catch (error) {
-            if (error?.code === "ACCOUNT_MISMATCH") return;
-            if (error?.code === "SAVE_CONFLICT" && ++conflicts <= 5) {
-              try { await readAibpSection(); } catch { return; }
+            const status = Number(error?.status || 0);
+            const code = String(error?.code || "");
+            const reason = String(error?.message || error || "未知错误").replace(/\s+/g, " ").slice(0, 60) || "未知错误";
+            if (code === "ACCOUNT_MISMATCH" || code === "AUTH_REQUIRED" || status === 401 || status === 403) {
+              // 登录失效重试没有意义：如实显示失败并让用户刷新页面。
+              reportSyncStatus("failed", "登录已失效，请刷新页面");
+              return;
+            }
+            if (code === "SAVE_CONFLICT" && ++conflicts <= 5) {
+              try {
+                await readAibpSection();
+              } catch {
+                reportSyncStatus("failed", "存档冲突，无法读取最新版本");
+                return;
+              }
               secondScreenSnapshotQueued = true;
               continue;
             }
-            return;
+            // 网络错误、HTTP 5xx、响应里没有 JSON 都算临时故障：最多 3 次尝试，退避 1s → 3s。
+            const transient = error?.noJson === true || status >= 500 || (!status && !code);
+            if (!transient || transientFailures >= maxAttempts - 1) {
+              reportSyncStatus("failed", reason);
+              return;
+            }
+            transientFailures += 1;
+            reportSyncStatus("failed", `${reason}，正在重试`);
+            await new Promise((resolve) => window.setTimeout(resolve, retryDelays[transientFailures - 1] || 3000));
+            // 退避期间用户的操作只会把 queued 置位；回到循环顶部会重新构造并发送最新快照。
+            secondScreenSnapshotQueued = true;
+            continue;
           }
         } while (secondScreenSnapshotQueued);
       } finally {
