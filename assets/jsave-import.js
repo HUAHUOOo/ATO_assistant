@@ -2,9 +2,8 @@
  * jsave-import.js —— 官方 Aeon Trespass App 存档（.jsave）→ ATO_assistant sections 转换器。
  *
  * 这是 jsave-import/import_jsave.py 的逐字段 JS 移植版（浏览器里跑不了 Python）。
- * 判定与注释一律照抄 Python 版，**没有**做"顺手优化"：任何看起来多余的分支、
- * 冗余的类型检查、以及"样例里恒为 0 但仍原样写"的写法都是刻意保留的，
- * 因为 tests/jsave-import.test.cjs 会拿 Python 版的输出做深比较（要求 0 处差异）。
+ * 以 Python 原型为起点；地图与非地图的兼容修复以各页面实际读取的字段为准。
+ * tests/jsave-import.test.cjs 保留未改字段的参考比较，并单独验证修复后的数据。
  *
  * 对外接口（浏览器挂 window.ATO_JSAVE_IMPORT；node 走 module.exports）：
  *   isJsave(bytes)        —— 按**内容**判定是不是官方 .jsave（不看扩展名）
@@ -86,7 +85,25 @@
   var CARGO_NAME_OVERRIDES = {
     CALCIFIED_KNUCKLE_BONE: "calcifiedKnuckle",
     BLACKWOOL_STRAND: "blackWoolStrand",
-    FADING_CONSTRUCT: "fadingLightConstruct"
+    FADING_CONSTRUCT: "fadingLightConstruct",
+    SUPERSOLID_RELIEF_MASS: "supersolidRelief",
+    ECHOES_OF_RECOLLECTION: "echoes"
+  };
+
+  // 与 technology/index.html 的 techKey/nodeKey 一致，包括页面现存的拼写。
+  var TECH_NAME_ALIASES = {
+    "excursion propylon ii": "excursion propylon 2",
+    "hephaestan oxybeles": "hephaestean oxybeles",
+    "rendezvous trireme": "rendevous trireme",
+    "upstream navigation": "up-stream navigation",
+    "argo’s mission": "argo's mission",
+    "argo’s destiny": "argo's destiny",
+    "delphi peoples’ support": "delphi peoples' support"
+  };
+  var DISAMBIGUATED_TECH_NAMES = {
+    "intelligence gathering": true,
+    "cryptex technology": true,
+    "monomythological support": true
   };
 
   // 官方 CORE_* → ATO 核心短名（ATO 里由 nemesis 敌人 key 派生，见 record/index.html:4476）
@@ -171,6 +188,18 @@
     "forge", "blade", "knowledge", "mask", "curiosity", "night", "age", "hope",
     "machina", "silica", "midas", "natron", "ambrosia", "aether"
   ].forEach(function (id) { NYMPH_IDS[id] = true; });
+
+  var NYMPH_ALIASES = {};
+  ["引擎宁芙", "孤独宁芙", "阿玛尔忒娅宁芙", "迷宫宁芙", "深海宁芙",
+    "甜食宁芙", "尼采宁芙", "锻炉宁芙", "刀刃宁芙", "知识宁芙", "面具宁芙",
+    "好奇宁芙", "夜之宁芙", "年岁宁芙", "希望宁芙", "机械宁芙", "硅石宁芙",
+    "迈达斯宁芙", "泡碱宁芙", "神浆宁芙", "以太宁芙"
+  ].forEach(function (label, index) {
+    var id = Object.keys(NYMPH_IDS)[index];
+    NYMPH_ALIASES[label] = id;
+    NYMPH_ALIASES[id] = id;
+    NYMPH_ALIASES[id + " nymph"] = id;
+  });
 
   // ATO 记录的「阿尔戈号资源」行表：c1..c5 各自定义了哪些行（record/index.html:1764-2196
   // 的 cycleData.<c>.resources 逐条抄录，core / rare 是 sentinel 行）。
@@ -264,6 +293,15 @@
       urFleece: ["1", "2", "3", "4", "5"],
       titanX: ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
     }
+  };
+
+  // 两条主要敌人轨道共用的格子；与 record/index.html stages[].sharedWith 一致。
+  var SHARED_ENEMY_STAGES = {
+    c1: ["1b", "2b", "2c", "4c"],
+    c2: ["1b", "2b", "3a", "4c"],
+    c3: ["1b", "2b", "2c", "5"],
+    c4: ["1b", "2b", "3a", "4c", "5b", "5d", "6"],
+    c5: ["1b", "2b", "3a", "4c"]
   };
 
   // 官方 CORE_* → 所属循环
@@ -1313,27 +1351,36 @@
     return { resources: resources, keymap: keymap };
   };
 
-  Converter.prototype.buildAdventures = function (official, cycleId) {
+  Converter.prototype.buildAdventures = function (official) {
     // 官方 adventures[41] → ATO record.adventures 字典。
     //
     // 官方第 k 条按 adventure_hubs 顺序拿 adv_count；
     // adv_progress 长度 = 1 + adv_count + 1，依次 α → adv1..advN → Ω。
     // ATO 键 = `<cycle>-<本轮 hub 序号从 0 起>-<槽位>`（record/index.html:4103, 4112）。
-    var self = this;
     var hubs = this.hubs;
-    var cycleName = "CYCLE_" + ("0" + (CYCLE_IDS.indexOf(cycleId) + 1)).slice(-2);
-    var mine = hubs.filter(function (hub) { return hub.cycle === cycleName; });
     var adventures = {};
     var cells = 0;
     var mismatch = [];
+    var unmapped = [];
+    var usedEntries = [];
+    var localIndexes = {};
     var list = official.adventures || [];
-    mine.forEach(function (hub, localIndex) {
-      var k = hubs.indexOf(hub);
-      var entry = k < list.length ? list[k] : null;
+    hubs.forEach(function (hub, k) {
+      var cycleMatch = /^CYCLE_0([1-5])$/.exec(hub.cycle);
+      if (!cycleMatch) return;
+      var cycleId = "c" + cycleMatch[1];
+      var localIndex = localIndexes[cycleId] || 0;
+      localIndexes[cycleId] = localIndex + 1;
+      // 官方 C1 把三格的 Tutorial 放第一项，记录表把它放最后一项。
+      var targetIndex = cycleId === "c1" ? (localIndex === 0 ? 7 : localIndex - 1) : localIndex;
+      var entry = list.find(function (item) { return item && item.adv_hub_name === hub.hub; });
+      // 老格式没有 hub 名时仍按官方表顺序读取。
+      if (!entry && list[k] && !list[k].adv_hub_name) entry = list[k];
       if (entry === null || entry === undefined) {
         mismatch.push([hub.hub, "官方存档缺该条目"]);
         return;
       }
+      usedEntries.push(entry);
       var progress = entry.adv_progress || [];
       var expected = 1 + pyInt(hub.adv_count) + 1;
       if (progress.length !== expected) {
@@ -1341,18 +1388,30 @@
           + "+1=" + expected]);
       }
       progress.forEach(function (value, slotIndex) {
+        if (!value) return;
+        if (slotIndex >= expected) {
+          unmapped.push([hub.hub, "超出轨道的第 " + (slotIndex + 1) + " 格"]);
+          return;
+        }
         var slot;
         if (slotIndex === 0) slot = "alpha";
-        else if (slotIndex === progress.length - 1) slot = "omega";
+        else if (slotIndex === expected - 1) slot = "omega";
         else slot = "mid" + slotIndex;
-        if (!value) return;      // 0 不写（见报告「取舍」）
-        adventures[cycleId + "-" + localIndex + "-" + slot] = true;
+        adventures[cycleId + "-" + targetIndex + "-" + slot] = true;
         cells += 1;
       });
     });
+    list.forEach(function (entry, index) {
+      if (usedEntries.indexOf(entry) >= 0 || !entry) return;
+      var progress = entry.adv_progress || [];
+      if (progress.some(Boolean) || entry.has_marked_box) {
+        unmapped.push([entry.adv_hub_name || ("条目 " + index), progress]);
+      }
+    });
     this.stats.adventure_cells = cells;
-    this.stats.adventure_hubs_seen = mine.length;
+    this.stats.adventure_hubs_seen = usedEntries.length;
     this.stats.adventure_mismatch = mismatch;
+    this.stats.adventure_unmapped = unmapped;
     return adventures;
   };
 
@@ -1506,10 +1565,11 @@
     var unknown = [];
     ids.forEach(function (rawId, index) {
       if (index >= deck.length || !deck[index]) return;
-      var cardId = String(rawId);
+      var cardId = String(rawId).trim().toUpperCase().replace(/^&/, "");
       var label = self.tech_names[cardId];
       if (!label) {
-        untranslated.push(cardId);
+        untranslated.push(String(rawId));
+        unknown.push(String(rawId));
         return;
       }
       var english = englishOf(label);
@@ -1517,8 +1577,17 @@
         untranslated.push(cardId);
         return;
       }
-      unlocked.push(english.toLowerCase());
-      if (!self.tech_names[cardId]) unknown.push(cardId);
+      var key = english.toLowerCase();
+      key = TECH_NAME_ALIASES[key] || key;
+      if (DISAMBIGUATED_TECH_NAMES[key]) {
+        var cardCycle = "ABCDE".indexOf(cardId.charAt(0)) + 1;
+        if (!cardCycle) {
+          untranslated.push(String(rawId));
+          return;
+        }
+        key += "@@cycle" + cardCycle;
+      }
+      if (unlocked.indexOf(key) < 0) unlocked.push(key);
     });
     this.stats.tech_unlocked = unlocked.length;
     this.stats.tech_untranslated = untranslated;
@@ -1717,6 +1786,7 @@
     // gf_names/gf_used、smn_names/smn_used → ATO godforms / nymphCards 等。
     var self = this;
     var godforms = [], godformUsed = [];
+    var unmappedGodforms = [];
     var gfNames = official.gf_names || [];
     var gfUsed = official.gf_used || [];
     gfNames.forEach(function (name, index) {
@@ -1724,6 +1794,7 @@
       var atoId = GODFORM_ALIASES[key];
       if (!atoId) {
         self.warnings.push("神之形态 " + String(name) + " 无法映射到 ATO id");
+        unmappedGodforms.push({ name: String(name), used: Boolean(gfUsed[index]) });
         return;
       }
       if (godforms.indexOf(atoId) < 0) godforms.push(atoId);
@@ -1733,14 +1804,16 @@
 
     var nymphs = [], nymphUsed = [];
     var unmappedNymphs = [];
+    var unmappedNymphDetails = [];
     var smnNames = official.smn_names || [];
     var smnUsed = official.smn_used || [];
     smnNames.forEach(function (name, index) {
       var label = String(name).trim();
       if (!label) return;
-      var atoId = NYMPH_IDS[label.toLowerCase()] ? label.toLowerCase() : null;
+      var atoId = NYMPH_ALIASES[label.toLowerCase().replace(/\s+/g, " ")] || null;
       if (!atoId) {
         unmappedNymphs.push(label);
+        unmappedNymphDetails.push({ name: label, used: Boolean(smnUsed[index]) });
         return;
       }
       if (nymphs.indexOf(atoId) < 0) nymphs.push(atoId);
@@ -1753,6 +1826,8 @@
     this.stats.nymphCards = nymphs.length;
     this.stats.nymphUsedCards = nymphUsed.length;
     this.stats.nymph_unmapped = unmappedNymphs;
+    this.stats.nymph_unmapped_details = unmappedNymphDetails;
+    this.stats.godform_unmapped = unmappedGodforms;
     return {
       godforms: godforms, nymphs: nymphs,
       godformUsed: godformUsed, nymphUsed: nymphUsed
@@ -1915,6 +1990,23 @@
       fmtNotePairs(noRow.map(function (row) { return [row.official, row.value]; })),
       noRow.length + " 项（明细见导入报告）");
 
+    // 无法匹配的自由名称仍带上使用状态，避免只在开发者诊断里留下记录。
+    [["无法识别的宁芙", this.stats.nymph_unmapped_details],
+      ["无法识别的神之形态", this.stats.godform_unmapped]
+    ].forEach(function (entry) {
+      var values = entry[1] || [];
+      if (!values.length) return;
+      add(entry[0] + "（" + values.length + " 项）", fmtNoteList(values.map(function (item) {
+        return item.name + "（" + (item.used ? "已使用" : "未使用") + "）";
+      }), "；"));
+    });
+    var unknownTech = this.stats.tech_untranslated || [];
+    if (unknownTech.length) add("无法识别的科技卡", fmtNoteList(unknownTech, "、"));
+    var unknownAdventures = this.stats.adventure_unmapped || [];
+    if (unknownAdventures.length) add("冒险进度无对应轨道", fmtNotePairs(unknownAdventures));
+    var evolutionDropped = (this.stats.evo || {}).dropped || [];
+    if (evolutionDropped.length) add("敌人进化未导入项", fmtNoteList(evolutionDropped, "；"));
+
     // 地图格笔记
     var tileNotes = official.campaign_tile_notes;
     if (isList(tileNotes)) {
@@ -1981,8 +2073,8 @@
     //   * nemesis 敌人：`nemesis:<enemy>:<stageId>`
     //   * 共享轨道：   `<cycle>:shared:<a>+<b>:<stageId>`
     //   * 普通敌人：   `<cycle>:<enemy>:<stageId>`
-    // 官方存档只给两个布尔数组 `evo_prim1_track` / `evo_prim2_track`，没有「哪个是哪个敌人」的
-    // 信息，所以按本轮前两个敌人（nemesis 优先）顺序落位；无法落位的部分列进报告。
+    // prim1/prim2 对应本轮前两个主要敌人，不能把宿敌排到主要敌人前面。
+    // 五轮官方轨道的长度分别为 10/9/10/14/9，与两条主要敌人轨道逐格一致。
     var evo = official.evo || {};
     var enemies = {};
     var detail = { written: 0, dropped: [], note: "" };
@@ -1997,20 +2089,16 @@
     }
 
     var cyclesEnemies = CYCLE_ENEMIES[cycleId] || [];
-    // 排序：nemesis 选项优先，其余按 cycleData 顺序
-    var ordered = options.filter(function (key) { return cyclesEnemies.indexOf(key) >= 0; })
-      .concat(cyclesEnemies.filter(function (key) { return options.indexOf(key) < 0; }));
     var tracks = [["evo_prim1_track", "prim1"], ["evo_prim2_track", "prim2"]];
-    tracks.forEach(function (track) {
-      var trackName = track[0], label = track[1];
+    tracks.forEach(function (track, trackIndex) {
+      var trackName = track[0];
       var flags = evo[trackName] || [];
       if (!flags.length) return;
-      if (!ordered.length) {
+      var enemy = cyclesEnemies[trackIndex];
+      if (!enemy) {
         detail.dropped.push(trackName + "：本轮没有可对位的敌人");
         return;
       }
-      var enemy = ordered[0];
-      ordered = ordered.slice(1);
       var stages = (CYCLE_ENEMY_STAGES[cycleId] || {})[enemy] || [];
       for (var i = 0; i < flags.length; i += 1) {
         if (i >= stages.length) {
@@ -2024,16 +2112,15 @@
           detail.dropped.push(trackName + " 第 " + (i + 1) + " 格对应 " + enemy + " 的占位格（无 markKey）");
           continue;
         }
-        var key = options.indexOf(enemy) >= 0
-          ? "nemesis:" + enemy + ":" + stageId
+        var shared = (SHARED_ENEMY_STAGES[cycleId] || []).indexOf(stageId) >= 0;
+        var key = shared
+          ? cycleId + ":shared:" + cyclesEnemies.slice(0, 2).sort().join("+") + ":" + stageId
           : cycleId + ":" + enemy + ":" + stageId;
-        enemies[key] = true;
-        detail.written += 1;
+        if (!enemies[key]) detail.written += 1;
+        // C4 的 VI 是两行共用计数器；官方布尔只能证明有一次标记。
+        enemies[key] = cycleId === "c4" && stageId === "6" ? 1 : true;
       }
     });
-    detail.note += ("共享轨道（`<cycle>:shared:<a>+<b>:<stage>`）未实现："
-      + "需要 `stages[].sharedWith` 的信息，本次没解析；"
-      + "落到共享格上的进度会记成对应敌人的普通格。");
     ["evo_adv_mode", "evo_track_history"].forEach(function (key) {
       if (key in evo) detail.dropped.push(key + "（ATO 无对应位置）");
     });
@@ -2495,6 +2582,10 @@
     var seenIds = {};
     var titans = this.buildTitans(official, seenIds);
     var arsenal = this.buildArsenal(official);
+    // 先收集转换诊断，之后生成的笔记才能保留无法落位的自由名称和进度。
+    var summon = this.buildSummon(official);
+    var technologyUser = this.buildTech(official, cycleId);
+    var evoResult = this.buildEvo(official, cycleId);
 
     // record.notes = campaign_notes 逐条 + 矩阵残留行（用户自己的内容，显示在最上面）
     var notesLines = (official.campaign_notes || []).map(String).filter(function (text) {
@@ -2601,11 +2692,11 @@
     record.cycleStats = {};
     record.cycleStats[cycleId] = cycleStatsEntry;
     record.cycleDays = {};
+    record.cycleDays[cycleId] = record.day;
 
     var heroResult = this.buildHeroes(official, ATO_ARGONAUT_IDS, this.drop_dead_slots);
     var heroes = heroResult.heroes;
     var graveyard = heroResult.graveyard;
-    var summon = this.buildSummon(official);
     // record.pygmalion 是「按轨道分格」的布尔字典，真实存档里观察到两种键：
     //   {"echoes-progress-0/1/2": bool}            ← 官方 echo_track（截图 ARGONAUTS 页
     //                                                 的 "ECHOES OF RECOLLECTION TRACK"）
@@ -2628,7 +2719,6 @@
     record.maxUnlocked = {};
 
     // evo → record.enemies（阶段布尔字典）+ nemesisSelections；maps → map tokens
-    var evoResult = this.buildEvo(official, cycleId);
     record.enemies = evoResult.enemies;
     record.nemesisSelections = evoResult.nemesis;
 
@@ -2645,7 +2735,6 @@
     this.stats.dead_titans = deadTitans;
     this.stats.dead_titans_written = record.deadTitans;
 
-    var technologyUser = this.buildTech(official, cycleId);
     var cycle = { id: cycleId, state: dashboardState };
     var mapResult = this.buildMapSection(official, cycleId);
 

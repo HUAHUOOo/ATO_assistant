@@ -1,7 +1,6 @@
 // 官方 App 存档（.jsave）导入：JS 转换器 vs Python 参考实现。
 //
-// 核心验收：`assets/jsave-import.js` 的 `convert()` 结果必须与 Python 版
-// （`jsave-import/import_jsave.py` 的冻结快照，见 jsave-web/pysnap/）逐叶子相同。
+// 未修改字段与 Python 冻结快照逐叶子比较；修复字段与各页面真实读取逻辑核对。
 // 参考文件由 jsave-web/run-reference.md 里写的命令生成，路径见下面的 REFERENCE_PATHS。
 //
 // 跑法：node tests/jsave-import.test.cjs
@@ -178,7 +177,7 @@ test("parseJsave 只消费第一个完整 JSON 值：JSON 后面的陈旧尾巴�
 
 // ---------------------------------------------------------------- 与 Python 深比较
 
-test("convert() 与 Python 参考 sections.json：除地图分区外逐叶子相同", { skip: !jsavePath || !referencePath }, () => {
+test("convert() 未改字段仍与 Python 冻结参考逐叶子相同", { skip: !jsavePath || !referencePath }, () => {
   const reference = JSON.parse(fs.readFileSync(referencePath, "utf8"));
   const parsed = jsaveImport.parseJsave(fs.readFileSync(jsavePath));
   const mine = jsaveImport.convert(parsed.official, { mapTiles: MAP_TILES });
@@ -193,15 +192,23 @@ test("convert() 与 Python 参考 sections.json：除地图分区外逐叶子相
   // 冻结参考本身是可复现的：本地用同一份 `app-extract/official-tables.json` 重跑原型，
   // 它自带的 42 条断言全 PASS，产物与冻结副本**逐叶子 0 差异**（canonical 2913 行对
   // 2913 行，非 id 行 0 处不同）—— 也就是说下面这个基准没有被手工改过。
-  // **其余分区（dashboard / record / technology / heroes）仍然逐叶子、逐行相同，没有放宽**：
-  // 冻结参考里那些分区的每一个叶子都必须还对上。
-  const stripMap = (sections) => {
+  // 原型同样含天数、资源键、科技键、进化格、历史冒险和召唤名称的旧漏洞。
+  // 只排除本轮明确修复的字段，下面专项用例通过真实页面函数验证这些字段。
+  // 保留冻结产物，不能把错误输出继续当成正确行为的验收标准。
+  const stripCorrectedFields = (sections) => {
     const copy = JSON.parse(JSON.stringify(sections));
     delete copy.map;
+    const record = copy.record.users.default;
+    ["cycleDays", "adventures", "enemies", "nymphCards", "nymphUsedCards"].forEach((key) => delete record[key]);
+    ["supersolidReliefMass", "echoesOfRecollection", "c2-supersolidRelief", "echoes"].forEach((key) => delete record.resources[key]);
+    const stripDiagnostics = (notes) => notes.split("\n").filter((line) => !/^(?:无法识别的宁芙|无法识别的神之形态|无法识别的科技卡|冒险进度无对应轨道|敌人进化未导入项)/.test(line)).join("\n");
+    record.notes = stripDiagnostics(record.notes);
+    Object.values(record.cycleStats).forEach((stats) => { stats.notes = stripDiagnostics(stats.notes); });
+    delete copy.technology.users.default.unlocked;
     return copy;
   };
-  const mineRest = stripMap(mine);
-  const referenceRest = stripMap(reference);
+  const mineRest = stripCorrectedFields(mine);
+  const referenceRest = stripCorrectedFields(reference);
 
   // 分区键集合必须先一致 —— 免得"少了一个分区"被 strip 掩盖过去。
   assert.deepEqual(Object.keys(mineRest).sort(), Object.keys(referenceRest).sort());
@@ -260,6 +267,169 @@ test("真实 .jsave 的转换结果带上了七个分区里 ATO 真正有数据�
   assert.ok(record.notes.includes("官方存档未导入项"), "未导入项必须写进笔记区块");
   assert.equal(record.cycleStats.c5.notes, record.notes, "按循环字段必须与顶层一致");
   assert.equal(record.deadTitans, "76");
+});
+
+// ---------------------------------------------------------------- 非地图数据：用真实页面的读取逻辑验收
+
+function recordPageContext() {
+  const source = readText("record/index.html");
+  const context = vm.createContext({
+    state: null, elements: { cycleTitle: {}, cycleWarning: {} },
+    document: { querySelectorAll: () => [] },
+  });
+  vm.runInContext(source.slice(source.indexOf("    const cycleData = "), source.indexOf("    const elements = "))
+    + "\nthis.cycles = cycleData; this.summons = summonCards;", context);
+  const names = ["isPlainObject", "cloneJson", "migrateEnemyStages", "normalizeState", "normalizeCycleStats",
+    "normalizeCrewCounters", "normalizeNemesisSelections", "migrateNemesisProgress", "normalizeNemesisResourceHistory",
+    "evolutionStages", "getEvolutionStage", "normalizeResources", "migrateSharedResourceKey", "normalizeCount",
+    "normalizeSummonSelection", "normalizeTitanList", "normalizeTitanLimit", "normalizeDeadTitans", "migrateTitanLimit",
+    "normalizeMatrix", "normalizeMatrixKey", "defaultDayForCycle", "normalizeCycleDay", "currentCycle",
+    "currentCycleStats", "getCycleStat", "renderCycleFields", "getEvolutionStageKey", "isEvolutionStageActive", "resourceStorageKey"];
+  vm.runInContext(names.map((name) => extractFunction(source, name)).join("\n"), context);
+  const adventures = extractFunction(source, "renderAdventures");
+  vm.runInContext(adventures.slice(adventures.indexOf("const slotPresets = "), adventures.indexOf("cycle.adventures.forEach"))
+    + "this.adventureSlots = slotPresets;", context);
+  return context;
+}
+
+function technologyPageContext() {
+  const source = readText("technology/index.html");
+  const context = vm.createContext({ window: {} });
+  vm.runInContext(readText("technology/tech-page-layout.js"), context);
+  vm.runInContext(source.slice(source.indexOf("function computeDisambiguatedTechNames("),
+    source.indexOf("async function loadDictionaryData()")), context);
+  context.data = context.dictionaryToAppData(JSON.parse(readText("technology/tech_card_dictionary.min.json")));
+  context.PAGE_INDEX = new Map(context.data.pages.map((page, index) => [page.key, index]));
+  context.DISAMBIGUATED_TECH_NAMES = context.computeDisambiguatedTechNames(context.data.pages);
+  vm.runInContext(source.slice(source.indexOf("const TECH_KEY_ALIASES = "), source.indexOf("function techKey("))
+    + ["techKey", "nodeKey", "cardsForNode", "isCoreNode", "isAutoUnlockedNode", "isUnlockedNode", "unlockAutomaticCyclesThrough"]
+      .map((name) => extractFunction(source, name)).join("\n"), context);
+  return context;
+}
+
+test("记录表读取和渲染后保留导入天数，五个循环均不归零", () => {
+  const page = recordPageContext();
+  for (let cycle = 0; cycle < 5; cycle++) {
+    const sections = jsaveImport.convert({ campaign_cycle: cycle, timeline_status: Array(81).fill(true) });
+    page.state = page.normalizeState(sections.record.users.default);
+    page.renderCycleFields();
+    assert.equal(page.state.day, "80");
+    assert.equal(page.state.cycleDays[`c${cycle + 1}`], "80");
+  }
+});
+
+test("货舱资源使用记录表实际读取的行键，超固体块与回响数量可见", () => {
+  const cargo = jsaveTables.cargoOrder.map((name) => name === "SUPERSOLID_RELIEF_MASS" ? 19
+    : name === "ECHOES_OF_RECOLLECTION" ? 7 : 0);
+  const page = recordPageContext();
+  page.state = page.normalizeState(jsaveImport.convert({ campaign_cycle: 4, cargo_resources: cargo }).record.users.default);
+  page.state.cycle = "c2";
+  assert.equal(page.state.resources[page.resourceStorageKey("supersolidRelief")], 19);
+  page.state.cycle = "c5";
+  assert.equal(page.state.resources[page.resourceStorageKey("echoes")], 7);
+  assert.equal(page.state.resources.supersolidReliefMass, undefined);
+  assert.equal(page.state.resources.echoesOfRecollection, undefined);
+});
+
+test("所有官方科技卡都映射到科技页面真实的键，重名科技按所属循环区分", () => {
+  const page = technologyPageContext();
+  const ids = Object.keys(jsaveTables.techNames);
+  const result = jsaveImport.convertWithReport({ campaign_cycle: 4, tech_id_list: ids, tech_deck_list: ids.map(() => true) });
+  const technology = result.sections.technology.users.default;
+  const knownKeys = new Set(page.data.pages.flatMap((cycle) => cycle.nodes.map((node) => page.nodeKey(cycle.key, node))));
+  assert.equal(result.stats.tech_untranslated.length, 0);
+  assert.ok(technology.unlocked.length > 300, "不能用丢掉大部分科技的办法消除键名错误");
+  assert.deepEqual(technology.unlocked.filter((key) => !knownKeys.has(key)), []);
+  page.currentCycle = technology.currentCycle;
+  page.unlocked = new Set(technology.unlocked);
+  page.unlockAutomaticCyclesThrough(page.currentCycle);
+  for (const cycle of page.data.pages) {
+    for (const node of cycle.nodes.filter((item) => ["Cryptex Technology", "Monomythological Support", "Intelligence Gathering"].includes(item.name))) {
+      assert.ok(page.isUnlockedNode(cycle.key, node), `${cycle.key}: ${node.name}`);
+    }
+  }
+  const wrapped = jsaveImport.convertWithReport({ campaign_cycle: 1, tech_id_list: ["&BA1012", "BY1048"], tech_deck_list: [true, true] });
+  assert.deepEqual(wrapped.sections.technology.users.default.unlocked, ["13th muse grand cannon"]);
+  assert.match(wrapped.sections.record.users.default.notes, /无法识别的科技卡：BY1048/);
+});
+
+test("两条主要敌人轨道逐格可见，共享格使用共用键，空的第一轨不会挤掉第二轨", () => {
+  const page = recordPageContext();
+  for (const [cycle, config] of Object.entries(page.cycles)) {
+    const primary = config.enemies.slice(0, 2);
+    const official = { campaign_cycle: Number(cycle.slice(1)) - 1, evo: {
+      evo_prim1_track: primary[0].stages.map(() => true), evo_prim2_track: primary[1].stages.map(() => true),
+    } };
+    page.state = page.normalizeState(jsaveImport.convert(official).record.users.default);
+    for (const enemy of primary) {
+      for (const stage of enemy.stages.filter((item) => item.marker !== "spacer")) {
+        assert.ok(page.isEvolutionStageActive(enemy.key, stage), `${cycle}: ${enemy.key}:${stage.id}`);
+        if (stage.sharedWith) assert.equal(page.state.enemies[`${cycle}:${enemy.key}:${stage.id}`], undefined);
+        if (stage.marker === "counter") assert.equal(page.state.enemies[page.getEvolutionStageKey(enemy.key, stage)], 1);
+      }
+    }
+    assert.ok(Object.keys(page.state.enemies).every((key) => !key.startsWith("nemesis:")), "主要敌人进度不能误填宿敌");
+    official.evo.evo_prim1_track = [];
+    page.state = page.normalizeState(jsaveImport.convert(official).record.users.default);
+    const direct = primary[1].stages.find((stage) => !stage.sharedWith && stage.marker !== "spacer");
+    assert.ok(page.isEvolutionStageActive(primary[1].key, direct));
+  }
+});
+
+test("导入保留所有循环冒险进度，按 hub 名匹配，C1 教程正确落到三格轨道", () => {
+  const page = recordPageContext();
+  const adventures = jsaveTables.adventureHubs.map((hub) => ({
+    adv_hub_name: hub.hub, adv_progress: Array(hub.adv_count + 2).fill(true),
+  })).reverse();
+  const result = jsaveImport.convertWithReport({ campaign_cycle: 4, adventures });
+  const imported = result.sections.record.users.default.adventures;
+  const expected = [];
+  for (const [cycle, config] of Object.entries(page.cycles)) {
+    config.adventures.forEach(([, , preset = "default"], index) => {
+      if (preset === "ten-thousand") return; // 官方 App 没有这两条附加轨道。
+      page.adventureSlots[preset].forEach((slot) => expected.push(`${cycle}-${index}-${slot.id}`));
+    });
+  }
+  assert.deepEqual(Object.keys(imported).sort(), expected.sort());
+  assert.deepEqual(Object.keys(imported).filter((key) => key.startsWith("c1-7-")).sort(),
+    ["c1-7-alpha", "c1-7-mid1", "c1-7-omega"]);
+  assert.match(result.sections.record.users.default.notes, /冒险进度无对应轨道.*oo12_advhub_01/);
+});
+
+test("宁芙中英文名称均能导入，无法识别的名称和使用状态保留在笔记", () => {
+  const page = recordPageContext();
+  for (const language of ["zh", "en", "id"]) {
+    const cards = page.summons.nymphs;
+    const result = jsaveImport.convert({ campaign_cycle: 4, smn_names: cards.map((card) => card[language]),
+      smn_used: cards.map((_, index) => index % 2 === 0) });
+    page.state = page.normalizeState(result.record.users.default);
+    assert.deepEqual(Array.from(page.state.nymphCards), Array.from(cards, (card) => card.id));
+    assert.deepEqual(Array.from(page.state.nymphUsedCards), Array.from(cards).filter((_, index) => index % 2 === 0).map((card) => card.id));
+  }
+  const result = jsaveImport.convert({ campaign_cycle: 4, smn_names: ["机械宁芙", "Knowledge Nymph", "自定义召唤", "自定义召唤"],
+    smn_used: [true, false, true, false], gf_names: ["unknown godform"], gf_used: [true], campaign_notes: ["保留我的笔记"] });
+  assert.deepEqual(result.record.users.default.nymphCards, ["machina", "knowledge"]);
+  assert.deepEqual(result.record.users.default.nymphUsedCards, ["machina"]);
+  assert.match(result.record.users.default.notes, /^保留我的笔记\n/);
+  assert.match(result.record.users.default.notes, /自定义召唤（已使用）；自定义召唤（未使用）/);
+  assert.match(result.record.users.default.notes, /unknown godform（已使用）/);
+  assert.equal(result.record.users.default.cycleStats.c5.notes, result.record.users.default.notes);
+});
+
+test("实际 C5 存档在页面读取后保留第80天、115格冒险与中文宁芙", { skip: !jsavePath }, () => {
+  const official = jsaveImport.parseJsave(fs.readFileSync(jsavePath)).official;
+  const result = jsaveImport.convertWithReport(official);
+  const page = recordPageContext();
+  page.state = page.normalizeState(result.sections.record.users.default);
+  page.renderCycleFields();
+  assert.equal(page.state.day, "80");
+  const knownHubs = new Set(jsaveTables.adventureHubs.filter((hub) => /^CYCLE_0[1-5]$/.test(hub.cycle)).map((hub) => hub.hub));
+  const expectedMarks = official.adventures.filter((entry) => knownHubs.has(entry.adv_hub_name))
+    .reduce((count, entry) => count + entry.adv_progress.filter(Boolean).length, 0);
+  assert.equal(Object.keys(page.state.adventures).length, expectedMarks);
+  assert.equal(expectedMarks, 115);
+  assert.ok(page.state.nymphCards.includes("machina") && page.state.nymphCards.includes("knowledge"));
+  result.stats.nymph_unmapped.forEach((name) => assert.ok(page.state.notes.includes(name), name));
 });
 
 // ---------------------------------------------------------------- 地图状态导入
@@ -840,6 +1010,41 @@ test("导入入口：常规 ATO 状态包仍然照常工作（行为未变）", 
     JSON.stringify({
       dashboard: 3, map: 0, record: 5, technology: 0, heroes: 0, aibp: 0, story: 0,
     }));
+});
+
+test("导入入口：无效 JSON、损坏档案和不完整官方存档在任何读写前拒绝", async () => {
+  const invalid = [null, false, 42, "", [], {}, { unrelated: "not a save" },
+    { app: "ATO Campaign Save Package", version: 3, sections: { heroes: {} } },
+    { sections: [] }, { profiles: {} },
+    { profiles: { p: { id: "p", cycles: { c5: { state: [] } } } } },
+    { profiles: { p: { id: "another", state: { day: 1 } } } },
+  ].map((value) => Buffer.from(JSON.stringify(value)));
+  invalid.push(jsaveBytes({ campaign_cycle: 4, campaign_name: "only metadata" }));
+  for (const bytes of invalid) {
+    const run = runImport(bytes, "invalid.json");
+    let reads = 0, flushes = 0;
+    run.ctx.loadFullCampaign = async () => { reads++; throw new Error("不应读取服务端"); };
+    run.ctx.flushCampaignSave = async () => { flushes++; return true; };
+    run.ctx.archive = { untouched: true };
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(run.calls.length, 0);
+    assert.equal(reads, 0);
+    assert.equal(flushes, 0);
+    assert.equal(run.ctx.archive.untouched, true);
+    assert.equal(run.getArchive(), null);
+    assert.match(run.alerts[0], /^导入失败：/);
+    assert.equal(run.ctx.elements.importInput.value, "");
+  }
+});
+
+test("导入入口：旧版状态、带 state 的旧档案和 profiles 档案仍可导入", async () => {
+  for (const payload of [{ day: "T2", completed: {} }, { name: "旧档", state: { day: 6 } },
+    { activeProfileId: "p", profiles: { p: { id: "p", state: { day: 6 } } } }]) {
+    const run = runImport(Buffer.from(JSON.stringify(payload)), "legacy.json");
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(run.calls.length, 1);
+    assert.deepEqual(run.alerts, ["导入完成。"]);
+  }
 });
 
 test("导入入口：坏文件给人话提示，不抛原始异常", async () => {
