@@ -54,6 +54,9 @@ def campaign_snapshot(
     saved_at: str = "2026-01-01T00:00:00+00:00",
     revision: int = 1,
     active_cycle: str = CYCLE,
+    card_tracks: dict | None = None,
+    card_tracks_version: int | str | None = None,
+    card_counters: dict | None = None,
 ) -> dict:
     """按真实存档结构造一份快照（只填简报会读到的字段）。
 
@@ -97,6 +100,12 @@ def campaign_snapshot(
         },
         "exploration": {"drawStateByCycle": {active_cycle: {"history": []}}},
     }
+    if card_tracks is not None:
+        state["cardTracks"] = card_tracks
+    if card_tracks_version is not None:
+        state["cardTracksVersion"] = card_tracks_version
+    if card_counters is not None:
+        state["cardCounters"] = card_counters
     cycles = {}
     for cycle_id in ("c1", "c2", "c3", "c4", "c5"):
         cycles[cycle_id] = {
@@ -453,3 +462,94 @@ def test_unknown_cycle_falls_back_to_active(logged_in):
     status, payload = logged_in.request("/briefing/api.php?cycle=does-not-exist")
     assert status == 200
     assert payload["cycle"]["cycleId"] == CYCLE
+
+
+def test_card_progress_comes_from_each_daily_backup(server):
+    """卡牌回放保留历史版本与原始计数，不能用当前存档填补缺失记录。"""
+    user = "briefingcards"
+    client = Client(server["client"].base)
+    data_dir: Path = server["data_dir"]
+    status, registered = client.request(
+        "/api/campaign-state.php?action=register", method="POST",
+        payload={"username": user, "password": TEST_PASS},
+    )
+    assert status == 200 and registered["ok"] is True
+
+    modern_tracks = {
+        "story": {"position": "2", "progress": 3, "doom": 1},
+        "doom": {"position": 4, "progress": "5", "doom": 0},
+        "inwardOdyssey": {"position": 7, "progress": 2},
+    }
+    legacy_tracks = {
+        "story": {"position": 0, "progress": "4", "doom": 2},
+        "doom": {"position": "1", "progress": 6, "doom": "3"},
+    }
+    legacy_counters = {"story": "6", "doom": 3, "storyCount": "7", "doomCount": 4}
+    snapshots = {
+        "0": campaign_snapshot(
+            day="0", explored=["005"], unlocked=[], card_tracks=modern_tracks,
+            card_tracks_version=2,
+        ),
+        "1": campaign_snapshot(
+            day="1", explored=["005"], unlocked=[], card_tracks=legacy_tracks,
+            card_tracks_version=1,
+        ),
+        "2": campaign_snapshot(
+            day="2", explored=["005"], unlocked=[], card_counters=legacy_counters,
+        ),
+        "3": campaign_snapshot(day="3", explored=["005"], unlocked=[]),
+        # 第 4 天没有备份；第 5 天验证接口只公开卡图所需字段。
+        "5": campaign_snapshot(
+            day="5", explored=["005"], unlocked=[], card_tracks={
+                "story": {"position": 8, "progress": "9", "doom": 0, "private": "ignored"},
+                "doom": {"position": 5, "progress": [1, 2], "doom": {"value": 3}},
+                "other": {"position": 99},
+            }, card_tracks_version="2", card_counters={
+                "story": "10", "doomCount": 11, "storyCount": [12], "doom": {"count": 13},
+                "other": 14,
+            },
+        ),
+    }
+    snapshots["0"]["sections"]["dashboard"]["profiles"]["default"]["cycles"][CYCLE]["state"]["surveyConstants"] = {
+        "hubs": {"fated-conundrum": {"alpha": True, "1-2": False, "3-4": True, "private": {"bad": True}}, "plight-of-the-people": {"1": True}},
+        "activeHub": {"itemId": "fated-conundrum", "boxId": "3-4", "private": "ignored"},
+    }
+    for day, snapshot in snapshots.items():
+        write_daily_backup(data_dir, user, CYCLE, day, snapshot, f"20260101T0{day}0000Z-card000{day}")
+
+    # 当前状态故意与所有备份不同，既不能覆盖有备份日，也不能填补缺口日。
+    write_campaign_file(data_dir, user, campaign_snapshot(
+        day="5", explored=["005"], unlocked=[], card_tracks={
+            "story": {"position": 99, "progress": 99, "doom": 99},
+            "doom": {"position": 88, "progress": 88, "doom": 88},
+        }, card_tracks_version=2, card_counters={"story": 99, "doom": 88},
+    ))
+    status, payload = client.request("/briefing/api.php")
+    assert status == 200 and payload["ok"] is True
+    timeline = {entry["day"]: entry for entry in payload["timeline"]}
+    assert list(timeline) == ["0", "1", "2", "3", "4", "5"]
+
+    assert timeline["0"]["cardTracks"] == modern_tracks
+    assert timeline["0"]["cardTracksVersion"] == 2
+    assert timeline["0"]["cardCounters"] is None
+    assert timeline["0"]["adventureHubs"] == {
+        "checked": {"fated-conundrum": ["alpha", "3-4"], "plight-of-the-people": ["1"]}, "activeHub": "fated-conundrum", "activeBox": "3-4",
+    }
+    # v1 的 position=0、字符串计数都要原样返回，由客户端按其版本解读。
+    assert timeline["1"]["cardTracks"] == legacy_tracks
+    assert timeline["1"]["cardTracksVersion"] == 1
+    assert timeline["1"]["cardCounters"] is None
+    assert timeline["2"]["cardTracks"] is None
+    assert timeline["2"]["cardTracksVersion"] is None
+    assert timeline["2"]["cardCounters"] == legacy_counters
+    assert timeline["3"]["present"] is True
+    for field in ("cardTracks", "cardTracksVersion", "cardCounters", "adventureHubs"):
+        assert timeline["3"][field] is None
+        assert field not in timeline["4"]
+    assert timeline["4"]["present"] is False
+    assert timeline["5"]["cardTracks"] == {
+        "story": {"position": 8, "progress": "9", "doom": 0},
+        "doom": {"position": 5},
+    }
+    assert timeline["5"]["cardTracksVersion"] == 2
+    assert timeline["5"]["cardCounters"] == {"story": "10", "doomCount": 11}

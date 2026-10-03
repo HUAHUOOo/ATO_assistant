@@ -60,6 +60,7 @@ function loadMapModule() {
     document: { createElement: (tag) => makeNode(tag) },
     window: {},
   };
+  sandbox.window.ATO_BRIEFING_CORE = require('../briefing/briefing-core.js');
   sandbox.window.document = sandbox.document;
   vm.runInNewContext(mapSource, sandbox, { filename: 'briefing-map.js' });
   return sandbox.window.ATO_BRIEFING_MAP;
@@ -139,6 +140,25 @@ test('简报地图按存档标记把 token 图标画在各自的位置上', () =
   );
 });
 
+test('地图日期和缩放切换后聚焦最新翻开的板块，没有新板块时聚焦当前位置', () => {
+  const mapApi = loadMapModule();
+  const canvas = { clientWidth: 200, clientHeight: 150 };
+  const stage = makeNode('div');
+  const renderer = mapApi.create({ canvas, stage, cycle: { id: 'c1' }, canvasSize: { width: 6, height: 6 }, tiles: [{ id: 'A' }, { id: 'B' }], order: ['A', 'B'] });
+  const positions = renderer.geometry().positions;
+  const check = (id, scale) => {
+    const p = positions.get(id);
+    assert.equal(canvas.scrollLeft, (p.x + 36) * scale);
+    assert.equal(canvas.scrollTop, (p.y + 36) * scale);
+  };
+  renderer.render({ map: { explored: ['A', 'B'], new: ['B'], latestRevealedTileId: 'B', currentTileId: 'A' } });
+  check('B', 1.2);
+  renderer.setZoom(2);
+  check('B', 2);
+  renderer.render({ map: { explored: ['A', 'B'], new: [], currentTileId: 'A' } });
+  check('A', 2);
+});
+
 test('板块左上角标的是第一次翻开的游戏日，不是板块号也不是现实日期', () => {
   const days = [
     { index: 0, day: 'T0', title: '序章 T0', present: true, savedAtLocal: '2026-09-20 10:00', map: { explored: ['T00'], new: ['T00'] } },
@@ -183,4 +203,3 @@ test('取不到图标时退化成文字标记，不留破图', () => {
   assert.equal(icon.replacedBy.className, 'token-fallback');
   assert.equal(icon.replacedBy.textContent, '城');
 });
-

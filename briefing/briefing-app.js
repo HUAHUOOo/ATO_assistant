@@ -10,6 +10,8 @@
     recordedCount: document.getElementById('recordedCount'),
     exploredCount: document.getElementById('exploredCount'),
     unlockedCount: document.getElementById('unlockedCount'),
+    storyProgressCount: document.getElementById('storyProgressCount'),
+    doomProgressCount: document.getElementById('doomProgressCount'),
     cycleSelect: document.getElementById('cycleSelect'),
     refreshButton: document.getElementById('refreshButton'),
     exportFilesButton: document.getElementById('exportFilesButton'),
@@ -49,6 +51,10 @@
     tech: null,
     exporting: false,
   };
+  const cardEls = Object.fromEntries(['story', 'doom'].map((kind) => [kind, Object.fromEntries(
+    ['Button', 'Image', 'Side', 'Progress', 'Summary', 'Empty', 'Name', 'Note'].map((part) => [part.toLowerCase(), document.getElementById(`${kind}Card${part}`)])
+  )]));
+  const cardPreview = document.getElementById('cardPreviewDialog');
 
   function showNotice(title, text, actions) {
     els.notice.hidden = false;
@@ -75,8 +81,17 @@
     els.briefingBody.hidden = false;
   }
 
+  // 每次 load 都领一个递增的 token；慢的旧请求回来时发现 token 已经不是最新的，
+  // 就整个丢掉，保证「最后一次选择」赢（否则界面会被旧循环覆盖）。
+  let loadToken = 0;
+  let loadAbort = null;
+
   async function load(cycleId) {
     if (state.exporting) return;
+    const token = ++loadToken;
+    if (loadAbort) loadAbort.abort();
+    const controller = new AbortController();
+    loadAbort = controller;
     stopPlay();
     if (els.exportFilesButton) els.exportFilesButton.disabled = true;
     setExportStatus('');
@@ -85,16 +100,21 @@
     if (cycleId) query.set('cycle', cycleId);
     let payload;
     try {
-      const response = await fetch(`${API}${query.toString() ? `?${query}` : ''}`, { cache: 'no-store' });
+      const response = await fetch(`${API}${query.toString() ? `?${query}` : ''}`, { cache: 'no-store', signal: controller.signal });
       payload = await response.json();
       if (!response.ok && !payload.code) throw new Error(`HTTP ${response.status}`);
     } catch (error) {
+      // 被更新的请求取代（含 abort）时，连错误提示也不要弹。
+      if (token !== loadToken) return;
       showNotice('读不到简报数据', `请求 ${API} 失败：${String(error && error.message ? error.message : error)}\n请确认程序仍在运行，然后重新读取。`, [
         { label: '重新读取', onClick: () => load(state.cycleId) },
         { label: '回主控台', href: '../' },
       ]);
       return;
     }
+
+    // 到这里说明请求成功返回，但期间可能已经有更新的请求出发了：那就什么都不碰。
+    if (token !== loadToken) return;
 
     if (payload.code === 'AUTH_REQUIRED') {
       showNotice('请先登录', '战役简报读取的是当前账号的每日存档备份，需要先登录主控台。', [
@@ -163,6 +183,8 @@
       surveyActive: entry.surveyActive || '',
       pharosActive: entry.pharosActive || '',
       mainStoryActive: entry.mainStoryActive || '',
+      cards: window.ATO_BRIEFING_CORE.resolveCardTracks(entry, window.ATO_STORY_DOOM_DATA?.cycles?.[state.cycleId]),
+      progress: window.ATO_BRIEFING_CORE.resolveCampaignProgress(entry, state.cycleId, window.ATO_BRIEFING_HUBS?.[state.cycleId]),
       map: entry.map || null,
       tech: entry.tech || null,
       changes: entry.changes || [],
@@ -191,6 +213,9 @@
     els.recordedCount.textContent = String(summary.recordedDays || 0);
     els.exploredCount.textContent = String(latest && latest.map ? latest.map.exploredCount : 0);
     els.unlockedCount.textContent = String(latest && latest.tech ? latest.tech.unlocked.length : 0);
+    const cards = window.ATO_BRIEFING_CORE.resolveCardTracks(latest, window.ATO_STORY_DOOM_DATA?.cycles?.[payload.cycle.cycleId]);
+    els.storyProgressCount.textContent = cards.story.known ? String(cards.story.progress) : '—';
+    els.doomProgressCount.textContent = cards.doom.known ? String(cards.doom.progress) : '—';
     const first = summary.firstDay == null || summary.firstDay === '' ? '—' : shortDay(summary.firstDay);
     const last = summary.lastDay == null || summary.lastDay === '' ? '—' : shortDay(summary.lastDay);
     els.headSub.textContent = summary.recordedDays
@@ -240,6 +265,7 @@
       // 回放要按日期轴上的先后比大小，所以把时间轴一并交给科技树渲染器。
       timeline: state.days,
     });
+    updateZoomLabels();
   }
 
   function renderAxis() {
@@ -311,7 +337,7 @@
     }
 
     if (techResult) {
-      els.techSummary.textContent = `${techResult.unlocked} / ${techResult.total} 项已点亮`;
+      els.techSummary.textContent = `${techResult.unlocked} / ${techResult.total} 项 · 仅显示本轮已点亮`;
     } else {
       els.techSummary.textContent = '—';
     }
@@ -327,9 +353,126 @@
       els.techNewList.textContent = '这一天没有新点亮的科技。';
     }
 
+    renderCards(clamped);
+    renderCampaignProgress(clamped);
     highlightLog(clamped);
     syncUrl(entry);
   }
+
+  function cardCounts(kind, track) {
+    return `进展 ${track.progress}${kind === 'doom' ? ` · 灾祸 ${track.doom}` : ''}`;
+  }
+
+  function renderCampaignProgress(index) {
+    const view = window.ATO_BRIEFING_CORE.cardStateAt(state.days, index);
+    const progress = view.progress;
+    const inward = progress?.inward;
+    document.getElementById('inwardPosition').textContent = inward?.known ? String(inward.position) : '—';
+    document.getElementById('inwardProgress').textContent = inward?.known ? `知识等级 · 进展 ${inward.progress}` : '这份备份没有知识记录';
+    const hubs = progress?.hubs;
+    document.getElementById('hubProgressSummary').textContent = hubs?.known ? `${hubs.done} / ${hubs.total} 分支` : '无记录';
+    const list = document.getElementById('hubProgressList');
+    list.textContent = '';
+    if (!hubs?.known) {
+      list.textContent = '这份备份没有冒险中枢记录。';
+    } else {
+      hubs.rows.forEach((hub) => {
+        const row = document.createElement('div');
+        row.className = `hub-progress-row${hub.active ? ' active' : ''}`;
+        const name = document.createElement('span');
+        name.className = 'hub-name';
+        name.textContent = hub.name;
+        const boxes = document.createElement('span');
+        boxes.className = 'hub-boxes';
+        boxes.setAttribute('aria-label', `${hub.name}：已勾选 ${hub.done} / ${hub.boxes.length} 分支`);
+        hub.boxes.forEach((box) => {
+          const marker = document.createElement('span');
+          marker.className = `hub-box${box.checked ? ' checked' : ''}${box.active ? ' current' : ''}`;
+          marker.title = `${box.label} · ${box.checked ? '已勾选' : '未勾选'}${box.active ? ' · 当前分支' : ''}`;
+          marker.textContent = box.label === 'α' || box.label === 'Ω' ? box.label : '';
+          boxes.appendChild(marker);
+        });
+        const count = document.createElement('span');
+        count.className = 'hub-count';
+        count.textContent = `${hub.done}/${hub.boxes.length}`;
+        row.append(name, boxes, count);
+        list.appendChild(row);
+      });
+    }
+    document.getElementById('progressSource').textContent = view.gap ? (view.sourceDay ? `无当日备份 · 沿用${view.sourceDay}` : '此前没有备份') : '实心：已勾选 · 外框：当前分支';
+  }
+
+  function updateZoomLabels() {
+    ['map', 'tech'].forEach((kind) => {
+      if (state[kind]) document.getElementById(`${kind}Zoom`).textContent = `${Math.round(state[kind].zoom() * 100)}%`;
+    });
+  }
+
+  function fitCardSpread() {
+    const story = cardEls.story.image;
+    const doom = cardEls.doom.image;
+    if (cardEls.story.button.hidden || cardEls.doom.button.hidden || !story.naturalHeight || !doom.naturalHeight) return;
+    // 不同循环卡图比例略有不同，按比例分配宽度，让两张完整图片等高、无缝相接。
+    document.querySelector('.card-spread').style.gridTemplateColumns = `minmax(0, ${story.naturalWidth / story.naturalHeight}fr) minmax(0, ${doom.naturalWidth / doom.naturalHeight}fr)`;
+  }
+
+  function renderCards(index) {
+    const view = window.ATO_BRIEFING_CORE.cardStateAt(state.days, index);
+    ['story', 'doom'].forEach((kind) => {
+      const nodes = cardEls[kind];
+      const track = view.cards && view.cards[kind];
+      const label = kind === 'story' ? '故事卡' : '灾祸卡';
+      const card = track && track.card;
+      nodes.summary.textContent = track && track.known
+        ? `${track.preview ? '未开始 · 下张 ' : ''}${card ? card.label : '—'} / ${track.total || '—'}` : '无卡片记录';
+      nodes.name.textContent = card ? card.name : '';
+      nodes.note.textContent = track && track.known ? cardCounts(kind, track) : '';
+      if (view.gap) nodes.note.textContent += `${nodes.note.textContent ? ' · ' : ''}${view.sourceDay ? `沿用${view.sourceDay}备份` : '此前没有备份'}`;
+      nodes.button.hidden = true;
+      nodes.empty.hidden = false;
+      nodes.empty.textContent = track && track.known ? '没有对应卡面。' : `这份备份没有${label}记录。`;
+      if (!card || !card.image) return;
+      nodes.side.textContent = `${track.preview ? '下张预览 · ' : ''}${card.label}`;
+      nodes.progress.textContent = cardCounts(kind, track);
+      nodes.image.alt = `${label} ${card.label} · ${card.name}`;
+      nodes.image.onload = () => {
+        nodes.button.hidden = false;
+        nodes.empty.hidden = true;
+        fitCardSpread();
+      };
+      nodes.image.onerror = () => {
+        nodes.button.hidden = true;
+        nodes.empty.hidden = false;
+        nodes.empty.textContent = `${card.label} · ${card.name}\n本地卡图尚未安装。`;
+      };
+      nodes.empty.textContent = '正在读取卡图…';
+      nodes.image.src = `../${card.image.replace(/^\.\//, '')}`;
+      if (nodes.image.complete && nodes.image.naturalWidth) {
+        nodes.button.hidden = false;
+        nodes.empty.hidden = true;
+        fitCardSpread();
+      }
+    });
+  }
+
+  ['story', 'doom'].forEach((kind) => {
+    cardEls[kind].button.addEventListener('click', () => {
+      stopPlay();
+      const nodes = cardEls[kind];
+      document.getElementById('cardPreviewTitle').textContent = `${kind === 'story' ? '故事卡' : '灾祸卡'} · ${nodes.side.textContent}`;
+      document.getElementById('cardPreviewProgress').textContent = nodes.note.textContent;
+      const image = document.getElementById('cardPreviewImage');
+      image.src = nodes.image.src;
+      image.alt = nodes.image.alt;
+      cardPreview.showModal();
+    });
+  });
+  document.getElementById('cardPreviewClose').addEventListener('click', () => cardPreview.close());
+  cardPreview.addEventListener('click', (event) => {
+    if (event.target !== cardPreview) return;
+    const bounds = cardPreview.getBoundingClientRect();
+    if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) cardPreview.close();
+  });
 
   function techLabel(key) {
     const records = (state.payload.tech.unlocked || []).filter((record) => record.key === key);
@@ -493,6 +636,13 @@
   }
 
   // ---------- 事件 ----------
+  document.querySelectorAll('[data-zoom]').forEach((button) => button.addEventListener('click', () => {
+    const renderer = state[button.dataset.zoom];
+    if (!renderer) return;
+    if (button.dataset.fit) renderer.fitView();
+    else renderer.setZoom(renderer.zoom() + Number(button.dataset.step));
+    updateZoomLabels();
+  }));
 
   els.cycleSelect.addEventListener('change', () => {
     load(els.cycleSelect.value);
@@ -522,6 +672,7 @@
     const observer = new ResizeObserver(() => {
       state.map && state.map.resize();
       state.tech && state.tech.resize();
+      updateZoomLabels();
       if (state.days.length && !els.briefingBody.hidden) highlightLog(state.index);
     });
     observer.observe(els.mapCanvas);
@@ -530,6 +681,7 @@
     window.addEventListener('resize', () => {
       state.map && state.map.resize();
       state.tech && state.tech.resize();
+      updateZoomLabels();
       if (state.days.length && !els.briefingBody.hidden) highlightLog(state.index);
     });
   }

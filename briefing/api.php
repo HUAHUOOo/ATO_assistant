@@ -7,7 +7,8 @@ declare(strict_types=1);
 // 当天的存档整份复制到 data/backups/<账号>/daily/<profile>/<cycle>/day-<天数>/。这里把
 // 每一天的最新一份快照当作「那天的结束状态」，相邻两天相减就得到当天发生的事（新翻开的
 // 板块、新点亮的科技、故事/定数推进、英雄增减……），前端再按这条日期轴同步回放地图与
-// 科技树。存档里没有的东西（装备库存、资源收支只存在于浏览器本地）不在这里编造。
+// 科技树。装备库存与资源收支保存在存档的 record 模块里（科技页负责读写），简报目前还没有
+// 为它们做差分展示，所以不在这里编造。
 //
 // 这个接口只做 GET，只读 data/ 与几个数据文件，绝不改动存档。
 
@@ -184,6 +185,46 @@ function extract_snapshot(array $campaign, string $cycleId): array {
   $scalar = static function ($value): string {
     return is_scalar($value) ? (string) $value : '';
   };
+  // 保留备份中的版本信息，由简报使用主控台同一份 A/B 卡面字典解释旧版位置。
+  // 缺少卡片记录时返回 null，不能把今天的进展补进历史备份。
+  $cardTracks = null;
+  if (is_array($state['cardTracks'] ?? null)) {
+    $cardTracks = [];
+    foreach (['story', 'doom', 'inwardOdyssey'] as $kind) {
+      if (!is_array($state['cardTracks'][$kind] ?? null)) continue;
+      $cardTracks[$kind] = [];
+      foreach (['position', 'progress', 'doom'] as $field) {
+        $value = $state['cardTracks'][$kind][$field] ?? null;
+        if (is_scalar($value)) $cardTracks[$kind][$field] = $value;
+      }
+    }
+    // 空对象在 JSON 里仍然是对象，方便客户端识别旧版 cardTracks 的存在。
+    if (!$cardTracks) $cardTracks = (object) [];
+  }
+  $cardCounters = null;
+  if (is_array($state['cardCounters'] ?? null)) {
+    $cardCounters = [];
+    foreach (['story', 'doom', 'storyCount', 'doomCount', 'inwardOdyssey', 'inwardOdysseyCount'] as $field) {
+      $value = $state['cardCounters'][$field] ?? null;
+      if (is_scalar($value)) $cardCounters[$field] = $value;
+    }
+    if (!$cardCounters) $cardCounters = (object) [];
+  }
+
+  $adventureHubs = null;
+  if (is_array($state['surveyConstants'] ?? null)) {
+    $checked = [];
+    foreach ((array) ($state['surveyConstants']['hubs'] ?? []) as $hubId => $boxes) {
+      if (!is_array($boxes)) continue;
+      $checked[$hubId] = array_map('strval', array_keys(array_filter($boxes, static fn($value) => is_scalar($value) && (bool) $value)));
+    }
+    $active = $state['surveyConstants']['activeHub'] ?? [];
+    $adventureHubs = [
+      'checked' => $checked ?: (object) [],
+      'activeHub' => is_array($active) ? $scalar($active['itemId'] ?? null) : '',
+      'activeBox' => is_array($active) ? $scalar($active['boxId'] ?? null) : '',
+    ];
+  }
 
   return [
     'day' => $scalar($state['day'] ?? null),
@@ -196,6 +237,10 @@ function extract_snapshot(array $campaign, string $cycleId): array {
     'surveyActive' => $scalar($state['specialEventConstantsActive'] ?? null),
     'pharosActive' => $scalar($state['pharosDreamsActive'] ?? null),
     'mainStoryActive' => $scalar($state['mainStoryConstantsActive'] ?? null),
+    'cardTracks' => $cardTracks,
+    'cardTracksVersion' => is_scalar($state['cardTracksVersion'] ?? null) ? (int) $state['cardTracksVersion'] : null,
+    'cardCounters' => $cardCounters,
+    'adventureHubs' => $adventureHubs,
     'map' => [
       'explored' => $explored,
       'currentTileId' => $scalar($map['currentTileId'] ?? null),
@@ -719,6 +764,10 @@ foreach ($sequence as $index => $day) {
     'surveyActive' => $snapshot['surveyActive'],
     'pharosActive' => $snapshot['pharosActive'],
     'mainStoryActive' => $snapshot['mainStoryActive'],
+    'cardTracks' => $snapshot['cardTracks'],
+    'cardTracksVersion' => $snapshot['cardTracksVersion'],
+    'cardCounters' => $snapshot['cardCounters'],
+    'adventureHubs' => $snapshot['adventureHubs'],
     'story' => $snapshot['story'],
     'heroes' => $snapshot['heroes'],
     'map' => [

@@ -8,8 +8,7 @@
 
   const STATE_CLASSES = ['new', 'current'];
   // 简报自己的板块显示尺寸（像素）。map-data.js 里 tileWidth 是 1，那是 TTS 的坐标单位，
-  // 直接拿来当 CSS 尺寸会得到 1px 的板块；简报不做缩放交互，一律按这个固定尺寸画，
-  // 再由下面的 fit() 把整幅地图等比缩放到画布内。
+  // 直接拿来当 CSS 尺寸会得到 1px 的板块；先按固定尺寸画，再由缩放按钮调节。
   const TILE_PX = 72;
   const EMPTY_MARKERS = { tokens: [], edges: [] };
 
@@ -130,15 +129,20 @@
 
     // 板块按固定像素尺寸画，不过度缩放：缩得太多会把板块文字和图糊掉。画布装不下时
     // 由外层滚动（与科技树面板一致），只在明显超出时才等比缩一点。
-    let scale = 1;
+    let scale = 1.2;
+    let overview = false;
+    let focusPoint = null;
     function fit() {
       const availableWidth = canvas.clientWidth - 16;
       const availableHeight = canvas.clientHeight - 16;
       if (availableWidth <= 40 || availableHeight <= 40) return;
-      scale = Math.min(1, Math.max(availableWidth / totalWidth, availableHeight / totalHeight));
-      stage.style.width = `${totalWidth}px`;
-      stage.style.height = `${totalHeight}px`;
+      if (overview) scale = Math.min(1.2, availableWidth / totalWidth, availableHeight / totalHeight);
+      stage.style.left = `${overview ? 0 : canvas.clientWidth / 2}px`;
+      stage.style.top = `${overview ? 0 : canvas.clientHeight / 2}px`;
+      stage.style.width = `${totalWidth + (overview ? 0 : canvas.clientWidth / (2 * scale))}px`;
+      stage.style.height = `${totalHeight + (overview ? 0 : canvas.clientHeight / (2 * scale))}px`;
       stage.style.transform = `scale(${scale})`;
+      if (!overview) window.ATO_BRIEFING_CORE?.focusViewport(canvas, focusPoint, scale, true);
     }
 
     const nodes = new Map();
@@ -209,11 +213,17 @@
           .map((tokenId) => `<span>${escapeText(markerLabel(tokenId))}</span>`).join('');
       });
 
+      const latest = String(day.map?.latestRevealedTileId || '');
+      const target = (fresh.has(latest) && latest) || [...fresh].reverse().find((id) => visible.has(id)) || (visible.has(current) && current) || [...visible].pop();
+      const position = positions.get(target);
+      focusPoint = position ? { x: position.x + tileWidth / 2, y: position.y + tileWidth / 2 } : null;
       fit();
       return { visible: visible.size };
     }
 
     function resize() { fit(); }
+    function setZoom(value) { overview = false; scale = Math.max(0.4, Math.min(3, value)); fit(); }
+    function fitView() { overview = true; fit(); }
 
     // 导出（GIF/PDF）要按屏幕上同一套坐标重画一遍，所以把几何与板块表一起交出去：
     // 导出模块自己再算一遍位置，迟早会和页面上的地图对不上。
@@ -230,7 +240,7 @@
       return tileIds.map((id) => tilesById.get(String(id)) || { id: String(id), label: String(id), front: '' });
     }
 
-    return { render, resize, unplaced, geometry, tiles };
+    return { render, resize, unplaced, geometry, tiles, setZoom, fitView, zoom: () => scale };
   }
 
   // 图标节点：与地图页同样的类名（.map-token / .map-edge-token），位置交给 CSS。
