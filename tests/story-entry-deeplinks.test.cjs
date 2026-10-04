@@ -18,7 +18,8 @@ const htmlSource = fs.readFileSync(path.join(root, 'index.html'), 'utf8').replac
 
 // 故事书数据里确实还不存在的段号：主控台表里填了，但故事书没有这条。
 // 修好数据（或改正段号）以后这个清单必须清空，测试会提醒。
-const knownMissingStoryEntries = ['c5 主线 4104', 'c5 主线 6118'];
+// 2026-10-04：c5 换成更正后的正文，4104 / 6118 两条段号已按主控台表补齐，清单清空。
+const knownMissingStoryEntries = [];
 
 function extractFunction(name) {
   const match = appSource.match(new RegExp('^( *)(?:async )?function ' + name + '\\([^]*?^\\1}', 'm'));

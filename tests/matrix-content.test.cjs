@@ -53,11 +53,35 @@ test('X10、BB2、DD1 的来源支持 T/L 菜单，普通格保持普通标记',
   assert.equal(modes.A1, undefined);
   // BB6 的同一来源段落还标记 BB8 为 L，不能把 BB8 的字母给 BB6。
   assert.deepEqual(modes.BB6, ['circle']);
+  // BB9 是「将BB9标记为L，但圈起来」——圈的是本格，存档里就是 circleL。
+  assert.ok(modes.BB9.includes('circle'), 'BB9: missing circle');
+  // 反过来，0063 那段的圈是 BB6 的，不能因为同一条注记也标记 BB8 就给 BB8 加圈出。
+  assert.ok(!modes.BB8.includes('circle'), 'BB8: 圈出来自别的格子');
+  // W11 的第三取值是 N（「将W11标为N（N？没错）」），不能只留 T/L。
+  assert.ok(modes.W11.includes('N'), 'W11: missing N');
   assert.deepEqual(cellModes({ X10: ['将X10标记改为T'] }).X10, ['T', 'L']);
   assert.deepEqual(cellModes({ DD1: ['标记 DD1。用 T 标记；用 L 标记'] }).DD1, ['T', 'L']);
+  assert.deepEqual(cellModes({ X10: ['将X10标注为N'] }).X10, ['N']);
+  assert.deepEqual(cellModes({ W11: ['将 W11 标记为 L（另一选项：让花园保持原样、远离凡人，则标记为 N）'] }).W11, ['L', 'N', 'T']);
+  assert.deepEqual(
+    cellModes({ BB8: ['C5 | 不惜一切代价 (Whatever the Cost) > 0063 line 70: 现在，你站在墙壁永恒的光芒中，沉浸在这一刻 / 圈出抉择矩阵 (Matrix) 代码BB6。将BB8标记为L'] }).BB8,
+    ['L', 'T'],
+  );
+  assert.deepEqual(
+    cellModes({ BB9: ['C5 | 血肉之躯的软弱 (THE FLESH IS WEAK) > 0015 line 22: 你们不知道西狄佩还有其他孩子 / 将BB9标记为L，但圈起来'] }).BB9,
+    ['L', 'circle', 'T'],
+  );
 });
 
 const storybookPath = path.join(__dirname, '..', 'story/data/storybook-data.js');
+
+// 正文里的矩阵赋值有几种写法：
+//   「将 X10 标记为 T」「将R10标注为T」「将W11标为L」（更正后的译文大量改用「标注为／标为」），
+//   以及「标记 BB2：……标记为 T；……标记为 L」这种先点名格号、再逐支给字母的写法。
+// 取值除 T／L 外还有 N（W11 的另一支），但记录表菜单只有 T/L/圈出/划掉，所以 N 只校验来源注记。
+const MATRIX_CODE = /^(?:[A-Z]|AA|BB|CC|DD|EE|FF)(?:[1-9]|1[0-2])$/;
+const MATRIX_MARK = /([A-Z]{1,2}\s*\d{1,2})\s*(?:标记|标注|标)(?:改|作|记)?为\s*([TLN])\b|(?:标记|标注)\s*([A-Z]{1,2}\s*\d{1,2})[^。\n]{0,40}?(?:标记|标注|标)(?:改|作|记)?为\s*([TLN])\b/g;
+
 test('故事书正文中的字母标记均有对应菜单，遗漏格的来源指向可核验', {
   skip: !fs.existsSync(storybookPath) && '本地故事书数据未安装',
 }, () => {
@@ -69,9 +93,15 @@ test('故事书正文中的字母标记均有对应菜单，遗漏格的来源�
   let checked = 0;
   for (const book of books) {
     for (const entry of book.entries) {
-      for (const match of entry.text.matchAll(/([A-Z]{1,2}\s*\d{1,2})\s*标记(?:改)?为\s*([TL])\b/g)) {
-        const code = match[1].replace(/\s/g, '');
-        assert.ok(modes[code]?.includes(match[2]), `${book.id}/${entry.chapterKey}/${entry.id}: ${code} ${match[2]}`);
+      for (const match of entry.text.matchAll(MATRIX_MARK)) {
+        const code = (match[1] || match[3]).replace(/\s/g, '');
+        const letter = match[2] || match[4];
+        if (!MATRIX_CODE.test(code)) continue;
+        if (letter === 'N') {
+          assert.ok(notes[code]?.length, `${book.id}/${entry.chapterKey}/${entry.id}: ${code} 标为 N，但注记里没有这一格`);
+        } else {
+          assert.ok(modes[code]?.includes(letter), `${book.id}/${entry.chapterKey}/${entry.id}: ${code} ${letter}`);
+        }
         checked++;
       }
     }
@@ -79,7 +109,8 @@ test('故事书正文中的字母标记均有对应菜单，遗漏格的来源�
   assert.ok(checked > 50, '应核对整本故事书而非仅个别段落');
   for (const [code, chapterKey, entryId, evidence] of [
     ['X10', 'hub-04-the-greater-good', '0001', /将X10标记改为T/],
-    ['BB2', 'hub-03-the-one-you-dont', '0072', /标记 BB2。.*标记为 T.*标记为 L/],
+    ['BB2', 'hub-03-the-one-you-dont', '0072', /标记 BB2[：:][\s\S]*标记为 T[\s\S]*标记为 L/],
+    ['T11', 'mnemos-breakthroughs', 'M026', /将T11标注为L/],
     ['DD1', 'main', '0022', /标记 DD1。.*用 T 标记.*用 L 标记/],
   ]) {
     const entry = books.find(book => book.id === 'c5').entries.find(entry => entry.chapterKey === chapterKey && entry.id === entryId);
