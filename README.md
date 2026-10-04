@@ -91,6 +91,8 @@ docker compose pull
 docker compose up -d
 ~~~
 
+新增素材挂载还需要同步新版 `compose.yaml`（旧版工具同步 `compose.legacy.yaml`）：`pull` 只更新镜像，不会更新宿主机上的 Compose 文件。例如界面图标必须有 `./app/assets/icons:/app/assets/icons:ro` 这一条；更新配置后执行 `up -d` 重建容器，将图标放到 `app/assets/icons/`。
+
 compose 里的 `pull_policy` 是 `always`：镜像标签 `latest` 会移动，用默认的 `missing` 时 `docker compose pull` 可能认为「本地已有同名镜像」而什么都不拉，更新看起来成功、实际还在跑旧版。代价是 GHCR 不可达时手动 `docker compose up -d` 会报错（已经在跑的容器不受影响）；想固定版本可以在安装目录建一个 `.env`，写上 `ATO_VERSION=1.3.1` 这样的具体版本号。
 
 ### 旧版 docker-compose（含 32 位系统）
@@ -128,6 +130,8 @@ data/ 和 app/ 下的本地素材目录会挂载到容器，拉取新镜像不�
 | 决战版图底图 | `app/ss/battle-board.jpg`（单文件挂载；v2 配置缺文件会报错，v1 兼容配置需提前创建文件） |
 | 第二屏地形图 / 地形卡 | `app/ss/terrain/`、`app/ss/terrain-cards/` |
 | 主控台背景音乐 | `app/assets/bgm/audio/`（`.mp3` / `.ogg`，文件名见 [bgm 说明](assets/bgm/README.md)） |
+| 主控台界面图标 | `app/assets/icons/`（资料包提供的 SVG 图标；只读挂载） |
+| 循环标记 / 探索卡 / 故事与厄运卡 | `app/assets/cycle-symbols/`、`app/assets/exploration-cards/`、`app/assets/story-doom-cards/` |
 | 其它本地图片 | `app/map/images/`、`app/technology/images/`、`app/story/images/` 等（见 `compose.yaml`） |
 | 私有故事书数据 | `app/story/data/`（只读挂载） |
 

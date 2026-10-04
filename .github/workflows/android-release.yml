@@ -77,6 +77,9 @@ jobs:
           java-version: "17"
           cache: gradle
 
+      - name: Test Android campaign import
+        run: python tools/test_android_campaign_import.py
+
       - name: Resolve release version
         id: release
         shell: pwsh

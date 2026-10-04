@@ -28,6 +28,7 @@ class DockerLicenseTest(unittest.TestCase):
                 for relative in ("LICENSE", "app/LICENSE"):
                     self.assertEqual(archive.read(prefix + relative).decode("utf-8").replace("\r\n", "\n"), license_text)
                 self.assertIn(prefix + "Dockerfile", archive.namelist())
+                self.assertIn(prefix + "app/assets/icons/", archive.namelist())
 
 
 if __name__ == "__main__":

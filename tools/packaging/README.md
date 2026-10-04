@@ -20,6 +20,11 @@ creates it through its volume/container startup; Android uses app-private storag
 Finished files are written to the repository's untracked `export` directory.
 The directory is created on demand and ignored in its entirety by Git.
 
+Run `python tools/test_android_campaign_import.py` from the repository root to
+compile and test the local campaign API's full and partial imports, conflicts,
+backups and profile buckets without an Android SDK. It uses the cached JDK
+(downloads one if needed) and a pinned JSON test dependency.
+
 `../release_android.ps1 -Version 1.2.0` audits and builds a local APK. Add
 `-Publish` to create or update `v1.2.0` with GitHub CLI. The APK is the only
 asset attached to a release; no checksum sidecar is published. A

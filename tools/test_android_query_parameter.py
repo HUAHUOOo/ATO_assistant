@@ -66,6 +66,7 @@ ALLOWED = (
     "action=second-screen-mode",
     # 写存档的 action / 按 section 读写的请求（写请求只是换 POST 方法，查询串一样）
     "action=restore-previous-day",
+    "action=import-sections",
     "section=dashboard",
     "section=map&foo=1",
     "section=",
