@@ -140,6 +140,28 @@ PDF 必须带有可提取的文字层。扫描图片型 PDF 不支持 OCR；检�
 `assets/icons/manifest.json` 是本地清单（记录每个字形的来源与当前引用位置），**不进包**：
 收集器只认 `.svg`，名字不合规或不是 SVG 的文件一律静默跳过。
 
+## 密语字形（story/assets/cryptic/glyphs）
+
+故事书侧栏「密语记录」里的巴别语与塞壬语字形同样不进程序包：它们是第三方参考素材
+（来源与许可见 `story/assets/cryptic/NOTICE.md`），便携版、Docker 镜像和 APK 都不带
+（`.gitignore` 的 `*.png`；`story/assets/cryptic/glyph-catalog.js` 这类程序代码照旧随源码发布）。
+素材库按资料包分发它们，口径与 BGM / 界面图标完全一致：
+
+1. 清单里的“密语字形 / 巴别语／塞壬语”下登记了 84 张字形（58 张巴别语 + 26 张塞壬语，
+   标为“无需拍摄”，不会进入待拍摄统计）。文件名取自随源码发布的 `glyph-catalog.js`，
+   所以干净检出（没有 PNG）也能生成同一份清单。
+2. 导出 `.atopack` 时勾选“包含密语字形”，`story/assets/cryptic/glyphs/*.png` 会原样写入包内的
+   `crypticFiles` 段；工程目录没有字形时退回素材库里已导入的副本。该段是附加字段，
+   不改变资料包版本号，旧版本读取方会直接忽略。
+3. 导入资料包时字形存进素材库的 `sources/cryptic/`，再由“预览自动安装／安装”落回
+   ATO_assistant 的 `story/assets/cryptic/glyphs/`。
+4. Android 端在“从 .atopack 导入资源”时会把这些字形解包到 Web 根目录的
+   `story/assets/cryptic/glyphs/`（上限 256 张、单张 128KB），故事页按
+   `./assets/cryptic/glyphs/<名称>.png`（相对 `story/index.html`）取用。
+
+收集器只认 `glyphs/` 目录下 `.png` 结尾且名字合规的文件；同目录里的清单文件、带空格或
+大写扩展名的文件一律静默跳过，不会让导出失败。
+
 ## 与朋友分享
 
 `.atopack` 包含所选卡图、清单映射、完成状态、文件哈希、校对后的结构化故事和人物小传索引；

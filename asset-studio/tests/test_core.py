@@ -224,8 +224,10 @@ class CoreTests(unittest.TestCase):
         result = ensure_fixed_catalog(empty)
         payload = fixed_catalog_payload()
         # 2742 项固定素材（含自定义 Token 和特性卡底，不含旧科技树底图）+ 19 首主控台 BGM
-        # （登记为「无需拍摄」，见 test_bgm_resources）。
-        self.assertEqual(2761, result["items"])
+        # + 84 张密语字形（巴别语 58 + 塞壬语 26）+ 8 张 C5 战斗版图
+        # - 12 页已删除的 C5 战斗原页（174-185，改用版图块），后三类都登记为「无需拍摄」
+        # （见 test_bgm_resources / test_cryptic_resources / test_c5_battle_boards）。
+        self.assertEqual(2841, result["items"])
         self.assertEqual(19, result["aibp_enemies"])
         self.assertEqual({"c1", "c1.5", "c2", "c2.5", "c3", "c4", "c5"}, {book["id"] for book in payload["source"]["stories"]})
         self.assertNotIn("apk", payload["source"])
@@ -255,8 +257,17 @@ class CoreTests(unittest.TestCase):
             },
             {item["faces"]["front"] for item in hero_icons},
         )
-        self.assertEqual(46, len([item for item in payload["items"] if item["module"] == "故事书配图"]))
-        self.assertEqual(33, len([item for item in payload["items"] if item["module"] == "故事书补充页"]))
+        # 故事书配图：c1 8 + c2 23 + c3 6 + c4 7 + c5 8 张战斗版图 + c1.5/c2.5 各 1 = 54 条，
+        # 其中 c5 的 8 张标记为「无需拍摄」（本机裁好的成品素材，随 .atopack 分发）。
+        self.assertEqual(54, len([item for item in payload["items"] if item["module"] == "故事书配图"]))
+        c5_boards = [
+            item for item in payload["items"]
+            if item["module"] == "故事书配图" and item["cycle"] == "c5"
+        ]
+        self.assertEqual(8, len(c5_boards))
+        self.assertTrue(all(not item["capture_required"] for item in c5_boards))
+        # C5 补充页扫描只剩 153-173：174-185 是六场战斗的原页，已由版图块取代并删除。
+        self.assertEqual(21, len([item for item in payload["items"] if item["module"] == "故事书补充页"]))
         self.assertFalse(any(item["module"] == "科技树总览" for item in payload["items"]))
         self.assertEqual(17, len([item for item in payload["items"] if item["module"] == "泰坦职业配图"]))
         self.assertEqual(2, len([item for item in payload["items"] if item["module"] == "地图模块图标"]))
@@ -269,12 +280,21 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(45, len(terrain_cards))
         self.assertTrue(any(item["number"] == "CJ1475" for item in payload["items"]))
         fixed_paths = {path for item in payload["items"] for path in item["faces"].values()}
-        # 4264 张固定素材（含自定义 Token 和特性卡底，不含旧科技树底图）+ 19 首主控台 BGM
-        # （音频不进图片清单，随 bgmFiles 段分发）。
+        # 4231 张固定素材（含自定义 Token 和特性卡底，不含旧科技树底图）
+        # + 84 张密语字形（随 crypticFiles 段分发）
+        # + 19 首主控台 BGM（随 bgmFiles 段分发）
+        # + 8 张 C5 战斗版图 + 21 页 C5 补充页扫描（都随 .atopack 的图片清单分发，
+        #   六场战斗的原页 174-185 已删除）
         bgm_paths = {path for path in fixed_paths if path.startswith("assets/bgm/")}
-        self.assertEqual(4264, len(fixed_paths - bgm_paths))
+        cryptic_paths = {path for path in fixed_paths if path.startswith("story/assets/cryptic/glyphs/")}
+        c5_paths = {path for path in fixed_paths if path.startswith("story/images/c5/")}
+        c5_boards = {path for path in fixed_paths if path.startswith("story/images/battles/c5/")}
+        self.assertEqual(4231, len(fixed_paths - bgm_paths - cryptic_paths - c5_paths - c5_boards))
         self.assertEqual(19, len(bgm_paths))
-        self.assertEqual(4283, len(fixed_paths))
+        self.assertEqual(84, len(cryptic_paths))
+        self.assertEqual(8, len(c5_boards))
+        self.assertEqual(21, len(c5_paths))
+        self.assertEqual(4363, len(fixed_paths))
         self.assertFalse(any(path.startswith("technology/images/tech_tree_pages/") for path in fixed_paths))
         self.assertIn("map/images/c5-face-a.png", fixed_paths)
         self.assertIn("map/images/c5-face-b.png", fixed_paths)

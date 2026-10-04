@@ -13,6 +13,7 @@ from typing import Callable
 
 from .official_resources import LIBRARY, collect
 from .bgm_resources import collect_library as collect_bgm_library
+from .cryptic_resources import collect_library as collect_cryptic_library
 from .icon_resources import collect_library as collect_icon_library
 from .db import Database
 from .storage import sha256_file, write_compatible_image
@@ -38,6 +39,10 @@ INSTALL_AUDIO_PREFIX = "assets/bgm/"
 # 主控台界面图标：同样由使用者自备，随资料包的 iconFiles 段分发（见 icon_resources.py）。
 INSTALL_ICON_SUFFIXES = frozenset({".svg"})
 INSTALL_ICON_PREFIX = "assets/icons/"
+# 密语字形（巴别语／塞壬语）：同样由使用者自备，随资料包的 crypticFiles 段分发
+# （见 cryptic_resources.py）。它落在 story/ 树里，所以额外收窄到固定前缀。
+INSTALL_CRYPTIC_SUFFIXES = frozenset({".png"})
+INSTALL_CRYPTIC_PREFIX = "story/assets/cryptic/glyphs/"
 # 二进制素材：运行时脚本按固定路径取用的封装数据（不是图片也不是音频）。只允许落在
 # 这个前缀下，且必须与 tools/build_fan_pack.py 的同名规则保持一致。
 INSTALL_DATA_SUFFIXES = frozenset({".bin"})
@@ -98,6 +103,10 @@ def installable_relative(relative: str) -> str:
     if suffix in INSTALL_ICON_SUFFIXES:
         if not relative.startswith(INSTALL_ICON_PREFIX):
             raise ValueError(f"界面图标只能安装到 {INSTALL_ICON_PREFIX}：{relative}")
+        return relative
+    if suffix in INSTALL_CRYPTIC_SUFFIXES and relative.startswith(INSTALL_CRYPTIC_PREFIX):
+        # 密语字形（crypticFiles 段）落回工程目录；story/ 下别的 PNG 目标仍按通用图片规则处理
+        # （内置清单里本来就有 story/images/OO/*.png 这类条目，这里不能收窄）。
         return relative
     if suffix in INSTALL_DATA_SUFFIXES:
         if not relative.startswith(INSTALL_DATA_PREFIX):
@@ -415,6 +424,15 @@ def install_plan(db: Database, library: Path, root: Path, replace_books: set[str
             raise ValueError(f"目标位置已存在同名文件夹，无法安装：{relative}")
         status = "add" if not destination.exists() else ("same" if sha256_file(destination) == sha256_file(source) else "replace")
         add_file({"item_id": "icons", "name": f"界面图标：{PurePosixPath(relative).name}", "face": "icon",
+                  "source": source.relative_to(library).as_posix(), "target": relative,
+                  "status": status, "direct_copy": True},
+                 lambda source=source: sha256_file(source))
+    for relative, source in collect_cryptic_library(library):
+        destination = safe_target(root, relative)
+        if destination.exists() and not destination.is_file():
+            raise ValueError(f"目标位置已存在同名文件夹，无法安装：{relative}")
+        status = "add" if not destination.exists() else ("same" if sha256_file(destination) == sha256_file(source) else "replace")
+        add_file({"item_id": "cryptic", "name": f"密语字形：{PurePosixPath(relative).name}", "face": "glyph",
                   "source": source.relative_to(library).as_posix(), "target": relative,
                   "status": status, "direct_copy": True},
                  lambda source=source: sha256_file(source))

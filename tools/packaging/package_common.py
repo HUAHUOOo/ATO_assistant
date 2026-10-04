@@ -72,6 +72,16 @@ BGM_MEDIA_SUFFIXES = (
 # （BGM 那边还有 bgm.js / manifest.js 要留着），所以连清单一起整目录排除。
 ICON_MEDIA_DIR = "assets/icons"
 
+# 密语字形（巴别语／塞壬语）：同样是使用者自备的素材，通过 asset-studio 的资料包
+# （crypticFiles 段）分发，不进便携版 / Docker / APK。目录里的 glyph-catalog.js 是程序代码、
+# 随源码发布，所以这里只按后缀封杀 PNG，不整目录排除（与 ICON_MEDIA_DIR 的处理不同）。
+CRYPTIC_MEDIA_DIR = "story/assets/cryptic/glyphs"
+CRYPTIC_MEDIA_SUFFIXES = (".png",)
+
+# C5 补充页扫描：只作为资料包的图片素材分发（asset-studio 的固定清单已登记），
+# 不进便携版 / Docker / APK；六个战斗的原页 174-185 已由裁好的版图取代并删除。
+C5_SUPPLEMENT_PAGES_DIR = "story/images/c5/supplement-pages"
+
 LICENSE_FILENAME = "LICENSE"
 LICENSE_MARKERS = (
     "PolyForm Noncommercial License 1.0.0",
@@ -92,6 +102,21 @@ def is_icon_media(relative: Path) -> bool:
     """assets/icons/ 下的字形（含清单）：整目录都由资料包通道分发。"""
     parts = [part.lower() for part in relative.parts]
     return len(parts) >= 2 and parts[0] == "assets" and parts[1] == "icons"
+
+
+def is_cryptic_media(relative: Path) -> bool:
+    """story/assets/cryptic/glyphs/ 下的字形 PNG：由资料包通道分发（同目录的 .js 是源码）。"""
+    relative_lower = Path(*[part.lower() for part in relative.parts])
+    return (
+        relative_lower.suffix.lower() in CRYPTIC_MEDIA_SUFFIXES
+        and relative_lower.parent.as_posix() == CRYPTIC_MEDIA_DIR
+    )
+
+
+def is_c5_supplement_page(relative: Path) -> bool:
+    """story/images/c5/supplement-pages/ 下的整页扫描：只走资料包，不进程序包。"""
+    relative_lower = Path(*[part.lower() for part in relative.parts])
+    return relative_lower.parent.as_posix() == C5_SUPPLEMENT_PAGES_DIR
 
 
 def version_text(value: str | None) -> str:
@@ -115,6 +140,10 @@ def excluded(relative: Path) -> bool:
     if is_bgm_media(relative):
         return True
     if is_icon_media(relative):
+        return True
+    if is_cryptic_media(relative):
+        return True
+    if is_c5_supplement_page(relative):
         return True
     leaf = parts[-1]
     if leaf in BLOCKED_LEAVES:
@@ -210,6 +239,10 @@ def audit_export_tree(root: Path) -> None:
             raise RuntimeError(f"导出内容包含本地图标提取工作区：{relative}")
         if is_icon_media(relative):
             raise RuntimeError(f"导出内容包含本地界面图标（应由 .atopack 分发）：{relative}")
+        if is_cryptic_media(relative):
+            raise RuntimeError(f"导出内容包含本地密语字形（应由 .atopack 分发）：{relative}")
+        if is_c5_supplement_page(relative):
+            raise RuntimeError(f"导出内容包含 C5 补充页扫描（应由 .atopack 分发）：{relative}")
         if parts[-1] in LOCAL_SCRATCH_LEAVES:
             raise RuntimeError(f"导出内容包含本地临时文件：{relative}")
         if parts[-1].startswith('.ato-update-'):

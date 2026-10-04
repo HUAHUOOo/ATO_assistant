@@ -37,6 +37,8 @@ final class AtopackStore {
   private static final int MAX_BGM_FILES = 128;
   private static final long MAX_ICON_BYTES = 1024L * 1024;
   private static final int MAX_ICON_FILES = 256;
+  private static final long MAX_CRYPTIC_BYTES = 128L * 1024;
+  private static final int MAX_CRYPTIC_FILES = 256;
   private static final int MAX_ASSETS = 20_000;
   private static final String WEB_PREFIX = "/android_asset/web/";
   // 二进制素材（不是图片）只允许落在这个前缀下，与 tools/build_fan_pack.py、
@@ -257,6 +259,39 @@ final class AtopackStore {
           if (!target.equals(resource.optString("member"))) { stats.skipped++; continue; }
           ZipArchiveEntry entry = archive.getEntry(target);
           if (entry == null || entry.isDirectory() || entry.getSize() < 0 || entry.getSize() > MAX_ICON_BYTES) {
+            stats.skipped++;
+            continue;
+          }
+          if (resource.has("bytes") && resource.optLong("bytes", -1) != entry.getSize()) {
+            stats.skipped++;
+            continue;
+          }
+          try { installBlob(archive, entry, sha256); }
+          catch (InvalidPackEntry invalid) { stats.skipped++; continue; }
+          next.put(target, new ResourceEntry(sha256, safeMime(resource.optString("mimeType"), target)));
+        }
+      }
+      // 密语字形：APK 不带巴别语／塞壬语字形，随资料包的 crypticFiles 段解包到 web 根目录的
+      // story/assets/cryptic/glyphs/，故事书侧栏按相对路径 ./assets/cryptic/glyphs/<名称>.png 取用。
+      JSONArray crypticFiles = manifest.optJSONArray("crypticFiles");
+      if (crypticFiles != null) {
+        if (crypticFiles.length() > MAX_CRYPTIC_FILES) throw new IOException("密语字形数量超过限制");
+        for (int index = 0; index < crypticFiles.length(); index++) {
+          JSONObject resource = crypticFiles.optJSONObject(index);
+          if (resource == null) { stats.skipped++; continue; }
+          String target;
+          String sha256;
+          try {
+            target = safePath(resource.optString("target"), "密语字形路径");
+            sha256 = validSha256(resource.optString("sha256"));
+          } catch (IOException invalid) { stats.skipped++; continue; }
+          if (!target.matches("story/assets/cryptic/glyphs/[A-Za-z0-9][A-Za-z0-9._-]*\\.png")) {
+            stats.skipped++;
+            continue;
+          }
+          if (!target.equals(resource.optString("member"))) { stats.skipped++; continue; }
+          ZipArchiveEntry entry = archive.getEntry(target);
+          if (entry == null || entry.isDirectory() || entry.getSize() < 0 || entry.getSize() > MAX_CRYPTIC_BYTES) {
             stats.skipped++;
             continue;
           }

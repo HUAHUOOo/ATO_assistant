@@ -24,6 +24,8 @@ from .catalog import (
     make_id,
     simple_group_id_number,
 )
+from .cryptic_resources import GLYPH_DIR as CRYPTIC_GLYPH_DIR
+from .cryptic_resources import glyph_names as cryptic_glyph_names
 from .db import Database
 
 
@@ -1261,6 +1263,16 @@ def fixed_catalog_payload() -> dict[str, Any]:
             "the-crash-battle": "坠毁之战",
             "the-winnowing-battle": "扬谷之战",
         },
+        "c5": {
+            "dragon-of-phobos-battle-level-1-2": "深海惧龙之战（等级 1-2）",
+            "dragon-of-phobos-battle-level-3-plus": "深海惧龙之战（等级 3+）",
+            "meduketos-battle": "须目塞特斯之战",
+            "the-devil-himself-battle-level-1-4": "魔鬼本人之战（等级 1-4）",
+            "the-devil-himself-battle-level-5-plus": "魔鬼本人之战（等级 5+）",
+            "thicker-than-water-battle": "血浓于水之战",
+            "harsh-truth-battle": "严酷真相之战",
+            "white-lie-battle": "白色谎言之战",
+        },
     }
     story_battle_paths = {
         "c1": [
@@ -1289,6 +1301,9 @@ def fixed_catalog_payload() -> dict[str, Any]:
             ("hypertime-oracle-battle-2", "超时光先知战斗2.jpg"),
         ],
         "c4": [(stem, f"{stem}.jpg") for stem in story_battle_labels["c4"]],
+        # C5 战斗版图：由 tools/.packing-scratch/c5-boards.py 从补充页扫描裁出，
+        # 不进版本库（.gitignore 的 /story/images/battles/），随 .atopack 的图片清单分发。
+        "c5": [(stem, f"{stem}.jpg") for stem in story_battle_labels["c5"]],
     }
     for cycle, entries in story_battle_paths.items():
         for order, (stem, filename) in enumerate(entries):
@@ -1297,8 +1312,13 @@ def fixed_catalog_payload() -> dict[str, Any]:
                 cycle=cycle, module="故事书配图", subgroup="战斗配图",
                 name=story_battle_labels[cycle][stem], number=stem, sort_order=52_000 + order,
                 faces={"front": f"story/images/battles/{cycle}/{filename}"},
+                # C5 这三张一组的版图不是「拍来的卡面」，而是本机裁好的成品素材，
+                # 不进待拍摄清单（c1-c4 那批是早期逐张导入的，保持原样不动）。
+                capture_required=cycle != "c5",
             ))
-    for page in range(153, 186):
+    # 153-173：其它 C5 补充内容的整页扫描，仍在扫描目录里随 .atopack 分发。
+    # 174-185 是六场战斗的原页，改成上面的版图块后已从 source 里移除，不再登记。
+    for page in list(range(153, 174)):
         additions.append(CatalogItem(
             id=make_id("c5", "故事书补充页", "C5 补充页", str(page), f"第 {page} 页"),
             cycle="c5", module="故事书补充页", subgroup="C5 补充页",
@@ -1374,6 +1394,19 @@ def fixed_catalog_payload() -> dict[str, Any]:
             capture_required=False,
         ))
 
+    # 密语字形（巴别语／塞壬语）：同样不进程序包，由使用者在 story/assets/cryptic/glyphs/
+    # 自备（见 app/cryptic_resources.py 与 story/assets/cryptic/NOTICE.md）。这里只登记条目，
+    # capture_required=False 表示不需要拍摄；字形随 .atopack 的 crypticFiles 段分发。
+    # 文件名取自随源码发布的 glyph-catalog.js（字形本身不在版本库里）。
+    for order, name in enumerate(cryptic_glyph_names()):
+        additions.append(CatalogItem(
+            id=make_id("common", "密语字形", "巴别语／塞壬语", name, name),
+            cycle="common", module="密语字形", subgroup="巴别语／塞壬语",
+            name=name, number=name, sort_order=72_000 + order,
+            faces={"front": f"{CRYPTIC_GLYPH_DIR}/{name}"},
+            capture_required=False,
+        ))
+
     for item in additions:
         if item.id in existing_ids or any(path in existing_paths for path in item.faces.values()):
             continue
@@ -1421,7 +1454,7 @@ def fixed_catalog_payload() -> dict[str, Any]:
         "ATO-Local-0.2.11+complete-import-assets-14-cycle-symbols"
         "+c45-trait-common-tr-002+c2-exploration-13642+remove-unused-c45-conditions"
         "+hypertime-trait-v+ur-fleece-panel-2-remove-trii-002+custom-token-cm+custom-trait-blank"
-        "+remove-tech-tree-backgrounds"
+        "+remove-tech-tree-backgrounds+cryptic-glyph-files+c5-battle-boards"
     )
     return payload
 

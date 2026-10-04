@@ -92,7 +92,19 @@
 /story/c1-battle-images/
 /story/c3-battle-images/
 /story/images/battles/
+# C5 补充页扫描（story/images/c5/supplement-pages/）与战斗版图一样，只作为资料包素材
+# 由 asset-studio 的固定清单分发（见 tools/packaging/package_common.py 的
+# C5_SUPPLEMENT_PAGES_DIR），不进版本库、也不进程序包。
+/story/images/c5/
+# C5 战斗版图（/story/images/battles/c5/）同样不进版本库，随 .atopack 分发；
+# 生成脚本见 tools/.packing-scratch/c5-boards.py（该目录是本机草稿，同样不进版本库）。
+/tools/.packing-scratch/
 /technology/images/
+
+# 巴别语／塞壬语字形（story/assets/cryptic/glyphs/*.png）由上面的 *.png 规则一并挡住：
+# 它们是第三方参考素材，跟 assets/icons/ 的界面图标一样只随 .atopack 的 crypticFiles 段
+# 分发（见 asset-studio/app/cryptic_resources.py）。同目录的 glyph-catalog.js 是程序代码，
+# 必须随源码发布，所以这里**不要**整目录忽略。
 
 # Private campaign/user state and local backups
 /data/

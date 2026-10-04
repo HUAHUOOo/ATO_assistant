@@ -55,6 +55,10 @@ services:
       - ./app/ss/terrain:/app/ss/terrain:ro
       - ./app/ss/terrain-cards:/app/ss/terrain-cards:ro
       - ./app/story/images:/app/story/images
+      # 密语字形（story/assets/cryptic/glyphs/*.png，巴别语／塞壬语）：版权素材，公开镜像
+      # 不含，由资料包的 crypticFiles 段提供，使用者把它们放进宿主机这一目录。
+      # 只挂字形子目录：同级的 glyph-catalog.js / word-data.js 是程序代码，必须由镜像提供。
+      - ./app/story/assets/cryptic/glyphs:/app/story/assets/cryptic/glyphs:ro
       # Keep Storybook data local; it is intentionally absent from the public image.
       # Put the private storybook-data.js in ./app/story/data on the host.
       - ./app/story/data:/app/story/data:ro

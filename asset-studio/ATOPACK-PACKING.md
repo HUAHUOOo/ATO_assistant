@@ -43,12 +43,13 @@ python asset-studio/tools/build_fan_pack.py \
 | 官方版原书截图 | `story/data/ato-storybook-key-scans/*` — 只有 `--include-official-scans` 才进包 |
 | 主控台背景音乐 | `assets/bgm/*.mp3|ogg`（19 首，走 `bgmFiles` 段） |
 | 主控台界面图标 | `assets/icons/*.svg`（字形，走 `iconFiles` 段） |
-| 清单 | 源码里的固定清单 `app/fixed_catalog.py`（2776 个条目 / 4298 个面） |
+| 密语字形 | `story/assets/cryptic/glyphs/*.png`（巴别语 58 + 塞壬语 26，走 `crypticFiles` 段） |
+| 清单 | 源码里的固定清单 `app/fixed_catalog.py`（2776 个条目 / 4298 个面，另加 BGM 与密语字形条目） |
 
 常用参数：`--dry-run`（只统计）、`--library`（兜底）、`--official-assets`（图片优先取
 官中覆盖图，默认不读）、`--include-official-scans`、`--no-official-story`、
-`--no-story-data`、`--no-bgm`、`--no-icons`、`--cycle` / `--module` / `--complete-only`、
-`--verify full`、`--json`。`--complete-only` 不看 BGM 条目。
+`--no-story-data`、`--no-bgm`、`--no-icons`、`--no-cryptic`、`--cycle` / `--module` /
+`--complete-only`、`--verify full`、`--json`。`--complete-only` 不看 BGM 条目。
 
 ## 官方版
 
@@ -101,8 +102,8 @@ python asset-studio/tools/build_official_pack.py \
 ## 包内结构
 
 * `manifest.json`：`items`（2776）、`assets`、`stories`、`storyFiles`（人物小传）、
-  `progress`、`bgmFiles`（19）、`iconFiles`（界面图标）、`resourceFiles`（官方资料）；
-  `build.edition` 标着 `fan` / `official`。
+  `progress`、`bgmFiles`（19）、`iconFiles`（界面图标）、`crypticFiles`（密语字形）、
+  `resourceFiles`（官方资料）；`build.edition` 标着 `fan` / `official`。
 * 图片成员按清单目标保留工程相对路径，解压即可直接拖进项目。
 * 额外多落一份 `story/data/storybook-data.js`、`story/data/entity-index.json`、
   `story/data/entity-index.js`，让"解压 → 拖入"这条流程也能拿到故事数据；
@@ -141,6 +142,11 @@ python asset-studio/tools/build_official_pack.py \
 * **`iconFiles` 段需要支持它的 APK**：主控台界面图标（`assets/icons/*.svg`）走的是
   Android 端 `AtopackStore` 里的同名分支，比它旧的 APK 读不到这一段（会当普通附加字段
   忽略），字形不会解包。桌面侧的素材库导入与安装不受影响。
+* **`crypticFiles` 段同样需要支持它的 APK**：密语字形（`story/assets/cryptic/glyphs/*.png`）
+  由 `AtopackStore` 的同名分支解包到 Web 根目录的 `story/assets/cryptic/glyphs/`
+  （上限 256 张、单张 128KB、只认合规文件名的 `.png`）；旧 APK 会当附加字段忽略，
+  故事侧栏的巴别语／塞壬语键盘就只剩碎图。APK 名单（`assets/atopack-catalog.json`）
+  由 `asset_studio_catalog()` 生成时已包含这 84 张字形，无需重新上传素材。
 * 安卓导入是先把整个包拷进 App 缓存、再把每个 blob 落到内部存储，**需要约 2× 包大小的
   可用空间**（官方版 4.12 GiB → 准备 ~8.5 GiB；民间版 2.76 GiB → 准备 ~5.5 GiB）。
   空间紧可以用 `--compress deflate`（包体小一点，解压后大小不变）。
