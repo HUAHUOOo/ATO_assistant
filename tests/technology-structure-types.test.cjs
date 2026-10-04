@@ -5,7 +5,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const types = require('../technology/structure-card-types.js');
 const source = fs.readFileSync(path.join(__dirname, '../technology/index.html'), 'utf8').replace(/\r\n/g, '\n');
-const editor = fs.readFileSync(path.join(__dirname, '../technology/tools/tech_card_property_editor.html'), 'utf8').replace(/\r\n/g, '\n');
+const editor = fs.readFileSync(path.join(__dirname, '../technology/card-property-editor.html'), 'utf8').replace(/\r\n/g, '\n');
 const plain = value => JSON.parse(JSON.stringify(value));
 
 function functions(text, names) {
@@ -105,6 +105,18 @@ test('campaign snapshots carry the structural types and the existing negotiation
   assert.deepEqual(plain(snapshot.unlocked[0].structureCardTypes), ['save', 'negotiation', 'active', 'reference']);
   assert.equal(snapshot.unlocked[0].negotiation, true);
   assert.deepEqual(plain(snapshot.unlocked[2].structureCardTypes), []);
+});
+
+test('科技页不再暴露编辑分类入口，细分筛选照旧', () => {
+  const c = context();
+  const html = c.unlockedStructureFilterHtml(c.records);
+  // 入口隐藏：既没有编辑链接，也不残留只服务于它的类名。
+  assert.doesNotMatch(html, /structure-filter-edit/);
+  assert.doesNotMatch(html, /card-property-editor\.html/);
+  // 筛选本身不能跟着丢；原生 Android 同样不暴露入口。
+  assert.match(html, /谈判（1）/);
+  c.window.ATOAndroid = {};
+  assert.doesNotMatch(c.unlockedStructureFilterHtml(c.records), /structure-filter-edit/);
 });
 
 test('the property editor only submits changed cards with all selected types', async () => {

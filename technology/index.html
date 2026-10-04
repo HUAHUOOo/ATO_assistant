@@ -351,32 +351,15 @@ body {
 }
 .structure-filter-chip[aria-pressed="true"] { background: var(--accent-strong, var(--accent-2)); border-color: var(--accent-strong, var(--accent-2)); color: #fff; }
 .structure-filter-chip[aria-pressed="true"] .structure-filter-count { background: rgb(255 255 255 / 18%); color: inherit; }
-.structure-filter-edit {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 36px;
-  padding-left: 16px;
-  border-left: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 650;
-  text-decoration: none;
-  white-space: nowrap;
-}
-.structure-filter-edit svg { width: 14px; height: 14px; flex: 0 0 auto; }
-.structure-filter-edit:hover { color: var(--accent-strong, var(--accent-2)); text-decoration: underline; text-underline-offset: 4px; }
 .structure-filter-bar :is(button, a):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 @media (max-width: 1100px) {
   .structure-filter-bar { grid-template-columns: minmax(0, 1fr) auto; }
-  .structure-filter-edit { grid-column: 2; grid-row: 1; }
   .structure-filter-chips { grid-column: 1 / -1; grid-row: 2; }
 }
 @media (max-width: 600px) {
   .structure-filter-bar { padding: 12px; gap: 10px; }
   .structure-filter-chips { gap: 6px; }
   .structure-filter-chip { padding: 6px 8px; font-size: 12px; }
-  .structure-filter-edit { min-height: 28px; padding-left: 0; border-left: 0; }
 }
 .empty {
   color: var(--muted);
@@ -3147,12 +3130,13 @@ function unlockedStructureFilterHtml(records) {
       }).length,
     })),
   ].filter(option => option.total > 0 || option.key === '' || option.key === unlockedStructureType);
+  // 「编辑分类」入口已隐藏：分类编辑器属本机/桌面工具（页面在 technology/card-property-editor.html，
+  // 旧地址 technology/tools/tech_card_property_editor.html 会跳过去），科技页不再暴露入口。
   return `<section class="structure-filter-bar" aria-labelledby="structureFilterTitle">
     <h2 class="structure-filter-title" id="structureFilterTitle">结构科技细分</h2>
     <div class="structure-filter-chips" role="group" aria-label="按结构科技细分筛选">
       ${options.map(option => `<button class="structure-filter-chip" type="button" data-structure-filter="${esc(option.key)}" aria-pressed="${option.key === unlockedStructureType}" aria-label="${esc(option.label)}（${option.total}）"><span>${esc(option.label)}</span><span class="structure-filter-count" aria-hidden="true">${option.total}</span></button>`).join('')}
     </div>
-    <a class="structure-filter-edit" href="tools/tech_card_property_editor.html" aria-label="编辑科技卡分类"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m16 3 5 5-12 12-6 1 1-6Z"/><path d="m14 5 5 5"/></svg>编辑分类</a>
   </section>`;
 }
 function cardsForNode(node) {
