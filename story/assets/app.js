@@ -1363,12 +1363,81 @@
       test: /burden-hardest-to-bear-battle/i,
       images: ["./images/battles/c3/最难承受的重担战斗.jpg"],
     },
+    // C5 战斗版图：从 story/images/c5/supplement-pages/ 的扫描页裁出的版图块。
+    // 魔鬼本人按等级分两张（LEVEL 1-4 / LEVEL 5-7 与 8+），深海惧龙两个等级布局不同也分两张；
+    // 其余几场各等级共用同一块版图，共用同一张。
+    {
+      test: /dragon-of-phobos-battle/i,
+      images: [
+        "./images/battles/c5/dragon-of-phobos-battle-level-1-2.jpg",
+        "./images/battles/c5/dragon-of-phobos-battle-level-3-plus.jpg",
+      ],
+    },
+    {
+      test: /meduketos-battle/i,
+      images: ["./images/battles/c5/meduketos-battle.jpg"],
+    },
+    {
+      test: /the-devil-himself-battle/i,
+      images: [
+        "./images/battles/c5/the-devil-himself-battle-level-1-4.jpg",
+        "./images/battles/c5/the-devil-himself-battle-level-5-plus.jpg",
+      ],
+    },
+    {
+      test: /thicker-than-water-battle/i,
+      images: ["./images/battles/c5/thicker-than-water-battle.jpg"],
+    },
+    {
+      test: /harsh-truth-battle/i,
+      images: ["./images/battles/c5/harsh-truth-battle.jpg"],
+    },
+    {
+      test: /white-lie-battle/i,
+      images: ["./images/battles/c5/white-lie-battle.jpg"],
+    },
   ];
 
   function localBattleImageList(entry) {
     const haystack = `${entry.id || ""} ${entry.key || ""}`.toLowerCase();
     const match = localBattleImages.find((item) => item.test.test(haystack));
     return match ? match.images : [];
+  }
+
+  // 六场 C5 战斗的原页（174-185）已由裁好的版图块取代并删除，但条目数据是本地生成物
+  // （不受 git 跟踪）、里面仍写着这些页。读取侧按名单过滤掉，避免挂出指向已删文件的碎图；
+  // 名单只存字符串，不依赖任何文件访问（渲染函数的隔离测试只切另一段源码来跑）。
+  const battleAvailablePages = {
+    "dragon-of-phobos-battle": "",
+    "meduketos-battle": "",
+    "the-devil-himself-battle": "",
+    "thicker-than-water-battle": "",
+    "harsh-truth-battle": "",
+    "white-lie-battle": "",
+  };
+
+  function battlePageAvailable(entry, src) {
+    if (!Object.prototype.hasOwnProperty.call(battleAvailablePages, entry.id)) return true;
+    const names = battleAvailablePages[entry.id];
+    return names ? String(src).includes(names) : false;
+  }
+
+  function declaredBattlePages(entry) {
+    const declared = Array.isArray(entry.imageList) ? entry.imageList.filter(Boolean) : [];
+    return declared.filter((src) => battlePageAvailable(entry, src));
+  }
+
+  // 本机按条目裁好的版图优先于条目数据里的整页扫描：C5 的补充包条目自带
+  // imageList（整页扫描页），若让数据优先，这些裁好的版图块就永远显示不出来；
+  // 反过来，C1 的 imageList 指的正是 images/battles/c1/ 下同一批文件，行为不变。
+  // 名单 battleAvailablePages / battlePageAvailable 定义在 renderAiTranslatedSupplement
+  // 上方（那边也要用，且它的隔离测试只切那一段源码）。
+  function battleImageList(entry) {
+    const local = localBattleImageList(entry);
+    if (local.length) return { images: local, zoomablePages: false };
+    const declared = declaredBattlePages(entry);
+    if (declared.length) return { images: declared, zoomablePages: Boolean(entry.supplementSource || entry.originalText) };
+    return { images: [], zoomablePages: false };
   }
 
   function prepareSpeechText(text) {
@@ -1385,16 +1454,14 @@
 
   function renderBattleImages(entry, options = {}) {
     const aibpLink = options.includeAibpLink === false ? "" : battleAibpLink(entry);
-    const imageList = Array.isArray(entry.imageList) && entry.imageList.length
-      ? entry.imageList
-      : localBattleImageList(entry);
+    const { images: imageList, zoomablePages } = battleImageList(entry);
     if (imageList.length) {
-      const isSourcePage = Boolean(entry.supplementSource || entry.originalText);
+      // 整页扫描页可点开放大；本机裁好的版图块不挂放大查看器（它们是版图，不是原书页）。
       const images = imageList.map((src, index) => {
-        const viewerAttributes = isSourcePage
+        const viewerAttributes = zoomablePages
           ? ` data-page-viewer tabindex="0" role="button" title="点击放大查看原书页"`
           : "";
-        const viewerClass = isSourcePage ? " zoomable-page" : "";
+        const viewerClass = zoomablePages ? " zoomable-page" : "";
         return `<img class="battle-page${viewerClass}" src="${escapeHtml(src)}" alt="${escapeHtml(entry.title)} ${index + 1}"${viewerAttributes} onerror="this.remove()">`;
       }).join("");
       return `${images}${aibpLink}`;
@@ -3137,7 +3204,13 @@
   function renderAiTranslatedSupplement(entry, imagesHtml) {
     const notice = entry.translationNotice
       || "AI 翻译（非官方），可能存在术语或 OCR 误差；请以英文原文和扫描页图为准。";
-    const sourcePages = Array.isArray(entry.sourcePages) && entry.sourcePages.length
+    // 六场 C5 战斗的原页（174-185）已删除、改用裁好的版图块，但条目数据是本地生成物、
+    // 里面仍写着这些页。这里就地过滤（不依赖外部名单），免得标题写成「故事书第 174、175 页」
+    // 却一张都打不开；过滤只用到字符串，隔离测试单独跑这个函数时也成立。
+    const removedBattlePage = /supplement-pages\/page-1[78][4-9]\.|supplement-pages\/page-18[0-5]\./;
+    const scans = (Array.isArray(entry.imageList) ? entry.imageList : [])
+      .filter((src) => src && !removedBattlePage.test(String(src)));
+    const sourcePages = scans.length && Array.isArray(entry.sourcePages) && entry.sourcePages.length
       ? `故事书第 ${entry.sourcePages.join("、")} 页`
       : "故事书补充页";
     const aibpLink = entry.chapterKey === "battle" ? battleAibpLink(entry) : "";

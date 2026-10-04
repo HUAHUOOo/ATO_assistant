@@ -34,6 +34,8 @@ services:
       - ./app/ss/terrain:/app/ss/terrain:ro
       - ./app/ss/terrain-cards:/app/ss/terrain-cards:ro
       - ./app/story/images:/app/story/images
+      # Cryptic glyphs (Babelian/Siren) come from the user's resource pack (crypticFiles section).
+      - ./app/story/assets/cryptic/glyphs:/app/story/assets/cryptic/glyphs:ro
       - ./app/story/data:/app/story/data:ro
       - ./app/technology/images:/app/technology/images
     restart: unless-stopped

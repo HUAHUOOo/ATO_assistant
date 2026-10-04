@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="../cycle-theme.css" />
     <script src="../assets/theme.js?v=20261001" defer></script>
     <link rel="stylesheet" href="./assets/editorial.css?v=20261001-sidebar-deeper1" />
+    <link rel="stylesheet" href="./assets/centimanes.css?v=20261004-manual1" />
   </head>
   <body>
     <aside class="sidebar">
@@ -60,6 +61,28 @@
       </section>
 
       <nav id="resultList" class="result-list" aria-label="搜索结果"></nav>
+      <details class="cryptic-module" id="crypticLanguages">
+        <summary>密语记录</summary>
+        <div class="cryptic-body">
+          <nav class="cryptic-tabs" role="tablist" aria-label="密语语言">
+            <button id="crypticCentTab" type="button" role="tab" aria-selected="true" aria-controls="centimanesPanel" data-cryptic-language="centimanes">百臂巨人语</button>
+            <button id="crypticBabelTab" type="button" role="tab" aria-selected="false" aria-controls="babelianPanel" data-cryptic-language="babelian">巴别语</button>
+            <button id="crypticSirenTab" type="button" role="tab" aria-selected="false" aria-controls="sirenPanel" data-cryptic-language="siren">塞壬语</button>
+          </nav>
+          <p id="centimanesSync" class="cent-sync" role="status">正在读取密语记录…</p>
+          <div class="cent-sync-actions">
+            <button id="centimanesRetry" type="button" hidden>重试同步</button>
+            <button id="centimanesKeep" type="button" hidden>保留本页冲突值</button>
+            <button id="centimanesRemote" type="button" hidden>采用存档版本</button>
+          </div>
+          <fieldset class="cent-fields" id="centimanesFields" disabled aria-label="密语记录工具">
+            <div id="centimanesPanel" role="tabpanel" aria-labelledby="crypticCentTab"></div>
+            <div id="babelianPanel" role="tabpanel" aria-labelledby="crypticBabelTab" hidden></div>
+            <div id="sirenPanel" role="tabpanel" aria-labelledby="crypticSirenTab" hidden></div>
+          </fieldset>
+          <a class="cryptic-source" href="https://github.com/HUAHUOOo/Babelian-Siren-Translator" target="_blank" rel="noopener noreferrer">字形与离线分词来源 ↗</a>
+        </div>
+      </details>
     </aside>
 
     <main class="reader">
@@ -105,13 +128,19 @@
     <script src="../assets/page-focus-router.js?v=20260813-no-screen-focus1"></script>
     <!-- 公共仓库使用占位数据；本地完整数据存在时由后一项覆盖。 -->
     <script src="./storybook-placeholder.js?v=20260813"></script>
-    <script src="./data/storybook-data.js?v=20261003-thumb-sections1"></script>
+    <script src="./data/storybook-data.js?v=20261004-storydata1"></script>
     <script src="./data/storybook-official-data.js?v=20260913-official-scans1"></script>
-    <script src="./data/entity-index.js?v=20260815entitybio4"></script>
+    <script src="./data/entity-index.js?v=20261004-storydata1"></script>
     <script src="./audio-packs/audio/manifest.js?v=20260614structure1"></script>
     <script src="../assets/cycle-symbols.js?v=20260918"></script>
     <script src="./assets/pharos-codes.js?v=20260924-title-codes1"></script>
     <script src="./assets/app.js?v=20260928-story-search1"></script>
+    <script src="./assets/centimanes.js?v=20261004-sidebar1"></script>
+    <script src="./assets/cryptic/glyph-catalog.js?v=20261004-manual1"></script>
+    <script src="./assets/cryptic/vendor/text-format.js?v=20261004-manual1"></script>
+    <script src="./assets/cryptic-manual.js?v=20261004-manual1"></script>
+    <script src="./assets/cryptic-manual-ui.js?v=20261004-manual1"></script>
+    <script src="./assets/centimanes-store.js?v=20261004-manual1"></script>
     <script src="../assets/ato-terms.js?v=20260912f"></script>
   <script src="../assets/term-language.js?v=20260923-nocascade"></script>
 </body>

@@ -81,6 +81,16 @@ mounted from this folder:
                             are listed in assets/bgm/README.md.
   app/assets/icons/        主控台界面 SVG 图标. Install the resource pack into app/;
                             its assets/icons/*.svg files are mounted read-only.
+  app/story/assets/cryptic/glyphs/  巴别语／塞壬语字形 (glyphs/*.png). Install the resource
+                            pack into app/; these files are mounted read-only. The program
+                            files next to them (glyph-catalog.js, word-data.js) come from the
+                            image, so only this glyph folder is mounted.
+  app/story/images/         Storybook illustrations. The whole folder is mounted, so the
+                            battle board images land in app/story/images/battles/<cycle>/
+                            (C5 boards: app/story/images/battles/c5/*.jpg). Install the
+                            resource pack into app/ and they show up without extra setup.
+                            C5 supplement page scans (story/images/c5/supplement-pages/) come
+                            the same way; the six C5 battles use the cropped boards instead.
   app/assets/cycle-symbols/ 五个循环的标记图标 (c1-brown.png, c2-red.png, c3-purple.png,
                             c4-yellow.png, c5-black-transparent.png). Keep those file names.
                             A missing file is simply not drawn, so nothing breaks.

@@ -1,0 +1,50 @@
+// Run: node tests/cryptic-manual.test.cjs
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const manual = require('../story/assets/cryptic-manual.js');
+manual.setWordData(require('../story/assets/cryptic/word-data.js'));
+assert.equal(manual.catalog.babelian.length, 58); assert.equal(manual.catalog.siren.length, 26);
+for (const language of ['babelian', 'siren']) {
+  const empty = manual.normalize(null, language);
+  assert.deepEqual(empty.mapping, {}, 'A new campaign starts with learned meanings empty');
+  let current = manual.reference(empty, language);
+  current.mapping[0] = 'CUSTOM';
+  assert.equal(manual.reference(current, language).mapping[0], 'CUSTOM', 'Reference fill never replaces learned meanings');
+  current = manual.inputText(manual.reference(empty, language), language, 'HELLOWORLD');
+  assert.deepEqual(current.draft, [7, 4, 11, 11, 14, 22, 14, 17, 11, 3]);
+  assert.equal(manual.transcript(current, language).text, 'HELLOWORLD');
+  current = manual.formatted(current, language, 'HELLO WORLD');
+  assert.equal(current.formatted.text, 'HELLO WORLD');
+  const sentence = manual.inputText(manual.reference(empty, language), language, 'THEARGOISREADY');
+  assert.equal(manual.suggest(sentence, language).formatted.text, 'THE ARGO IS READY');
+  assert.equal(manual.formatted(current, language, 'HELLO, WORLD!').formatted.text, 'HELLO, WORLD!');
+  assert.throws(() => manual.formatted(current, language, 'GOODBYE WORLD'), /只能调整/);
+  assert.throws(() => manual.formatted(current, language, 'hello world'), /只能调整/);
+  current = manual.addWord(current, language, {id: 'word-hello', start: 0, end: 4, meaning: '你好'});
+  assert.equal(manual.wordReading(current, language), '【你好】WORLD');
+  current = manual.saveReading(current, language, {id: 'crypt-hello', title: '词组测试', cycle: 'c2'});
+  const snapshot = structuredClone(current.records['crypt-hello']);
+  current.mapping[7] = 'X'; current.words['word-hello'].meaning = 'changed';
+  assert.deepEqual(current.records['crypt-hello'], snapshot, 'Saved glyphs, readings, meaning and spacing are immutable snapshots');
+  assert.throws(() => manual.saveReading(current, language, {id: 'crypt-stale'}), /已变化/);
+  assert.deepEqual(manual.normalize(JSON.parse(JSON.stringify(current)), language), current, 'Campaign backup restores glyphs and word notes');
+  let unknown = {...empty, draft: [0, 0, ' ', 1, '\n', 0], mapping: {0: '0'}};
+  assert.equal(manual.transcript(unknown, language).text, '00 [?]\n0');
+  unknown = manual.formatted(unknown, language, '00 [?]\n0');
+  assert.throws(() => manual.formatted(unknown, language, '00 A 0'), /保留完整/);
+  assert.throws(() => manual.addWord(unknown, language, {id: 'word-cross', start: 0, end: 3, meaning: 'cross'}), /跨过空格/);
+  assert.throws(() => manual.inputText(empty, language, 'A'), /没有唯一/);
+  assert.deepEqual(empty.draft, [], 'Rejected keyboard text does not partially append characters');
+  const duplicate = {...empty, mapping: {0: 'A', 1: 'A'}};
+  assert.throws(() => manual.inputText(duplicate, language, 'A'), /没有唯一/);
+}
+const babel = manual.inputText(manual.reference(null, 'babelian'), 'babelian', 'A');
+assert.deepEqual(babel.draft, [0], 'Typing A selects the letter glyph, rather than silently using the article ligature');
+const special = {...manual.reference(null, 'babelian'), draft: [53, 13]};
+assert.equal(manual.suggest(special, 'babelian').formatted.text, 'THE N', 'An entire-word glyph remains a word boundary');
+for (const language of ['babelian', 'siren']) for (const glyph of manual.catalog[language]) {
+  const file = path.join(__dirname, '../story', glyph.src);
+  assert.equal(fs.readFileSync(file).subarray(1, 4).toString(), 'PNG', `Missing original glyph ${glyph.src}`);
+}
+console.log('PASS manual Babelian/Siren: original glyph assets, learned mappings, repeated/unknown glyphs, word groups, offline segmentation, immutable snapshots and backup recovery.');

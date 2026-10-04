@@ -99,6 +99,7 @@ def check(path: Path, crc: bool, hash_check: bool) -> bool:
         resource_files = manifest.get("resourceFiles") or []
         bgm = manifest.get("bgmFiles") or []
         icons = manifest.get("iconFiles") or []
+        cryptic = manifest.get("crypticFiles") or []
         print(f"  条目/图片 : {len(manifest.get('items') or [])} / {len(assets)}")
         print(f"  故事      : {len(books)} 本 / {sum(book.get('entryCount', 0) for book in books)} 段")
         story_files = manifest.get("storyFiles") or []
@@ -106,6 +107,7 @@ def check(path: Path, crc: bool, hash_check: bool) -> bool:
         print(f"  人物小传  : {entities or 0} 条")
         print(f"  背景音乐  : {len(bgm)} 首")
         print(f"  界面图标  : {len(icons)} 个字形")
+        print(f"  密语字形  : {len(cryptic)} 张（巴别语／塞壬语）")
         build = manifest.get("build") or {}
         edition = build.get("edition") or ("官方版（含官方资料）" if resource_files else "民间版")
         print(f"  版本口径  : {edition}")

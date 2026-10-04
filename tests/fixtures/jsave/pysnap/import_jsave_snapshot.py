@@ -507,7 +507,7 @@ def parse_matrix_note(note):
     """解析一条矩阵备注。
 
     返回 dict：
-      value    : ATO matrix 值（"T"/"L"/"circle"/"circleT"/"circleL"/"cross"/None）
+      value    : ATO matrix 值（"T"/"L"/"N"/"circle"/"circleT"/"circleL"/"cross"/None）
       leftover : 去掉被消费词元后的剩余文本（未做首尾分隔符裁剪）
       consumed : 被消费的词元列表（用于报告）
     """
@@ -539,8 +539,8 @@ def parse_matrix_note(note):
                 consumed.append((start + hit[0], start + hit[1]))
                 break
 
-    # 3) 字母标记：只认「整段就是一个字母」的 token，取第一个
-    letter_tokens = [(s, e, t) for (s, e, t) in toks if len(t) == 1 and t in "TtLl"]
+    # 3) 字母标记：只认「整段就是一个字母」的 token，取第一个（N 是矩阵的第三取值）
+    letter_tokens = [(s, e, t) for (s, e, t) in toks if len(t) == 1 and t in "TtLlNn"]
     if letter_tokens:
         s, e, t = letter_tokens[0]
         letter = t.upper()

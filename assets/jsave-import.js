@@ -665,7 +665,7 @@
     // 解析一条矩阵备注。
     //
     // 返回对象：
-    //   value    : ATO matrix 值（"T"/"L"/"circle"/"circleT"/"circleL"/"cross"/null）
+    //   value    : ATO matrix 值（"T"/"L"/"N"/"circle"/"circleT"/"circleL"/"cross"/null）
     //   leftover : 去掉被消费词元后的剩余文本（未做首尾分隔符裁剪）
     //   consumed : 被消费的词元列表（用于报告）
     var rawTokens = tokenizeNotes(note || "");
@@ -700,9 +700,9 @@
       }
     }
 
-    // 3) 字母标记：只认「整段就是一个字母」的 token，取第一个
+    // 3) 字母标记：只认「整段就是一个字母」的 token，取第一个（N 是矩阵的第三取值）
     var letterTokens = toks.filter(function (t) {
-      return t[2].length === 1 && "TtLl".indexOf(t[2]) >= 0;
+      return t[2].length === 1 && "TtLlNn".indexOf(t[2]) >= 0;
     });
     if (letterTokens.length) {
       letter = letterTokens[0][2].toUpperCase();

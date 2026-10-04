@@ -234,6 +234,8 @@ class ExportPayload(BaseModel):
     include_bgm: bool = True
     # 主控台界面图标（assets/icons/*.svg）：同样是本地私有素材，默认随包分发。
     include_icons: bool = True
+    # 密语字形（story/assets/cryptic/glyphs/*.png，巴别语／塞壬语）：同样本地私有，默认随包分发。
+    include_cryptic: bool = True
     # 官方版故事书截图默认不导出（民间版资源包不带原书扫描图）。
     official_scans: bool = False
     # 官方故事书正文数据（storybook-official-data.js）默认也不导出：民间版不带任何官方内容。

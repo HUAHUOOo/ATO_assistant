@@ -103,7 +103,8 @@ main() {
   mkdir -p app/aibp/ps \
     app/assets/exploration-cards app/assets/story-doom-cards app/assets/cycle-symbols app/assets/icons \
     app/assets/bgm/audio app/hero/assets app/map/images app/map/tokens app/record/assets \
-    app/ss/terrain app/ss/terrain-cards app/story/images app/story/data app/technology/images
+    app/ss/terrain app/ss/terrain-cards app/story/images app/story/data app/technology/images \
+    app/story/assets/cryptic/glyphs
 
   # 决战版图底图是单文件挂载：文件不存在时 Docker 会建一个同名目录顶上，版图背景就悄悄
   # 废了（compose 里用 bind.create_host_path: false 挡这个坑，缺文件时直接报错）。

@@ -1,0 +1,79 @@
+.cryptic-module { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); min-width: 0; }
+.cryptic-module > summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--accent-strong); }
+.cryptic-body { min-width: 0; padding-top: 14px; }
+.cryptic-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.cryptic-tabs > span, .cryptic-tabs > a { padding: 4px 6px; border: 1px solid var(--line); font-size: 12px; }
+.cryptic-tabs > span { background: var(--accent); color: #fff; }
+.cryptic-tabs > a { color: var(--accent-strong, var(--accent)); text-decoration: none; }
+.cryptic-tabs > a:hover { background: var(--bg); }
+.cent-help { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+.cent-mode, .cent-actions, .cent-feedback { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.cent-mode { margin-bottom: 12px; }
+.cent-mode > span { color: var(--muted); font-size: 12px; }
+.cent-keyboard { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; margin-bottom: 14px; }
+.cent-key { display: flex; align-items: center; flex-direction: column; gap: 3px; padding: 7px 2px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); min-width: 0; }
+.cent-key.is-known { color: var(--ink); }
+.cent-keyboard .cent-key .cent-digit { font: 20px Georgia, serif; line-height: 1; }
+.cent-glyph { display: block; width: 38px; height: 38px; flex-shrink: 0; }
+.cent-key .cent-glyph { width: min(38px, 100%); height: auto; aspect-ratio: 1; }
+.cent-editor { padding: 12px; border: 1px solid var(--line-strong); background: var(--bg); margin-bottom: 14px; }
+.cent-editor[hidden], .cent-feedback button[hidden] { display: none; }
+.cent-editor > label { display: block; margin: 8px 0; }
+.cent-editor input { max-width: 120px; display: block; margin-top: 4px; }
+.cent-draft { padding: 8px; min-height: 78px; border: 1px solid var(--line); background: var(--panel); }
+.cent-draft > div, .cent-record-symbols { display: flex; flex-wrap: wrap; gap: 5px; }
+.cent-draft > p { color: var(--muted); margin: 18px 0; text-align: center; font-size: 13px; }
+.cent-symbol { display: inline-flex; flex-direction: column; align-items: center; font: 22px Georgia, serif; line-height: 1.5; }
+.cent-reading { margin: 10px 0; display: flex; align-items: baseline; gap: 14px; }
+.cent-reading > span { font-size: 13px; color: var(--muted); flex-shrink: 0; }
+.cent-reading > output { font: 26px Georgia, serif; letter-spacing: .1em; overflow-wrap: anywhere; min-width: 0; }
+.cent-actions button { font-size: 13px; }
+.cent-save { display: flex; align-items: end; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.cent-save > label { flex: 1; min-width: min(100%, 160px); font-size: 13px; }
+.cent-save input { margin-top: 5px; }
+.cent-feedback { font-size: 12px; color: var(--muted); margin: 10px 0; }
+.cent-feedback:empty { display: none; }
+.cent-history { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 12px; }
+.cent-history > summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.cent-history > div { max-height: 340px; overflow-y: auto; padding-right: 2px; }
+.cent-record { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.cent-record > strong { display: block; font-size: 13px; margin-bottom: 8px; overflow-wrap: anywhere; }
+.cent-record .cent-glyph { width: 30px; height: 30px; }
+.cent-record .cent-symbol { font-size: 16px; }
+.cent-record-reading { margin: 8px 0; font: 22px Georgia, serif; letter-spacing: .1em; overflow-wrap: anywhere; }
+.cryptic-module button { padding: 6px 8px; }
+.cryptic-module button.secondary { border: 1px solid var(--line); background: var(--panel); color: var(--accent-strong); }
+.cent-fields { border: 0; min-width: 0; padding: 0; margin: 0; }
+.cent-sync { margin: 10px 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.cent-sync-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.cent-sync-actions [hidden] { display: none; }
+.cryptic-tabs > button { font-size: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--accent-strong); }
+.cryptic-tabs > button[aria-selected="true"] { background: var(--accent-strong); color: #fff; }
+.cryptic-source { display: inline-block; margin-top: 14px; font-size: 12px; color: var(--muted); }
+.cryptic-module [role="tabpanel"][hidden], .manual-key[hidden], .manual-editor[hidden] { display: none; }
+.manual-keyboard-panel > summary, .manual-text-input > summary, .manual-format > summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+.manual-filter { display: flex; align-items: center; gap: 8px; font-size: 12px; margin: 8px 0; }
+.manual-filter select { flex: 1; min-width: 0; padding: 6px; font-size: 12px; }
+.manual-keyboard { max-height: 268px; overflow-y: auto; padding: 2px; align-items: start; }
+.manual-glyph { display: block; width: 38px; height: 38px; object-fit: contain; flex-shrink: 0; background: #fff; }
+.manual-key { min-height: 68px; overflow: hidden; }
+.manual-key-reading { max-width: 100%; font-size: 12px; line-height: 1.3; overflow-wrap: anywhere; }
+.manual-draft { margin-top: 10px; }
+.manual-draft button.manual-symbol { padding: 2px; background: var(--panel); color: var(--ink); border: 1px solid transparent; max-width: 100%; }
+.manual-draft button.manual-symbol.is-selected { border-color: var(--accent-strong); background: var(--accent-soft); }
+.manual-symbol { max-width: 100%; font-size: 13px; }
+.manual-symbol > span { max-width: 100%; overflow-wrap: anywhere; }
+.manual-space { color: var(--muted); padding: 10px 5px; }
+.manual-newline { flex-basis: 100%; color: var(--muted); font-size: 12px; }
+.manual-reading { margin: 10px 0; font-size: 13px; }
+.manual-reading > span { display: block; color: var(--muted); font-size: 12px; }
+.manual-reading > output { display: block; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+.manual-text-input { margin-bottom: 12px; }
+.manual-text-input label, .manual-word-form label, .manual-format label { display: block; font-size: 12px; margin: 6px 0; }
+.manual-selection-help { margin: 10px 0 0; }
+.manual-word-form, .manual-format { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 10px; }
+.manual-word-form > p { margin-bottom: 6px; }
+.manual-format p { margin: 8px 0; }
+.manual-format textarea { display: block; width: 100%; min-height: 70px; resize: vertical; background: var(--panel); color: var(--ink); border: 1px solid var(--line); padding: 8px; font: inherit; }
+.manual-record-text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0; font-size: 13px; }
+.cent-record .manual-glyph { width: 30px; height: 30px; }
