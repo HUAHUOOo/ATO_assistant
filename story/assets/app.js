@@ -2920,8 +2920,7 @@
         title: official.officialTitle || entry.title,
       };
     }
-    const notice = official.officialStatus === "ready" ? "" : "【官方版待校核】以下为官方版草稿，尚未完成 PDF 校核。\n\n";
-    return { ...entry, title: official.officialTitle || entry.title, text: notice + official.officialText };
+    return { ...entry, title: official.officialTitle || entry.title, text: official.officialText };
   }
 
   function buildSecondScreenStorySnapshot() {

@@ -79,6 +79,8 @@ mounted from this folder:
   app/ss/terrain-cards/     第二屏地形卡 (second-screen terrain cards)
   app/assets/bgm/audio/    主控台背景音乐. Put .mp3 / .ogg files here; the file names
                             are listed in assets/bgm/README.md.
+  app/assets/icons/        主控台界面 SVG 图标. Install the resource pack into app/;
+                            its assets/icons/*.svg files are mounted read-only.
   app/assets/cycle-symbols/ 五个循环的标记图标 (c1-brown.png, c2-red.png, c3-purple.png,
                             c4-yellow.png, c5-black-transparent.png). Keep those file names.
                             A missing file is simply not drawn, so nothing breaks.

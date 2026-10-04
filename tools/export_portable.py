@@ -98,6 +98,8 @@ def build_docker(version: str) -> Path:
     stage.mkdir(parents=True)
     app = stage / "app"
     prepare_site(app, version)
+    # 图标整目录由资料包提供（copy_export_tree 会排除），先准备好宿主机挂载目录。
+    (app / "assets" / "icons").mkdir(parents=True, exist_ok=True)
     # 外层分发包和镜像内的应用都保留许可证；两层分别接受产物审计。
     shutil.copy2(app / "LICENSE", stage / "LICENSE")
     (stage / "data").mkdir()

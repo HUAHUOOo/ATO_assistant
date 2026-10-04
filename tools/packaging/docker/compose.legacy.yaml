@@ -21,6 +21,8 @@ services:
       - ./app/assets/story-doom-cards:/app/assets/story-doom-cards
       # Cycle marker icons are copyright artwork: absent from the image, supply them here.
       - ./app/assets/cycle-symbols:/app/assets/cycle-symbols
+      # Interface SVG icons are supplied by the user's resource pack.
+      - ./app/assets/icons:/app/assets/icons:ro
       - ./app/assets/bgm/audio:/app/assets/bgm/audio:ro
       - ./app/hero/assets:/app/hero/assets
       - ./app/map/images:/app/map/images

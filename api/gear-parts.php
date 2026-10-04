@@ -17,7 +17,7 @@ header('Cache-Control: no-store');
 
 $file = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'technology' . DIRECTORY_SEPARATOR . 'gear_part_labels.json';
 $backupFile = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'technology' . DIRECTORY_SEPARATOR . 'gear_part_labels.backup.json';
-$allowed = ['attachment', 'armor', 'arm', 'aid', 'titan'];
+$allowed = ['attachment', 'armor', 'arm', 'arm_1h', 'arm_2h', 'arm_3h', 'arm_1_2h', 'arm_all_h', 'aid', 'titan'];
 $legacyMap = [
   'head' => 'armor',
   'feet' => 'armor',
