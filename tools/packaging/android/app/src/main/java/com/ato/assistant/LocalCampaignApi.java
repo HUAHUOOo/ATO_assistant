@@ -73,6 +73,7 @@ final class LocalCampaignApi {
     if ("second-screen-status".equals(action)) return secondScreenStatus(method, requestBody);
     if ("second-screen-mode".equals(action)) return secondScreenMode(method, requestBody);
     if ("restore-previous-day".equals(action)) return restorePreviousDay(method, requestBody);
+    if ("import-sections".equals(action)) return importSections(method, requestBody);
 
     String section = uri.getQueryParameter("section");
     if ("GET".equalsIgnoreCase(method)) return read(section);
@@ -321,9 +322,106 @@ final class LocalCampaignApi {
       throw new ApiException(409, conflict);
     }
 
-    Object state = payload.opt("state");
-    JSONObject sections = campaign.getJSONObject("sections");
+    updateSection(campaign, section, payload.opt("state"), payload.optString("userId", "").trim());
+    revisions.put(section, revision + 1);
+    campaign.put("updatedAt", System.currentTimeMillis());
+    saveCampaign(campaign);
+
+    JSONObject response = ok();
+    put(response, "section", section);
+    put(response, "revision", revision + 1);
+    put(response, "updatedAt", campaign.opt("updatedAt"));
+    put(response, "user", user());
+    return response;
+  }
+
+  private JSONObject importSections(String method, String requestBody) throws Exception {
+    if (!"POST".equalsIgnoreCase(method)) throw new ApiException(405, error("This action requires POST."));
+    JSONObject payload;
+    try {
+      payload = new JSONObject(requestBody);
+    } catch (JSONException invalid) {
+      throw new ApiException(400, error("Request body must be JSON."));
+    }
+    JSONObject incoming = payload.optJSONObject("sections");
+    if (incoming == null || incoming.length() == 0) throw new ApiException(400, error("Missing sections."));
+    Iterator<String> names = incoming.keys();
+    while (names.hasNext()) validateSection(names.next());
+
+    JSONObject expectedRevisions = payload.has("expectedRevisions")
+        ? payload.optJSONObject("expectedRevisions") : new JSONObject();
+    if (expectedRevisions == null) throw new ApiException(400, error("expectedRevisions must be an object."));
+    names = expectedRevisions.keys();
+    while (names.hasNext()) {
+      String name = names.next();
+      validateSection(name);
+      Object value = expectedRevisions.opt(name);
+      // 与 PHP 一样只接受整数或数字字符串，不能用 optInt 将小数/大整数静默截断。
+      if (!(value instanceof Integer) && !(value instanceof Long)
+          && !(value instanceof String && ((String) value).matches("[0-9]+"))) {
+        throw new ApiException(400, error("expectedRevisions values must be integers."));
+      }
+      try {
+        Long.parseLong(String.valueOf(value));
+      } catch (NumberFormatException invalid) {
+        throw new ApiException(400, error("expectedRevisions values must be integers."));
+      }
+    }
+
+    JSONObject campaign = loadCampaign();
+    JSONObject revisions = campaign.getJSONObject("sectionRevisions");
+    Object accountValue = payload.opt("expectedAccountId");
+    String expectedAccountId = accountValue instanceof String ? ((String) accountValue).trim() : "";
+    if (!expectedAccountId.isEmpty() && !expectedAccountId.equals(currentUser)) {
+      JSONObject mismatch = error("This page was loaded for another account. Reload it before importing.");
+      put(mismatch, "code", "ACCOUNT_MISMATCH");
+      throw new ApiException(409, mismatch);
+    }
+
+    // dispatch 由同一把 lock 保护；全部校验通过后才更新内存并一次提交存档及备份。
+    JSONObject conflicts = new JSONObject();
+    names = incoming.keys();
+    while (names.hasNext()) {
+      String name = names.next();
+      if (!expectedRevisions.has(name)) continue;
+      long expected = Long.parseLong(String.valueOf(expectedRevisions.opt(name)));
+      int revision = revisions.optInt(name, 0);
+      if (expected != revision) {
+        JSONObject conflict = new JSONObject();
+        conflict.put("expected", expected);
+        conflict.put("revision", revision);
+        conflicts.put(name, conflict);
+      }
+    }
+    if (conflicts.length() > 0) {
+      JSONObject failure = error("Some sections were changed in another page. Nothing was written.");
+      put(failure, "code", "SAVE_CONFLICT");
+      put(failure, "sections", conflicts);
+      put(failure, "updatedAt", campaign.opt("updatedAt"));
+      throw new ApiException(409, failure);
+    }
+
+    JSONObject applied = new JSONObject();
     String userId = payload.optString("userId", "").trim();
+    names = incoming.keys();
+    while (names.hasNext()) {
+      String name = names.next();
+      updateSection(campaign, name, incoming.opt(name), userId);
+      int revision = revisions.optInt(name, 0) + 1;
+      revisions.put(name, revision);
+      applied.put(name, revision);
+    }
+    campaign.put("updatedAt", System.currentTimeMillis());
+    saveCampaign(campaign);
+    JSONObject response = ok();
+    put(response, "sections", applied);
+    put(response, "updatedAt", campaign.opt("updatedAt"));
+    put(response, "user", user());
+    return response;
+  }
+
+  private void updateSection(JSONObject campaign, String section, Object state, String userId) throws JSONException {
+    JSONObject sections = campaign.getJSONObject("sections");
     if (!userId.isEmpty() && !"dashboard".equals(section)) {
       Object current = sections.opt(section);
       JSONObject bucket = current instanceof JSONObject ? (JSONObject) current : new JSONObject();
@@ -346,16 +444,6 @@ final class LocalCampaignApi {
     } else {
       sections.put(section, state == null ? JSONObject.NULL : state);
     }
-    revisions.put(section, revision + 1);
-    campaign.put("updatedAt", System.currentTimeMillis());
-    saveCampaign(campaign);
-
-    JSONObject response = ok();
-    put(response, "section", section);
-    put(response, "revision", revision + 1);
-    put(response, "updatedAt", campaign.opt("updatedAt"));
-    put(response, "user", user());
-    return response;
   }
 
   private JSONObject restorePreviousDay(String method, String requestBody) throws Exception {

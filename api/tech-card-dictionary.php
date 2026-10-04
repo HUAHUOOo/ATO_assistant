@@ -66,6 +66,21 @@ function normalize_category($value): string {
   return $category === 'battle' ? 'battle' : 'structure';
 }
 
+function normalize_structure_card_types($values): array {
+  $allowed = ['one_time', 'save', 'negotiation', 'active', 'reference', 'permanent', 'passive', 'other'];
+  return array_values(array_filter($allowed, fn($key) => is_array($values) && in_array($key, $values, true)));
+}
+
+function set_structure_card_types(array &$card, array $values): void {
+  if (!isset($card['type']) || !is_array($card['type'])) $card['type'] = [];
+  $card['type']['structure_card_types'] = normalize_structure_card_types($values);
+  if (in_array('negotiation', $card['type']['structure_card_types'], true)) {
+    $card['type']['negotiation'] = true;
+  } else {
+    unset($card['type']['negotiation']);
+  }
+}
+
 function is_core_card(array $card): bool {
   if (!empty($card['core'])) return true;
   foreach (($card['nodes'] ?? []) as $node) {
@@ -106,6 +121,9 @@ if ($method === 'POST') {
   if (!is_array($payload)) respond(400, ['ok' => false, 'error' => '请求内容必须是 JSON。']);
 
   $negotiationKeys = [];
+  if (isset($payload['negotiationKeys']) && !is_array($payload['negotiationKeys'])) {
+    respond(400, ['ok' => false, 'error' => '谈判标记必须是数组。']);
+  }
   foreach (($payload['negotiationKeys'] ?? []) as $key) {
     $normalized = normalize_key((string) $key);
     if ($normalized !== '') $negotiationKeys[$normalized] = true;
@@ -116,10 +134,16 @@ if ($method === 'POST') {
     if (!is_array($row)) continue;
     $key = normalize_key((string) ($row['key'] ?? ''));
     if ($key === '') continue;
-    $cardUpdates[$key] = [
-      'category' => normalize_category($row['category'] ?? 'structure'),
-      'core' => !empty($row['core']),
-    ];
+    $update = [];
+    if (array_key_exists('category', $row)) $update['category'] = normalize_category($row['category']);
+    if (array_key_exists('core', $row)) $update['core'] = !empty($row['core']);
+    if (array_key_exists('structureCardTypes', $row)) {
+      if (!is_array($row['structureCardTypes'])) {
+        respond(400, ['ok' => false, 'error' => '结构科技细分必须是数组。']);
+      }
+      $update['structureCardTypes'] = normalize_structure_card_types($row['structureCardTypes']);
+    }
+    $cardUpdates[$key] = $update;
   }
 
   $data = read_dictionary($file);
@@ -128,17 +152,28 @@ if ($method === 'POST') {
     $key = normalize_key((string) ($card['key'] ?? ''));
     if ($key !== '' && isset($cardUpdates[$key])) {
       $update = $cardUpdates[$key];
-      $card['category'] = $update['category'];
-      if ($update['core']) $card['core'] = true;
-      else unset($card['core']);
+      if (isset($update['category'])) $card['category'] = $update['category'];
+      if (isset($update['core'])) {
+        if ($update['core']) $card['core'] = true;
+        else unset($card['core']);
+      }
       if (isset($card['nodes']) && is_array($card['nodes'])) {
         foreach ($card['nodes'] as &$node) {
           if (!is_array($node)) continue;
-          $node['category'] = $update['category'];
-          if ($update['core']) $node['core'] = true;
-          else unset($node['core']);
+          if (isset($update['category'])) $node['category'] = $update['category'];
+          if (isset($update['core'])) {
+            if ($update['core']) $node['core'] = true;
+            else unset($node['core']);
+          }
         }
         unset($node);
+      }
+      if (isset($update['structureCardTypes'])) {
+        set_structure_card_types($card, $update['structureCardTypes']);
+      }
+      if (($card['category'] ?? ($card['type']['category'] ?? '')) === 'battle') {
+        unset($card['type']['structure_card_types']);
+        if (!is_negotiation_candidate($card)) unset($card['type']['negotiation']);
       }
     }
 
@@ -155,12 +190,10 @@ if ($method === 'POST') {
     }
     if ($key === '') continue;
     if (!isset($card['type']) || !is_array($card['type'])) $card['type'] = [];
-    if (isset($negotiationKeys[$key])) {
-      $card['type']['negotiation'] = true;
-    } else {
-      unset($card['type']['negotiation']);
-      if (!$card['type']) unset($card['type']);
-    }
+    $types = normalize_structure_card_types($card['type']['structure_card_types'] ?? []);
+    $types = array_values(array_diff($types, ['negotiation']));
+    if (isset($negotiationKeys[$key])) $types[] = 'negotiation';
+    set_structure_card_types($card, $types);
   }
   unset($card);
 

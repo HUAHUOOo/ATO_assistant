@@ -301,6 +301,83 @@ body {
   background: #f6e8e3;
   color: #8f3e2b;
 }
+.structure-type-badges { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin-top: 8px; }
+.structure-type-badges .category-pill { padding: 2px 6px; font-size: 11px; }
+.structure-filter-bar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px 18px;
+  margin-bottom: 24px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--panel);
+}
+.structure-filter-title { margin: 0; color: var(--muted); font-size: 13px; font-weight: 650; white-space: nowrap; }
+.structure-filter-chips { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.structure-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.structure-filter-chip:hover { background: var(--accent-soft, #eef3f4); border-color: var(--line); color: var(--accent-strong, var(--accent-2)); }
+.structure-filter-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 0;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.structure-filter-chip[aria-pressed="true"] { background: var(--accent-strong, var(--accent-2)); border-color: var(--accent-strong, var(--accent-2)); color: #fff; }
+.structure-filter-chip[aria-pressed="true"] .structure-filter-count { background: rgb(255 255 255 / 18%); color: inherit; }
+.structure-filter-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding-left: 16px;
+  border-left: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.structure-filter-edit svg { width: 14px; height: 14px; flex: 0 0 auto; }
+.structure-filter-edit:hover { color: var(--accent-strong, var(--accent-2)); text-decoration: underline; text-underline-offset: 4px; }
+.structure-filter-bar :is(button, a):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 1100px) {
+  .structure-filter-bar { grid-template-columns: minmax(0, 1fr) auto; }
+  .structure-filter-edit { grid-column: 2; grid-row: 1; }
+  .structure-filter-chips { grid-column: 1 / -1; grid-row: 2; }
+}
+@media (max-width: 600px) {
+  .structure-filter-bar { padding: 12px; gap: 10px; }
+  .structure-filter-chips { gap: 6px; }
+  .structure-filter-chip { padding: 6px 8px; font-size: 12px; }
+  .structure-filter-edit { min-height: 28px; padding-left: 0; border-left: 0; }
+}
 .empty {
   color: var(--muted);
   font-size: 14px;
@@ -1013,6 +1090,7 @@ button.gear-group-name:hover {
   <script src="../assets/cycle-symbols.js?v=20260918"></script>
   <script src="tech-page-layout.js?v=20261003-hekaton-row1"></script>
   <script src="tech-tree.js?v=20261001-c4-gutters"></script>
+  <script src="structure-card-types.js?v=20261004-large"></script>
 <script src="gear-inventory.js?v=20261002"></script>
 <script>
 const TECH_DICTIONARY_URL = 'tech_card_dictionary.min.json';
@@ -2476,6 +2554,7 @@ function dictionaryToAppData(dictionary) {
         if (type.battle_card_type != null) tagRecord.tag.battle_card_type = type.battle_card_type;
         if (type.loop_limited != null) tagRecord.tag.loop_limited = type.loop_limited;
         if (type.negotiation != null) tagRecord.tag.negotiation = Boolean(type.negotiation);
+        if (Array.isArray(type.structure_card_types)) tagRecord.tag.structure_card_types = [...new Set([...(tagRecord.tag.structure_card_types || []), ...type.structure_card_types])];
         if (pageLabel && !tagRecord.cycles.includes(pageLabel)) tagRecord.cycles.push(pageLabel);
         tagDictionary[nodeKeyValue] = tagRecord;
       }
@@ -2489,6 +2568,7 @@ function dictionaryToAppData(dictionary) {
         if (type.battle_card_type != null) tagDictionary[record.key].tag.battle_card_type = type.battle_card_type;
         if (type.loop_limited != null) tagDictionary[record.key].tag.loop_limited = type.loop_limited;
         if (type.negotiation != null) tagDictionary[record.key].tag.negotiation = Boolean(type.negotiation);
+        if (Array.isArray(type.structure_card_types)) tagDictionary[record.key].tag.structure_card_types = type.structure_card_types.slice();
       }
     }
 
@@ -2692,6 +2772,7 @@ let activeAccountId = null;
 let currentCycle = null;
 let viewPage = null;
 let currentTab = null;
+let unlockedStructureType = '';
 let selectedNodeId = null;
 let treeLanguage = 'en';
 let hideUnknownTech = true;
@@ -2953,9 +3034,53 @@ function isNegotiationNode(pageKey, node) {
   const tagRecord = tagForNode(pageKey, node);
   if (tagRecord?.tag?.negotiation === true) return true;
   const cards = cardsForNode(node);
-  return cards.some(card => card?.type?.negotiation === true);
+  return cards.some(card => card?.type?.negotiation === true || card?.type?.structure_card_types?.includes('negotiation'));
 }
 function isStructureNode(node) { return node?.tech_category !== 'battle'; }
+function structureTypesForNode(pageKey, node) {
+  if (!isStructureNode(node)) return [];
+  const tag = tagForNode(pageKey, node)?.tag;
+  return window.ATO_STRUCTURE_CARD_TYPES.normalize([
+    ...window.ATO_STRUCTURE_CARD_TYPES.forType(tag),
+    ...cardsForNode(node).flatMap(card => window.ATO_STRUCTURE_CARD_TYPES.forCard(card)),
+  ]);
+}
+function structureTypeBadgesHtml(values) {
+  const labels = window.ATO_STRUCTURE_CARD_TYPES.labels(values);
+  return `<div class="structure-type-badges">${(labels.length ? labels : ['未分类']).map(label => `<span class="category-pill">${esc(label)}</span>`).join('')}</div>`;
+}
+function technologyMetaLabel(pageKey, node) {
+  const labels = window.ATO_STRUCTURE_CARD_TYPES.labels(structureTypesForNode(pageKey, node));
+  return [categoryLabel(node.tech_category), ...labels].join(' · ');
+}
+function matchesUnlockedFilters(record) {
+  const { page, node } = record;
+  const types = structureTypesForNode(page.key, node);
+  if (unlockedStructureType && (!isStructureNode(node) || (unlockedStructureType === 'unclassified' ? types.length > 0 : !types.includes(unlockedStructureType)))) return false;
+  const query = search.value.trim().toLowerCase();
+  const text = [node.name, node.name_zh, displayTechName(node), ...window.ATO_STRUCTURE_CARD_TYPES.labels(types)].join(' ').toLowerCase();
+  return !query || text.includes(query);
+}
+function unlockedStructureFilterHtml(records) {
+  const structureRecords = records.filter(({ node }) => isStructureNode(node));
+  const options = [
+    { key: '', label: '全部科技', total: records.length },
+    ...[...window.ATO_STRUCTURE_CARD_TYPES.options, { key: 'unclassified', label: '未分类' }].map(option => ({
+      ...option,
+      total: structureRecords.filter(({ page, node }) => {
+        const types = structureTypesForNode(page.key, node);
+        return option.key === 'unclassified' ? !types.length : types.includes(option.key);
+      }).length,
+    })),
+  ].filter(option => option.total > 0 || option.key === '' || option.key === unlockedStructureType);
+  return `<section class="structure-filter-bar" aria-labelledby="structureFilterTitle">
+    <h2 class="structure-filter-title" id="structureFilterTitle">结构科技细分</h2>
+    <div class="structure-filter-chips" role="group" aria-label="按结构科技细分筛选">
+      ${options.map(option => `<button class="structure-filter-chip" type="button" data-structure-filter="${esc(option.key)}" aria-pressed="${option.key === unlockedStructureType}" aria-label="${esc(option.label)}（${option.total}）"><span>${esc(option.label)}</span><span class="structure-filter-count" aria-hidden="true">${option.total}</span></button>`).join('')}
+    </div>
+    <a class="structure-filter-edit" href="tools/tech_card_property_editor.html" aria-label="编辑科技卡分类"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m16 3 5 5-12 12-6 1 1-6Z"/><path d="m14 5 5 5"/></svg>编辑分类</a>
+  </section>`;
+}
 function cardsForNode(node) {
   return (node.card_indexes || []).map(i => data.cards[i]).filter(Boolean);
 }
@@ -2975,9 +3100,7 @@ function shouldRotateLargeCard(card) {
   return cropW >= 800 && cropW <= 850 && cropH >= 1350 && cropH <= 1450;
 }
 function isLargeTechCard(card) {
-  const cropW = Number(card?.crop_width_px || 0);
-  const cropH = Number(card?.crop_height_px || 0);
-  return shouldRotateLargeCard(card) || cropW >= 1000 || cropH >= 1300;
+  return window.ATO_STRUCTURE_CARD_TYPES.isLargeCard(card);
 }
 function tagForNode(pageKey, node) {
   return data.tag_dictionary?.[nodeKey(pageKey, node)] || data.tag_dictionary?.[techKey(node.name)] || null;
@@ -3504,6 +3627,7 @@ function unlockedTechSnapshot() {
       category: node.tech_category === 'battle' ? 'battle' : 'structure',
       categoryLabel: categoryLabel(node.tech_category),
       negotiation: isNegotiationNode(page.key, node),
+      structureCardTypes: structureTypesForNode(page.key, node),
       cardIndexes: Array.isArray(node.card_indexes) ? node.card_indexes.slice() : [],
       unimportant: isUnimportantNode(page.key, node),
     })),
@@ -3721,7 +3845,9 @@ function unlockedItemHtml(record) {
   const { page, node, card } = record;
   const size = isLargeTechCard(card) ? 'big' : 'small';
   const label = displayTechName(node);
-  return `<button class="unlocked-item" type="button" title="${esc(label)} · ${esc(page.label)}" aria-label="${esc(label)} ${esc(page.label)}" data-page="${esc(page.key)}" data-node="${esc(node.id)}">${backThumb(card, size)}</button>`;
+  const types = structureTypesForNode(page.key, node);
+  const typeText = window.ATO_STRUCTURE_CARD_TYPES.labels(types).join(' · ');
+  return `<button class="unlocked-item" type="button" title="${esc(label)} · ${esc(page.label)}${typeText ? ` · ${esc(typeText)}` : ''}" aria-label="${esc(label)} ${esc(page.label)} ${esc(typeText)}" data-page="${esc(page.key)}" data-node="${esc(node.id)}">${backThumb(card, size)}${isStructureNode(node) ? structureTypeBadgesHtml(types) : ''}</button>`;
 }
 function unlockedGroupsHtml(records, emptyMessage = '还没有记录。可以在科技树节点详情里点“解锁”，或选择当前循环自动解锁之前循环全部科技和当前循环核心科技。', filterRecord = shouldShowUnlockedNode) {
   const filteredRecords = records.filter(filterRecord);
@@ -3775,7 +3901,7 @@ function showUnlockedModal(pageKey, nodeId) {
   activeUnlockedRecord = { page, node, card };
   activeModalMode = 'unlocked';
   unlockedModalTitle.textContent = displayTechName(node);
-  unlockedModalMeta.textContent = `${page.label} · ${categoryLabel(node.tech_category)}`;
+  unlockedModalMeta.textContent = `${page.label} · ${technologyMetaLabel(page.key, node)}`;
   modalTechLinks.innerHTML = renderRequirementUnlockColumns(page.key, node);
   unlockedModalImage.innerHTML = modalCardImage(card, 'back');
   modalViewTree.classList.remove('hidden');
@@ -3796,7 +3922,7 @@ function showNodeModal(node) {
   activeUnlockedRecord = { page, node, card: cards[0] || null };
   activeModalMode = 'tree';
   unlockedModalTitle.textContent = displayTechName(node);
-  unlockedModalMeta.textContent = `${page?.label || ''} · ${categoryLabel(node.tech_category)}`;
+  unlockedModalMeta.textContent = `${page?.label || ''} · ${technologyMetaLabel(page.key, node)}`;
   modalTechLinks.innerHTML = renderRequirementUnlockColumns(page.key, node);
   unlockedModalImage.innerHTML = cards.length
     ? `<div class="modal-card-list">${cards.map(card => renderCard(card, node)).join('')}</div>`
@@ -3847,11 +3973,21 @@ function renderUnlockedPage() {
   document.querySelector('.app').classList.add('unlocked-mode');
   renderCycleButton();
   const records = unlockedRecords();
+  const availableRecords = records.filter(shouldShowUnlockedNode);
+  const matchingRecords = availableRecords.filter(matchesUnlockedFilters);
   mainView.innerHTML = `<div class="unlocked-page">
-    ${unlockedGroupsHtml(records)}
+    ${unlockedStructureFilterHtml(availableRecords)}
+    ${unlockedGroupsHtml(matchingRecords, availableRecords.length ? '没有符合筛选条件的科技。' : undefined, () => true)}
   </div>`;
+  mainView.querySelectorAll('[data-structure-filter]').forEach(button => {
+    button.addEventListener('click', () => {
+      unlockedStructureType = button.dataset.structureFilter;
+      renderUnlockedPage();
+      mainView.querySelector('.structure-filter-chip[aria-pressed="true"]')?.focus({ preventScroll: true });
+    });
+  });
   attachUnlockedItemHandlers(mainView);
-  applySearch();
+  count.textContent = `显示 ${matchingRecords.length}/${availableRecords.length} · 已解锁 ${records.length}`;
 }
 function renderUnlockedList() {
   if (currentTab === 'unlocked') renderUnlockedPage();
@@ -3931,6 +4067,7 @@ function renderCard(card, node) {
   const hasCardImage = Boolean(card.face_image_file || card.back_image_file);
   return `<section class="card-block">
     <h2 class="card-name">${esc(displayCardName(card, node?.name || ''))}</h2>
+    ${window.ATO_STRUCTURE_CARD_TYPES.canClassify(card) ? structureTypeBadgesHtml(window.ATO_STRUCTURE_CARD_TYPES.forCard(card)) : ''}
     ${hasCardImage
       ? `<div class="card-previews ${layout}">${cardPreview(card, 'front')}${cardPreview(card, 'back')}</div>`
       : `<div class="card-image-missing">${esc(card.image_missing_reason || '图包未包含该卡牌图像')}</div>`}
@@ -4258,7 +4395,7 @@ function applySearch() {
     return;
   }
   if (currentTab === 'unlocked') {
-    count.textContent = `已解锁 ${unlockedRecords().length}`;
+    renderUnlockedPage();
     return;
   }
   const query = search.value.trim().toLowerCase();

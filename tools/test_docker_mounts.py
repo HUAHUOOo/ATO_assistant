@@ -55,6 +55,7 @@ DOCKER_WORKFLOW = ROOT / ".github/workflows/docker-package.yml"
 
 sys.path.insert(0, str(ROOT / "tools"))
 from packaging import package_common as pc  # noqa: E402  （共用同一份私有目录清单）
+from export_android import asset_studio_catalog  # noqa: E402
 
 # 仓库根目录的 compose：直接用仓库目录当 Apache 的 Web 根，没有 Dockerfile 兜底，
 # 所以每一条应用路径都必须显式挂进去。
@@ -134,6 +135,17 @@ REQUIRED_TARGETS = (
     "/app/ss/terrain",
     "/app/ss/terrain-cards",
     "/app/assets/bgm/audio",
+    # 图标整目录被打包器排除，必须由宿主机挂入（含 SVG 与本地清单）。
+    "/app/" + pc.ICON_MEDIA_DIR,
+    "/app/assets/exploration-cards",
+    "/app/assets/story-doom-cards",
+    "/app/hero/assets",
+    "/app/map/images",
+    "/app/map/tokens",
+    "/app/record/assets",
+    "/app/story/images",
+    "/app/story/data",
+    "/app/technology/images",
     # 五个循环的标记图标：版权素材，公开镜像里没有（CI 从 git 检出构建，这几张 PNG 被
     # .gitignore 挡在外面），只能由宿主机提供。漏掉它不会报错，只是五个页面的循环标题前
     # 少一个图标 —— cycle-symbols.js 会移除加载失败的 <img>，所以看不到裂图。
@@ -346,6 +358,16 @@ def main() -> int:
                 "这个目录里图片与程序数据同级，必须整棵挂载 + 由 entrypoint 还原程序文件，"
                 "不挂就等于使用者的卡图不见了"
             )
+
+    # 从资料包清单反推覆盖范围：新增素材路径不能只在 APK 名单里登记，却漏挂 Docker。
+    # BGM 清单沿用平铺路径，Docker 安装脚本会将音频迁到 audio/ 子目录。
+    for item in asset_studio_catalog()["items"]:
+        for relative in item.get("faces", {}).values():
+            if relative.startswith(pc.BGM_MEDIA_DIR + "/") and not relative.startswith(pc.BGM_MEDIA_DIR + "/audio/"):
+                relative = pc.BGM_MEDIA_DIR + "/audio/" + relative[len(pc.BGM_MEDIA_DIR) + 1:]
+            resource_path = "/app/" + relative
+            if not any(covers(target, resource_path) for target in targets):
+                failures.append(f"资料包素材没有挂载点覆盖：{resource_path}")
 
     # 3. BGM 挂载点要和 manifest.audioDir 对上（两边不一致就永远找不到音频）
     audio_match = re.search(r'audioDir:\s*"([^"]*)"', manifest)

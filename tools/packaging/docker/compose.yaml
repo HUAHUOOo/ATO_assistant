@@ -29,6 +29,8 @@ services:
       # 必须由宿主机提供，否则五个页面的循环标题前就没有图标。cycle-symbols.js 会自动移除
       # 加载失败的 <img>，所以这里缺图只会表现为「没有图标」，不会出现裂图。
       - ./app/assets/cycle-symbols:/app/assets/cycle-symbols
+      # 界面 SVG 图标由资料包提供，公开镜像不含 assets/icons/。
+      - ./app/assets/icons:/app/assets/icons:ro
       # 主控台 BGM：只挂音频子目录。assets/bgm/ 里混着程序（bgm.js / manifest.js）
       # 和自备音频，整目录挂载会把播放器代码一起钉死在宿主机上，pull 就再也更新不到它；
       # 所以音频放 ./app/assets/bgm/audio/，程序交给镜像（见 assets/bgm/README.md）。

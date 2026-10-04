@@ -31,6 +31,9 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Test Docker resource mounts
+        run: python tools/test_docker_mounts.py
+
       - name: Resolve image version
         id: release
         shell: bash
