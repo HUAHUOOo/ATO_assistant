@@ -5,7 +5,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const types = require('../technology/structure-card-types.js');
 const source = fs.readFileSync(path.join(__dirname, '../technology/index.html'), 'utf8').replace(/\r\n/g, '\n');
-const editor = fs.readFileSync(path.join(__dirname, '../technology/card-property-editor.html'), 'utf8').replace(/\r\n/g, '\n');
+const editor = fs.readFileSync(path.join(__dirname, '../technology/tools/tech_card_property_editor.html'), 'utf8').replace(/\r\n/g, '\n');
 const plain = value => JSON.parse(JSON.stringify(value));
 
 function functions(text, names) {
@@ -110,9 +110,9 @@ test('campaign snapshots carry the structural types and the existing negotiation
 test('科技页不再暴露编辑分类入口，细分筛选照旧', () => {
   const c = context();
   const html = c.unlockedStructureFilterHtml(c.records);
-  // 入口隐藏：既没有编辑链接，也不残留只服务于它的类名。
+  // 入口隐藏：既没有编辑链接，也不残留只服务于它的类名（编辑器本身仍在本机 tools/ 下）。
   assert.doesNotMatch(html, /structure-filter-edit/);
-  assert.doesNotMatch(html, /card-property-editor\.html/);
+  assert.doesNotMatch(html, /tech_card_property_editor\.html/);
   // 筛选本身不能跟着丢；原生 Android 同样不暴露入口。
   assert.match(html, /谈判（1）/);
   c.window.ATOAndroid = {};
