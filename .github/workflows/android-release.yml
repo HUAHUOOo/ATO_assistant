@@ -83,6 +83,12 @@ jobs:
           PYTHONIOENCODING: utf-8
         run: python tools/test_android_campaign_import.py
 
+      - name: Test Android resource catalog
+        env:
+          PYTHONUTF8: "1"
+          PYTHONIOENCODING: utf-8
+        run: python tools/test_android_resource_catalog.py
+
       - name: Resolve release version
         id: release
         shell: pwsh
