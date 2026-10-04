@@ -3130,8 +3130,8 @@ function unlockedStructureFilterHtml(records) {
       }).length,
     })),
   ].filter(option => option.total > 0 || option.key === '' || option.key === unlockedStructureType);
-  // 「编辑分类」入口已隐藏：分类编辑器属本机/桌面工具（页面在 technology/card-property-editor.html，
-  // 旧地址 technology/tools/tech_card_property_editor.html 会跳过去），科技页不再暴露入口。
+  // 「编辑分类」入口已隐藏：分类编辑器属本机/桌面工具（technology/tools/tech_card_property_editor.html），
+  // 不随程序包发布，科技页不再暴露入口。
   return `<section class="structure-filter-bar" aria-labelledby="structureFilterTitle">
     <h2 class="structure-filter-title" id="structureFilterTitle">结构科技细分</h2>
     <div class="structure-filter-chips" role="group" aria-label="按结构科技细分筛选">

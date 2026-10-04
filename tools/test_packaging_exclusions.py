@@ -21,12 +21,10 @@
 from __future__ import annotations
 
 import re
-import posixpath
 import shutil
 import subprocess
 import sys
 from pathlib import Path
-from urllib.parse import urljoin, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -139,13 +137,10 @@ def build_project(root: Path) -> None:
         "router.php": "<?php\nreturn false;\n",
         "assets/campaign-session.js": "// session guard\n",
         "assets/cycle-symbols.js": "// cycle symbols\n",
-        # 科技卡分类编辑器搬到随包路径后，编辑器页面与它的运行依赖（分类脚本、字典
-        # JSON、保存接口）都必须跟着进包；这里放真实页面，好让下面的链接检查真的走一遍。
+        # 科技卡分类编辑器是本机工具（在 tools/ 下），不随包发布；这里放一份真实科技页与
+        # 编辑器页面，好让下面的检查真的走一遍「入口隐藏 + 编辑器不进包」。
         "technology/index.html": (ROOT / "technology/index.html").read_text(encoding="utf-8"),
-        "technology/card-property-editor.html": (ROOT / "technology/card-property-editor.html").read_text(encoding="utf-8"),
-        "technology/structure-card-types.js": "// structure card types\n",
-        "technology/tech_card_dictionary.min.json": "{}\n",
-        "api/tech-card-dictionary.php": "<?php\n",
+        "technology/tools/tech_card_property_editor.html": (ROOT / "technology/tools/tech_card_property_editor.html").read_text(encoding="utf-8"),
         # 受跟踪、但同样不该随包发布的开发/部署文件。
         "tests/test_lan_account_guard.py": "# dev test\n",
         "tests/test_previous_day_restore.py": "# dev test\n",
@@ -178,32 +173,24 @@ def audit_error(root: Path) -> str | None:
 
 
 def check_technology_editor(package: Path) -> list[str]:
-    """科技卡分类编辑器随包发布，但科技页不暴露入口。
+    """科技页不暴露编辑分类入口，编辑器仍是本机工具、不随包发布。
 
-    编辑器是本机/桌面工具（依赖 PHP 字典接口），入口在页面上是隐藏的，所以这里不跟随
-    链接，而是直接核对编辑器页面本身和它的三个运行依赖（分类脚本、字典 JSON、保存接口）
-    都在产物里；再确认科技页确实没有留下指向它的链接。
+    编辑器放在 technology/tools/ 下（依赖 PHP 字典接口，属本机素材整理），打包规则会整类
+    排除；这里既确认产物里的科技页没有留下入口，也确认编辑器确实没被带进包。
     """
-    relative = "technology/card-property-editor.html"
-    page = package / relative
-    if not page.is_file():
-        return [f"产物缺少科技卡分类编辑器：{relative}"]
-
     failures: list[str] = []
-    page_url = f"https://ato.test/{relative}"
-    editor = page.read_text(encoding="utf-8")
-    dependencies = re.findall(r'<script\s+src="([^"]+)"', editor)
-    dependencies += re.findall(r"const (?:DICTIONARY_URL|SAVE_URL) = '([^']+)';", editor)
-    if len(dependencies) != 3:
-        return ["未能识别编辑器的分类脚本、字典和保存接口"]
-    for reference in dependencies:
-        target = posixpath.normpath(urlsplit(urljoin(page_url, reference)).path.lstrip("/"))
-        if not (package / target).is_file():
-            failures.append(f"编辑器运行依赖在产物中找不到：{target}")
 
     index = package / "technology/index.html"
-    if index.is_file() and "structure-filter-edit" in index.read_text(encoding="utf-8"):
+    if not index.is_file():
+        failures.append("产物缺少科技页")
+    elif "structure-filter-edit" in index.read_text(encoding="utf-8"):
         failures.append("科技页仍然暴露编辑分类入口：该入口应保持隐藏")
+
+    editor = "technology/tools/tech_card_property_editor.html"
+    if (package / editor).is_file():
+        failures.append(f"不应进包：{editor}")
+    if not pc.excluded(Path(editor)):
+        failures.append(f"排除规则没有挡住：{editor}")
     return failures
 
 
