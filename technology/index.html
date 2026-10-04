@@ -1711,6 +1711,8 @@ function gearResourceSidebarHtml() {
 
   const resources = normalizeCraftRecordResources(gearRecordState.resources || {});
   const recordCycle = currentRecordCycleForGear();
+  const resourceOrder = new Map((RECORD_RESOURCE_ORDER_BY_CYCLE[recordCycle] || [])
+    .map((key, index) => [key, index]));
   const rows = Object.entries(resources)
     .filter(([key, value]) => {
       const text = recordResourceValue(value);
@@ -1722,11 +1724,10 @@ function gearResourceSidebarHtml() {
       return splitRareResourceText(value).map(item => ({ key, label: item, value: '' }));
     })
     .sort((a, b) => {
-      const aCore = a.key.includes('-core-') ? 1 : 0;
-      const bCore = b.key.includes('-core-') ? 1 : 0;
-      const aRare = recordResourceBaseKey(a.key) === 'rare' ? 1 : 0;
-      const bRare = recordResourceBaseKey(b.key) === 'rare' ? 1 : 0;
-      return aCore - bCore || aRare - bRare || a.label.localeCompare(b.label, 'zh-Hans-CN');
+      const aKey = a.key.replace(/^c\d-/, '');
+      const bKey = b.key.replace(/^c\d-/, '');
+      return (resourceOrder.get(aKey) ?? Number.MAX_SAFE_INTEGER)
+        - (resourceOrder.get(bKey) ?? Number.MAX_SAFE_INTEGER);
     });
   const rowsHtml = rows.map(({ key, label, value }) => {
     const isNumeric = value !== '' && Number.isFinite(Number(value));
@@ -1745,7 +1746,9 @@ function gearResourceSidebarHtml() {
 function gearPart(gearId) {
   const manualPart = gearPartLabels[normalizeGearId(gearId).toUpperCase()];
   const manualLabel = {
-    attachment: '附件', armor: '防具', arm: '手臂', aid: '助具', titan: '泰坦',
+    attachment: '附件', armor: '防具', arm: '武器（手数未标注）', aid: '助具', titan: '泰坦',
+    arm_1h: '单手武器', arm_2h: '双手武器', arm_3h: '三手武器',
+    arm_1_2h: '单手 / 双手武器', arm_all_h: '可变手数武器',
   }[manualPart];
   if (manualLabel) return { key: manualPart, label: manualLabel };
   if (String(gearId).startsWith('T:tt_')) return { key: 'titan', label: '泰坦' };
@@ -1764,12 +1767,19 @@ function gearPart(gearId) {
     'axe', 'mace', 'hammer', 'club', 'cestus', 'fist', 'bow', 'gun', 'ballista', 'whip',
     'discus', 'chakram', 'bident', 'lance', 'flail', 'thrower', 'ramaxe', 'pillarmace',
     'harpoon', 'kusarigama',
-  ])) return { key: 'arm', label: '手臂' };
+  ])) return { key: 'arm', label: '武器' };
   if (has([
     'attachment', 'augment', 'module', 'belt', 'cloak', 'camo', 'sheath', 'talisman',
     'necklace', 'amulet', 'badge', 'wreath', 'implant',
   ])) return { key: 'attachment', label: '附件' };
   return { key: 'aid', label: '助具' };
+}
+function gearPartMatchesFilter(partKey, filter) {
+  if (!filter || partKey === filter) return true;
+  if (filter === 'arm') return partKey.startsWith('arm_');
+  if (partKey === 'arm_1_2h') return filter === 'arm_1h' || filter === 'arm_2h';
+  if (partKey === 'arm_all_h') return ['arm_1h', 'arm_2h', 'arm_3h'].includes(filter);
+  return false;
 }
 function findGearTechCard(techId) {
   const key = getGearTechNodeKey(techId);
@@ -1872,7 +1882,12 @@ function renderGearProductionPage() {
     groups.get(group.key).items.push(item);
   });
   if (!groups.size) html += `<div class="gear-empty">没有符合当前筛选条件的装备。</div>`;
-  for (const group of groups.values()) {
+  const orderedGroups = [...groups.values()];
+  if (gearGroupByPart) {
+    const order = ['arm_1h', 'arm_2h', 'arm_3h', 'arm_1_2h', 'arm_all_h', 'arm', 'armor', 'attachment', 'aid', 'titan'];
+    orderedGroups.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
+  }
+  for (const group of orderedGroups) {
     html += `<div class="gear-group" data-search-text="${esc(`${group.label} ${group.items.map(item => getGearName(item.gear.gearId)).join(' ')}`.toLowerCase())}">`;
     const groupName = group.techId
       ? `<button type="button" class="gear-group-name" data-tech-id="${esc(group.techId)}" title="点击查看科技卡">${esc(group.label)}</button>`
@@ -2025,7 +2040,7 @@ function arsenalCatalog() {
 }
 
 function arsenalItemMatchesFilters(item, query) {
-  return (!arsenalPartFilter || item.part.key === arsenalPartFilter)
+  return gearPartMatchesFilter(item.part.key, arsenalPartFilter)
     && (!arsenalCycleFilter || item.cycles.includes(arsenalCycleFilter))
     && (!query || item.searchText.includes(query));
 }
@@ -2063,12 +2078,18 @@ function renderArsenalPage() {
   const totalQuantity = recorded.reduce((sum, item) => sum + item.quantity, 0);
   const visibleQuantity = visible.reduce((sum, item) => sum + item.quantity, 0);
   count.textContent = `军械库 ${recorded.length} 种 / ${totalQuantity} 件`;
-  const parts = [['arm', '手臂'], ['armor', '防具'], ['attachment', '附件'], ['aid', '助具'], ['titan', '泰坦']];
+  const parts = [
+    ['arm_1h', '单手武器'], ['arm_2h', '双手武器'], ['arm_3h', '三手武器'],
+    ['arm_1_2h', '单手 / 双手武器'], ['arm_all_h', '可变手数武器'],
+    ['arm', '武器（手数未标注）'], ['armor', '防具'], ['attachment', '附件'],
+    ['aid', '助具'], ['titan', '泰坦'],
+  ];
+  const filterParts = [['arm', '全部武器'], ...parts.filter(([key]) => key !== 'arm')];
   const optionHtml = (value, label, selected) => `<option value="${esc(value)}" ${value === selected ? 'selected' : ''}>${esc(label)}</option>`;
   if (!choices.some(item => item.gearId === arsenalSelectedGear)) arsenalSelectedGear = choices[0]?.gearId || '';
   const unavailable = gearMutationInFlight || !gearRecordState || Boolean(gearRecordError);
   let html = `<div class="gear-page arsenal-page"><div class="gear-filter-bar arsenal-toolbar">
-    <label>装备分类 <select data-arsenal-filter="part" aria-label="装备分类">${optionHtml('', '全部分类', arsenalPartFilter)}${parts.map(([key, label]) => optionHtml(key, label, arsenalPartFilter)).join('')}</select></label>
+    <label>装备分类 <select data-arsenal-filter="part" aria-label="装备分类">${optionHtml('', '全部分类', arsenalPartFilter)}${filterParts.map(([key, label]) => optionHtml(key, label, arsenalPartFilter)).join('')}</select></label>
     <label>所属循环 <select data-arsenal-filter="cycle" aria-label="所属循环">${optionHtml('', '全部循环', arsenalCycleFilter)}${data.pages.map(page => optionHtml(MAIN_CYCLE_BY_TECH_CYCLE[page.key], page.label, arsenalCycleFilter)).join('')}</select></label>
     <label class="gear-filter-option"><input type="checkbox" data-arsenal-filter="stock" ${arsenalOnlyStock ? 'checked' : ''}>只显示有库存</label>
     <form class="arsenal-add">
@@ -2613,8 +2634,50 @@ const SHARED_RECORD_RESOURCE_KEYS = new Set([
   'fearEssence', 'grotesqueBeak', 'mazeFragment', 'powderedMatter',
   'livingAbyss', 'retractableMechanism', 'skinOfMalice', 'reliefshellFragment',
   'blackTaintedStepfinger', 'promisedFuturesCarcass',
-  'priests', 'sisyphusTears', 'pygmalionStones', 'rare',
+  'priests', 'sisyphusTears', 'pygmalionStones', 'echoes', 'rare',
 ]);
+// Follow record.currentResources(): printed rows, cores in enemy order, then
+// additional nemesis rows. Missing/zero stock is filtered without changing order.
+const RECORD_RESOURCE_ORDER_BY_CYCLE = {
+  c1: [
+    'trireme', 'monument', 'armament', 'rawAmbrosia', 'muscleCluster', 'fearEssence',
+    'calcifiedKnuckle', 'mazeFragment', 'grotesqueBeak', 'infusedMechanism',
+    'fleshyMantle', 'powderedMatter', 'core-hekaton', 'core-labyrinthauros',
+    'core-temenos', 'core-pursuer', 'priests', 'sisyphusTears', 'rare',
+  ],
+  c2: [
+    'warTrireme', 'relief', 'warMachine', 'violentAmbrosia', 'fearEssence',
+    'chimericTar', 'grotesqueBeak', 'mazeFragment', 'supersolidRelief', 'powderedMatter',
+    'cyclopeanMetal', 'livingAbyss', 'retractableMechanism', 'blackChain',
+    'skinOfMalice', 'reliefshellFragment', 'core-cyclonus', 'core-chimera',
+    'core-nietzschean', 'core-adversary', 'priests', 'sisyphusTears',
+    'pygmalionStones', 'rare', 'core-pursuer', 'core-dahaka', 'onyxDust', 'ireEssence',
+  ],
+  c3: [
+    'sirenshell', 'hyperboreanAlloy', 'daedalusMakina', 'frozenAmbrosia',
+    'livingAbyss', 'razorclaw', 'grotesqueBeak', 'skinOfMalice', 'icarianFeather',
+    'powderedMatter', 'clothflesh', 'writhingTentacle', 'retractableMechanism',
+    'eyesCluster', 'sunburnedSkull', 'reliefshellFragment', 'core-oracle',
+    'core-harpy', 'core-sunDescendant', 'core-adversary', 'sisyphusTears',
+    'priests', 'echoes', 'rare', 'pygmalionStones', 'core-dahaka', 'onyxDust', 'ireEssence',
+  ],
+  c4: [
+    'cursedDerelict', 'imperialScroll', 'babylonianContraption', 'mutableAmbrosia',
+    'blackenedHalo', 'burnedOutGrace', 'cursedBloatsack', 'livingGold', 'wishEmbryo',
+    'oldIremFragment', 'blackTaintedStepfinger', 'promisedFuturesCarcass',
+    'onyxDust', 'ireEssence', 'core-midascore', 'core-demidjinn',
+    'core-babelianLunacy', 'core-dahaka', 'rare', 'priests', 'echoes',
+    'sisyphusTears', 'pygmalionStones',
+  ],
+  c5: [
+    'atlanteanTekne', 'orichalcumChunk', 'liquidAether', 'oxidizedAmbrosia',
+    'promisedFuturesCarcass', 'blackTaintedStepfinger', 'hydradynamicScales',
+    'amygdalanExtract', 'photophobicFlesh', 'microwaveCell', 'blackWoolStrand',
+    'fadingLightConstruct', 'orichalcumAlloy', 'slaveMetal', 'core-dragonOfPhobos',
+    'core-meduketos', 'core-urFleece', 'core-titanX', 'rare', 'priests', 'echoes',
+    'sisyphusTears', 'pygmalionStones',
+  ],
+};
 const RECORD_RESOURCE_KEYS = {
   ARMAMENT: 'armament',
   AMYGDALAN_EXTRACT: 'amygdalanExtract',
@@ -2772,6 +2835,7 @@ let activeAccountId = null;
 let currentCycle = null;
 let viewPage = null;
 let currentTab = null;
+let lastTechnologyTab = null;
 let unlockedStructureType = '';
 let selectedNodeId = null;
 let treeLanguage = 'en';
@@ -2899,6 +2963,16 @@ function esc(s) {
 function validPageKey(key) { return PAGE_INDEX.has(key) ? key : null; }
 function viewPageFor(cycleKey) {
   return validPageKey(cycleKey) || data.pages[0].key;
+}
+function restoreTechnologyTab() {
+  let savedTab = lastTechnologyTab;
+  try {
+    savedTab = window.localStorage.getItem('ato-technology-last-tab') || savedTab;
+  } catch (_) {}
+  currentTab = ['unlocked', 'gear-production', 'arsenal'].includes(savedTab) || validPageKey(savedTab)
+    ? savedTab : viewPage;
+  if (currentTab === savedTab) lastTechnologyTab = savedTab;
+  if (validPageKey(currentTab)) viewPage = currentTab;
 }
 function pageByKey(key) { return data.pages.find(p => p.key === key); }
 function rel(path) { return path || ''; }
@@ -3232,7 +3306,7 @@ function resetTechnologyToDefault() {
   updateLanguageToggle();
   renderAccountSelect();
   renderCycleButton();
-  renderTabs();
+  renderTabs(true);
   syncHideUnknownToggle();
   renderTree();
 }
@@ -3368,7 +3442,7 @@ function applyCampaignUsersToTechnology(campaign, profileId = null) {
   hideTreeImage = savedHideImage === undefined ? false : Boolean(savedHideImage);
   currentCycle = validPageKey(accounts[activeAccountId]?.currentCycle) || data.pages[0].key;
   viewPage = viewPageFor(currentCycle);
-  currentTab = viewPage;
+  restoreTechnologyTab();
   unlocked = new Set(accounts[activeAccountId]?.unlocked || []);
   unimportant = new Set(accounts[activeAccountId]?.unimportant || []);
   conditionTicked = new Set(accounts[activeAccountId]?.conditions || []);
@@ -3379,7 +3453,7 @@ function applyCampaignUsersToTechnology(campaign, profileId = null) {
   renderCycleButton();
   renderTabs();
   syncHideUnknownToggle();
-  renderTree();
+  refreshUnlockState();
   campaignTechBaseState = technologySectionState();
   return true;
 }
@@ -3415,10 +3489,9 @@ function adoptTechnologyCampaign(campaign, hasLocalEdits) {
 // Adopt a server-side technology state into the page memory and re-render it.
 function applyTechnologyAccountState(state) {
   if (!isPlainObject(state)) return;
-  const gearTab = ['gear-production', 'arsenal'].includes(currentTab) ? currentTab : null;
   currentCycle = validPageKey(state.currentCycle) || currentCycle;
   viewPage = viewPageFor(currentCycle);
-  currentTab = gearTab || viewPage;
+  restoreTechnologyTab();
   unlocked = new Set(state.unlocked || []);
   unimportant = new Set(state.unimportant || []);
   conditionTicked = new Set(state.conditions || []);
@@ -3431,8 +3504,7 @@ function applyTechnologyAccountState(state) {
   renderCycleButton();
   renderTabs();
   syncHideUnknownToggle();
-  if (gearTab) renderGearInventoryView();
-  else renderTree();
+  refreshUnlockState();
 }
 async function loadCampaignTechnologySection() {
   setCampaignSaveStatus('正在连接', 'saving');
@@ -3743,7 +3815,7 @@ async function switchAccount(id) {
   campaignTechBaseState = technologySectionState();
   renderAccountSelect();
   renderCycleButton();
-  renderTabs();
+  renderTabs(true);
   renderTree();
   loadCampaignTechnologySection();
 }
@@ -3886,7 +3958,7 @@ function navigateToNode(pageKey, nodeId) {
   viewPage = pageKey;
   currentTab = viewPage;
   selectedNodeId = nodeId;
-  renderTabs();
+  renderTabs(true);
   renderTree();
   focusTreeNode(nodeId);
   const page = pageByKey(viewPage);
@@ -4073,7 +4145,13 @@ function renderCard(card, node) {
       : `<div class="card-image-missing">${esc(card.image_missing_reason || '图包未包含该卡牌图像')}</div>`}
   </section>`;
 }
-function renderTabs() {
+function renderTabs(remember = false) {
+  if (remember) {
+    lastTechnologyTab = currentTab;
+    try {
+      window.localStorage.setItem('ato-technology-last-tab', currentTab);
+    } catch (_) {}
+  }
   updateTechnologyTheme();
   search.placeholder = currentTab === 'arsenal' ? '搜索装备名称或编号' : currentTab === 'gear-production' ? '搜索装备或生产科技' : '搜索科技';
   const tabItems = [
@@ -4087,20 +4165,20 @@ function renderTabs() {
     currentTab = btn.dataset.page;
     if (currentTab === 'unlocked') {
       selectedNodeId = null;
-      renderTabs();
+      renderTabs(true);
       renderUnlockedPage();
       return;
     }
     if (currentTab === 'gear-production' || currentTab === 'arsenal') {
       selectedNodeId = null;
-      renderTabs();
+      renderTabs(true);
       renderGearInventoryView();
       void loadGearRecordState();
       return;
     }
     viewPage = currentTab;
     selectedNodeId = null;
-    renderTabs();
+    renderTabs(true);
     renderTree();
   }));
 }
@@ -4493,7 +4571,7 @@ function selectTechnologyCycle(cycleKey) {
   viewPage = currentCycle;
   currentTab = viewPage;
   renderCycleButton();
-  renderTabs();
+  renderTabs(true);
   renderTree();
   refreshUnlockState();
 }
@@ -4524,7 +4602,7 @@ clearUnlocked.addEventListener('click', () => {
   unlockAutomaticCyclesThrough(currentCycle);
   saveAccounts();
   renderCycleButton();
-  renderTabs();
+  renderTabs(true);
   renderTree();
   refreshUnlockState();
 });
@@ -4542,7 +4620,7 @@ function boot(appData) {
   const requestedTechCycle = validPageKey(TECH_CYCLE_BY_MAIN_CYCLE[String(params.get('cycle') || '').toLowerCase()] || params.get('cycle'));
   currentCycle = requestedTechCycle || validPageKey(accounts[activeAccountId]?.currentCycle) || data.pages[0].key;
   viewPage = viewPageFor(currentCycle);
-  currentTab = viewPage;
+  restoreTechnologyTab();
   selectedNodeId = null;
   unlocked = new Set(accounts[activeAccountId]?.unlocked || []);
   unimportant = new Set(accounts[activeAccountId]?.unimportant || []);
@@ -4554,7 +4632,7 @@ function boot(appData) {
   renderAccountSelect();
   renderCycleButton();
   renderTabs();
-  renderTree();
+  refreshUnlockState();
   loadCampaignTechnologySection();
 }
 

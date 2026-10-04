@@ -179,7 +179,12 @@ label.check{
 const PARTS = [
   ['attachment', '附件'],
   ['armor', '防具'],
-  ['arm', '手臂'],
+  ['arm_1h', '单手武器'],
+  ['arm_2h', '双手武器'],
+  ['arm_3h', '三手武器'],
+  ['arm_1_2h', '单手 / 双手武器'],
+  ['arm_all_h', '可变手数武器'],
+  ['arm', '武器（手数未标注）'],
   ['aid', '助具'],
   ['titan', '泰坦'],
 ];
@@ -415,7 +420,7 @@ $('clearVisible').addEventListener('click', () => {
 
 document.addEventListener('keydown', event => {
   if (['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target?.tagName)) return;
-  const map = { '1': 'attachment', '2': 'armor', '3': 'arm', '4': 'aid', '5': 'titan' };
+  const map = { '1': 'attachment', '2': 'armor', '3': 'arm_1h', '4': 'aid', '5': 'titan', '6': 'arm_2h', '7': 'arm_3h', '8': 'arm_1_2h', '9': 'arm_all_h' };
   if (map[event.key]) {
     event.preventDefault();
     labelSelected(map[event.key], true);

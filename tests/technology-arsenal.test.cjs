@@ -131,7 +131,7 @@ test('switching profile during the read stops the stock write', async () => {
 
 function catalogContext() {
   const production = require('../technology/ato_gear_production.json');
-  return context(['normalizeGearId', 'getGearName', 'getTechDisplayName', 'gearPart', 'productionRecordCycle', 'arsenalCatalog', 'arsenalItemMatchesFilters'], {
+  return context(['normalizeGearId', 'getGearName', 'getTechDisplayName', 'gearPart', 'gearPartMatchesFilter', 'productionRecordCycle', 'arsenalCatalog', 'arsenalItemMatchesFilters'], {
     window: { ATO_GEAR_INVENTORY: inventory }, gearProductionData: production,
     gearPartLabels: require('../technology/gear_part_labels.json').labels,
     treeLanguage: 'zh', TITAN_NAMES_ZH: { tt_earthshaker: '撼地者' },
@@ -198,6 +198,102 @@ test('category and cycle filters combine with Chinese, English and ID searches',
   assert.equal(c.arsenalItemMatchesFilters(gear, ''), false);
   c.arsenalPartFilter = ''; c.arsenalCycleFilter = 'c2';
   assert.equal(c.arsenalItemMatchesFilters(gear, ''), false);
+});
+
+test('every equipment card has an explicit icon-verified category in both languages', () => {
+  const c = catalogContext();
+  const validParts = new Set(['arm_1h', 'arm_2h', 'arm_3h', 'arm_1_2h', 'arm_all_h', 'armor', 'attachment', 'aid']);
+  for (const language of ['zh', 'en']) {
+    c.treeLanguage = language;
+    for (const gearId of Object.keys(c.gearProductionData.gearCards)) {
+      const part = c.gearPart(gearId);
+      assert.ok(validParts.has(c.gearPartLabels[gearId]), `${gearId} needs an explicit category`);
+      assert.equal(part.key, c.gearPartLabels[gearId], `${gearId}/${language}`);
+      assert.equal(c.gearPart('1x' + gearId).key, part.key, gearId);
+    }
+  }
+  // One fist, two fists, three fists and the variable-hand starting fists.
+  const weapons = {
+    arm_1h: ['AJ0163', 'BJ0957', 'CJ1474'],
+    arm_2h: ['AJ0177', 'DJ2322', 'CJ1425', 'CJ1472', 'CJ1514', 'DJ2225'],
+    arm_3h: ['AJ0230', 'BJ0962', 'DJ2324', 'EJ2930'],
+    arm_1_2h: ['AJ0156'], arm_all_h: ['BJ0959', 'BJ0970', 'BJ0971', 'CJ1546'],
+  };
+  for (const [part, ids] of Object.entries(weapons)) {
+    for (const gearId of ids) {
+      assert.equal(c.gearPart(gearId).key, part, gearId);
+      assert.match(c.gearPart(gearId).label, /武器/, gearId);
+    }
+  }
+});
+
+test('card icons override misleading names and multi-face equipment follows its displayed face', () => {
+  const c = catalogContext();
+  const catalog = c.arsenalCatalog();
+  const examples = {
+    armor: ['CJ1521', 'DJ2265', 'DJ2374', 'EJ2829', 'EJ2956', 'BJ0954'],
+    arm_1h: ['DJ2253', 'EJ2819', 'EJ2858', 'BJ0957'],
+    arm_2h: ['AJ0257', 'DJ2327', 'DJ2225'],
+    attachment: ['DJ2245', 'DJ2288', 'EJ2811', 'EJ2959'],
+    aid: ['DJ2278', 'DJ2294', 'EJ2854', 'EJ2978'],
+  };
+  for (const [part, ids] of Object.entries(examples)) {
+    c.arsenalPartFilter = part;
+    for (const gearId of ids) {
+      const item = catalog.find(item => item.gearId === gearId);
+      assert.equal(item.part.key, part, gearId);
+      assert.equal(c.arsenalItemMatchesFilters(item, ''), true, gearId);
+      c.arsenalPartFilter = part.startsWith('arm_') ? 'armor' : 'arm';
+      assert.equal(c.arsenalItemMatchesFilters(item, ''), false, gearId);
+      c.arsenalPartFilter = part;
+    }
+  }
+});
+
+test('hand-count filters include flexible weapons and the all-weapons filter retains every subtype', () => {
+  const c = catalogContext();
+  const catalog = c.arsenalCatalog();
+  const ids = filter => {
+    c.arsenalPartFilter = filter;
+    return new Set(catalog.filter(item => c.arsenalItemMatchesFilters(item, '')).map(item => item.gearId));
+  };
+  const one = ids('arm_1h'), two = ids('arm_2h'), three = ids('arm_3h');
+  assert.ok(one.has('AJ0163') && !two.has('AJ0163') && !three.has('AJ0163'));
+  assert.ok(!one.has('AJ0257') && two.has('AJ0257') && !three.has('AJ0257'));
+  assert.ok(!one.has('AJ0230') && !two.has('AJ0230') && three.has('AJ0230'));
+  assert.ok(one.has('AJ0156') && two.has('AJ0156') && !three.has('AJ0156'));
+  for (const set of [one, two, three]) assert.ok(set.has('BJ0970'));
+  const all = ids('arm');
+  assert.equal(all.size, 257);
+  for (const set of [one, two, three]) for (const id of set) assert.ok(all.has(id));
+  assert.equal(all.has('CJ1521'), false);
+  c.arsenalPartFilter = 'arm_2h'; c.arsenalCycleFilter = 'c1';
+  assert.equal(c.arsenalItemMatchesFilters(catalog.find(item => item.gearId === 'AJ0257'), '盾'), true);
+  assert.equal(c.arsenalItemMatchesFilters(catalog.find(item => item.gearId === 'DJ2327'), ''), false);
+  assert.equal(c.gearPartMatchesFilter('arm', 'arm'), true, 'legacy weapon labels remain accessible');
+});
+
+test('manufacture grouping uses hand-count categories and renders each recipe once', () => {
+  const c = catalogContext();
+  context(['renderGearProductionPage'], c);
+  Object.assign(c, {
+    mainView: { classList: { remove: noop }, querySelectorAll: () => [] },
+    gearOnlyCurrentCycle: false, gearOnlyCraftable: false, gearGroupByPart: true,
+    renderCycleButton: noop, requestGearRecordState: noop, applyGearSearch: noop,
+    currentProductionCycle: () => 'CYCLE_01', esc: String,
+    gearFilterBarHtml: () => '', gearResourceSidebarHtml: () => '',
+    gearItemHtml: (_entry, gear) => `<span data-item="${gear.gearId}"></span>`,
+    getUnlockedProductions: () => [{ techId: 'test', produces: ['AJ0156', 'AJ0230', 'AJ0257', 'AJ0163'].map(gearId => ({ gearId })) }],
+  });
+  c.renderGearProductionPage();
+  for (const label of ['单手武器', '双手武器', '三手武器', '单手 / 双手武器']) {
+    assert.ok(c.mainView.innerHTML.includes(`<span class="gear-group-name">${label}</span>`), label);
+  }
+  const headers = [...c.mainView.innerHTML.matchAll(/class="gear-group-name">([^<]+)</g)].map(match => match[1]);
+  assert.deepEqual(headers, ['单手武器', '双手武器', '三手武器', '单手 / 双手武器']);
+  for (const id of ['AJ0163', 'AJ0257', 'AJ0230', 'AJ0156']) {
+    assert.equal(c.mainView.innerHTML.split(`data-item="${id}"`).length - 1, 1, id);
+  }
 });
 
 test('gear production list shows the current cycle, later cycles and persistent adversary techs', () => {

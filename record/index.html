@@ -5650,7 +5650,7 @@
                 "C5 | 你所不选之人 (The One You Don’t) > 0065 line 72: 罗德保护国 (Protectorate)：外交 (Diplomacy) -1 / 标记 BB1"
           ],
           "BB2": [
-                "C5 | 你所不选之人 (The One You Don’t) > 0072 line 79: 队长 (party leader) 获得+1 [命运图标] / 标记 BB2"
+                "C5 | 你所不选之人 (The One You Don’t) > 0072 line 79: 队长 (party leader) 获得+1 [命运图标] / 标记 BB2。如果你相信这是真相 (truth)，标记为 T，如果不信，标记为 L"
           ],
           "BB3": [
                 "C5 | 大义 (The Greater Good) > 0020 line 27: 如果被指责的阵营 (Faction) 关系为：友善 (Friendly) 或更好，获得+1 [图标] / 将BB3标记为L",
@@ -5743,7 +5743,7 @@
                 "C5 | 真相诉说者主线故事 (Truthsayer Main Story) > 8713 line 451: ” / 圈出CC12（即使未被标记）"
           ],
           "DD1": [
-                "C5 | 真相诉说者主线故事 (Truthsayer Main Story) > 0022 line 19: ” / 标记 DD1"
+                "C5 | 真相诉说者主线故事 (Truthsayer Main Story) > 0022 line 19: 学者恳求你们不要引发灾难性的井喷 / 标记 DD1。如果你相信这位学者，用 T 标记；如果不信，用 L 标记"
           ],
           "DD2": [
                 "C5 | 真相诉说者主线故事 (Truthsayer Main Story) > 0059 line 55: 失去-1 [图标] / 将 DD2 标记为 T",
@@ -6014,8 +6014,8 @@
       for (const [code, notesList] of Object.entries(choiceMatrixNotes)) {
         const modes = new Set();
         for (const note of notesList) {
-          if (/标记为\s*T|标记为T/.test(note)) modes.add("T");
-          if (/标记为\s*L|标记为L/.test(note)) modes.add("L");
+          if (/标记(?:改)?为\s*T\b|用\s*T\s*标记/.test(note)) modes.add("T");
+          if (/标记(?:改)?为\s*L\b|用\s*L\s*标记/.test(note)) modes.add("L");
           if (/圈出/.test(note)) modes.add("circle");
           if (/划掉/.test(note)) modes.add("cross");
         }
