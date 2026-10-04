@@ -78,6 +78,9 @@ jobs:
           cache: gradle
 
       - name: Test Android campaign import
+        env:
+          PYTHONUTF8: "1"
+          PYTHONIOENCODING: utf-8
         run: python tools/test_android_campaign_import.py
 
       - name: Resolve release version
