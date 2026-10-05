@@ -671,13 +671,13 @@ def _safe_render_names(target: str) -> tuple[str, PurePosixPath]:
     文件也不许跑出渲染临时目录、成员名也不许跑出资料包。注意
     ``PurePosixPath("..").name`` 就是 ``".."`` 而不是空串，直接拼会把渲染路径解析到
     临时目录的**父目录**，所以 `.`/`..`/空名字必须显式排除；`C:evil.png` 这类盘符
-    相对写法还要靠平台路径解析再确认一次。
+    相对写法在所有平台都显式排除，避免 Linux 导出的包在 Windows 上越界。
     """
     member = PurePosixPath(str(target).replace("\\", "/"))
     leaf = member.name
     if leaf in ("", ".", "..") or leaf != Path(leaf).name:
         raise ValueError(f"资料包含有不安全的渲染文件名：{target}")
-    if member.is_absolute() or str(member) != str(target) or any(part in ("", ".", "..") for part in member.parts):
+    if member.is_absolute() or str(member) != str(target) or any(part in ("", ".", "..") or ":" in part for part in member.parts):
         raise ValueError(f"资料包成员名不安全：{target}")
     return leaf, member
 

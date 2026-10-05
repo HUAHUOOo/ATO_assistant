@@ -315,7 +315,8 @@ def safe_target(root: Path, relative: str) -> Path:
 
 def _plan_key(target: str) -> str:
     """同一目标文件的比较键：大小写不敏感，并去掉结尾的点/空格。"""
-    return os.path.normcase(target).rstrip(". ")
+    # 资料包与安装计划可跨平台搬运：Linux 上也要识别 Windows/macOS 的大小写别名。
+    return os.path.normcase(target).lower().rstrip(". ")
 
 
 def install_plan(db: Database, library: Path, root: Path, replace_books: set[str] | None = None) -> dict:
