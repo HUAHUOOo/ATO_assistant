@@ -135,6 +135,7 @@ REQUIRED_TARGETS = (
     "/app/ss/terrain",
     "/app/ss/terrain-cards",
     "/app/assets/bgm/audio",
+    "/app/assets/bgm/media",
     # 图标整目录被打包器排除，必须由宿主机挂入（含 SVG 与本地清单）。
     "/app/" + pc.ICON_MEDIA_DIR,
     "/app/assets/exploration-cards",
@@ -360,11 +361,11 @@ def main() -> int:
             )
 
     # 从资料包清单反推覆盖范围：新增素材路径不能只在 APK 名单里登记，却漏挂 Docker。
-    # BGM 清单沿用平铺路径，Docker 安装脚本会将音频迁到 audio/ 子目录。
+    # 平铺资料包 BGM 通过 media/ 挂载实时可见，无需安装时迁移。
     for item in asset_studio_catalog()["items"]:
         for relative in item.get("faces", {}).values():
             if relative.startswith(pc.BGM_MEDIA_DIR + "/") and not relative.startswith(pc.BGM_MEDIA_DIR + "/audio/"):
-                relative = pc.BGM_MEDIA_DIR + "/audio/" + relative[len(pc.BGM_MEDIA_DIR) + 1:]
+                relative = pc.BGM_MEDIA_DIR + "/media/" + relative[len(pc.BGM_MEDIA_DIR) + 1:]
             resource_path = "/app/" + relative
             if not any(covers(target, resource_path) for target in targets):
                 failures.append(f"资料包素材没有挂载点覆盖：{resource_path}")
@@ -378,6 +379,9 @@ def main() -> int:
         expected = f"/app/assets/bgm/{subdir}"
         if expected not in targets:
             failures.append(f"manifest.audioDir 指向 {subdir}/，但 compose 没有挂载 {expected}")
+    pack_match = re.search(r'packDir:\s*"([^"]*)"', manifest)
+    if not pack_match or "/app/assets/bgm/" + pack_match.group(1).strip().lstrip("./").rstrip("/") not in targets:
+        failures.append("资料包平铺 BGM 必须由 manifest.packDir 与独立素材挂载覆盖")
 
     # 4. 单文件挂载：必须挡掉「文件缺失时 Docker 建同名目录」，且两条安装路径都要先放占位文件
     file_entries = [
@@ -400,12 +404,10 @@ def main() -> int:
         if leaf not in exporter:
             failures.append(f"tools/export_portable.py 的 Docker 包没有为 {source} 准备占位文件")
 
-    # 5. 安装脚本要准备好素材目录，并迁移早期版本平铺在 assets/bgm/ 下的音频
+    # 5. 安装脚本准备好素材目录；平铺音频通过独立挂载直接可见。
     for required_dir in ("app/assets/bgm/audio", "app/ss/terrain", "app/ss/terrain-cards"):
         if required_dir not in install_script:
             failures.append(f"tools/install-docker.sh 没有创建 {required_dir}")
-    if "app/assets/bgm/audio/" not in install_script:
-        failures.append("tools/install-docker.sh 没有把平铺的 BGM 音频迁进 audio/")
 
     # 5b. 安装脚本建的目录和 compose 的挂载点必须一一对应：compose 挂的目录要在宿主机
     # 建出来（现在 aibp/ps 是整棵挂载，建的就是 app/aibp/ps 这一个），ps/ 下另外建出来的
@@ -455,8 +457,8 @@ def main() -> int:
 
     # 6. latest 是会移动的标签，pull_policy 必须是 always，pull 才是真的 pull
     policy = re.search(r"^\s*pull_policy:\s*(\S+)\s*$", compose, re.M)
-    if not policy or policy.group(1) != "always":
-        failures.append("compose.yaml 的 pull_policy 应为 always（镜像标签 latest 会移动）")
+    if not policy or policy.group(1) != "${ATO_PULL_POLICY:-always}":
+        failures.append("compose.yaml 默认 pull_policy 应为 always，且允许本地构建设为 never")
     if "latest" not in compose:
         failures.append("compose.yaml 里应保留 ${ATO_VERSION:-latest} 之类可变标签或说明固定版本的方式")
 
@@ -605,11 +607,11 @@ def main() -> int:
         failures.append("tools/install-docker.sh 的本地构建没有检查构建上下文里的 Dockerfile")
     if "tools/packaging/docker" not in install_script:
         failures.append("tools/install-docker.sh 的本地构建没有取 tools/packaging/docker 作为构建上下文")
-    if "build_local_image \"$(fetch_version)\"" not in install_script:
+    if "build_local_image \"$version\"" not in install_script:
         failures.append("tools/install-docker.sh 拉取失败后没有调用本地构建")
     # 本地构建的镜像不在任何 registry 里：compose 必须改成 never，image 必须能被覆盖，
     # 且改写后要自检 —— 两行里任何一行的格式一变，改写就会静默失效。
-    if "pull_policy: never" not in install_script:
+    if "policy=never" not in install_script:
         failures.append("tools/install-docker.sh 没有把 compose 的 pull_policy 改成 never（本地镜像没有 registry）")
     if "${ATO_IMAGE:-" not in install_script:
         failures.append("tools/install-docker.sh 改写的 image 行没有走 ${ATO_IMAGE:-...} 覆盖")
@@ -618,8 +620,8 @@ def main() -> int:
     # 探针、版本兜底与 compose 改写后的自检：没有它们，「拉不到就构建」会变成「悄悄跑旧镜像」
     if "docker pull \"$image\" 2>/dev/null" not in install_script:
         failures.append("tools/install-docker.sh 没有安静的可用性探针（能拉到就不该去编译源码）")
-    if "ATO_VERSION=1.3.2" not in install_script:
-        failures.append("tools/install-docker.sh 的版本兜底提示里没有示例 ATO_VERSION（版本解析失败时给了空话）")
+    from test_docker_installer import run_installer_regressions
+    failures.extend(run_installer_regressions())
 
     if failures:
         print("Docker 挂载不变量测试失败：")

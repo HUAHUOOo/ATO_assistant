@@ -18,6 +18,8 @@ PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT))
 
 from app.bgm_resources import allowed_target as is_bgm_target  # noqa: E402
+from app.cryptic_resources import allowed_target as is_cryptic_target  # noqa: E402
+from app.cryptic_resources import add_to_archive as add_cryptic_to_archive  # noqa: E402
 from app.official_resources import add_to_archive
 from app.official_assets import resolve as resolve_official_asset  # noqa: E402
 from app.fixed_catalog import fixed_catalog_payload  # noqa: E402
@@ -75,10 +77,12 @@ def load_entity_index(
 
 def build(
     apk_path: Path, destination: Path, overlay_root: Path | None = None,
-    include_official_scans: bool = False,
+    include_official_scans: bool = False, include_cryptic: bool = True,
 ) -> dict:
     fixed = fixed_catalog_payload()
-    items = fixed["items"]
+    items = [{**item, "faces": {face: target for face, target in item["faces"].items()
+                              if not is_cryptic_target(target)}} for item in fixed["items"]]
+    items = [item for item in items if item["faces"]]
     faces = [
         (item, face, target)
         for item in items
@@ -197,6 +201,11 @@ def build(
                 output_zip, manifest, overlay_root,
                 include_scans=include_official_scans,
             )
+            cryptic_count = add_cryptic_to_archive(
+                output_zip, manifest, overlay_root,
+                fallback_archive=source_zip, fallback_prefix="assets/web/",
+            ) if include_cryptic else 0
+            manifest["build"]["crypticIncluded"] = bool(cryptic_count)
             output_zip.writestr(
                 "manifest.json",
                 json.dumps(manifest, ensure_ascii=False, separators=(",", ":")),
@@ -223,6 +232,7 @@ def build(
         "entities": entity_index.entity_count,
         "official_assets": sum(1 for value in overlay_flags.values() if value),
         "official_files": len(manifest.get("resourceFiles", [])),
+        "cryptic_files": cryptic_count,
         "bytes": destination.stat().st_size,
     }
 
@@ -243,12 +253,14 @@ def main() -> None:
              "后缀 .jpg/.jpeg/.png/.webp 均可，不限大小写）一起打包。"
              "默认不打包截图，只带官方故事书正文数据。",
     )
+    parser.add_argument("--no-cryptic", action="store_true", help="不带密语字形")
     args = parser.parse_args()
     result = build(
         args.apk.expanduser().resolve(),
         args.destination.expanduser().resolve(),
         args.overlay_root.expanduser().resolve() if args.overlay_root else None,
         args.include_official_scans,
+        not args.no_cryptic,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2), flush=True)
 

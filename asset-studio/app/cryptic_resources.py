@@ -98,17 +98,36 @@ def glyph_names(project_root: Path | None = None) -> tuple[str, ...]:
 
 def add_to_archive(
     archive, manifest: dict, root: Path | None, fallback_library: Path | None = None,
+    fallback_archive=None, fallback_prefix: str = "", fallback_files=None,
 ) -> int:
-    """把字形写进资料包；工程目录没有字形时退回素材库里的副本。"""
+    """把字形写进资料包；没有本地副本时可从素材库或旧 APK 读取。"""
     files = collect(root)
     if not files and fallback_library is not None:
         files = collect_library(fallback_library)
-    if not files:
+    if fallback_files is not None:
+        files += fallback_files({target for target, _ in files})
+        if len(files) > MAX_FILES:
+            raise ValueError(f"密语字形数量超过 {MAX_FILES} 个上限")
+    archive_targets = []
+    if not files and fallback_archive is not None:
+        archive_targets = sorted({
+            name[len(fallback_prefix):] for name in fallback_archive.namelist()
+            if name.startswith(fallback_prefix) and allowed_target(name[len(fallback_prefix):])
+        })
+    if not files and not archive_targets:
         manifest.pop("crypticFiles", None)
         return 0
+    if len(archive_targets) > MAX_FILES:
+        raise ValueError(f"密语字形数量超过 {MAX_FILES} 个上限")
     entries = []
-    for target, path in files:
-        raw = path.read_bytes()
+    for target, path in files + [(target, None) for target in archive_targets]:
+        if path is None:
+            member = fallback_prefix + target
+            if fallback_archive.getinfo(member).file_size > MAX_FILE_BYTES:
+                raise ValueError(f"密语字形过大：{target}")
+            raw = fallback_archive.read(member)
+        else:
+            raw = path.read_bytes()
         archive.writestr(target, raw)
         entries.append({
             "target": target,
@@ -132,6 +151,9 @@ def checked_bytes(archive, item: dict) -> bytes:
     if info.file_size > MAX_FILE_BYTES:
         raise ValueError(f"密语字形过大：{target}")
     raw = archive.read(target)
+    if "bytes" in item and (not isinstance(item["bytes"], int) or isinstance(item["bytes"], bool)
+                            or item["bytes"] != len(raw)):
+        raise ValueError(f"密语字形大小不符：{target}")
     if hashlib.sha256(raw).hexdigest() != item.get("sha256"):
         raise ValueError(f"密语字形校验失败：{target}")
     return raw

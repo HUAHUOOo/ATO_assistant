@@ -1,0 +1,60 @@
+name: Resource import regressions
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  packages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install asset studio dependencies
+        run: python -m pip install -r asset-studio/requirements.txt
+      - name: Test Docker installation and resource mounts
+        run: python tools/test_docker_mounts.py
+      - name: Test Docker package licensing
+        run: python tools/test_docker_package_license.py
+      - name: Build and start the Docker export
+        run: python tools/test_docker_runtime.py
+      - name: Test cryptic package exports and partial imports
+        working-directory: asset-studio
+        run: python -m unittest tests.test_cryptic_resources tests.test_fan_pack tests.test_hostile_pack_safety tests.test_install_target_safety tests.test_bgm_resources tests.test_icon_resources
+      - name: Test Android resource catalog and coverage
+        run: |
+          python tools/test_android_resource_catalog.py
+          python tools/test_android_resource_catalog_coverage.py
+      - name: Test hidden exploration and music playback
+        run: |
+          node tests/hidden-exploration.test.cjs
+          node tools/test-bgm-player.cjs
+          node tools/test-story-bgm.cjs
+
+  android-import:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Test Android campaign import
+        env:
+          PYTHONUTF8: "1"
+        run: python tools/test_android_campaign_import.py
+      - name: Test Android resource import transactions and limits
+        env:
+          PYTHONUTF8: "1"
+        run: python tools/test_android_atopack_import.py

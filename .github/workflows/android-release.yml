@@ -89,6 +89,14 @@ jobs:
           PYTHONIOENCODING: utf-8
         run: python tools/test_android_resource_catalog.py
 
+      - name: Test Android resource import transactions and limits
+        env:
+          PYTHONUTF8: "1"
+          PYTHONIOENCODING: utf-8
+        run: |
+          python tools/test_android_resource_catalog_coverage.py
+          python tools/test_android_atopack_import.py
+
       - name: Resolve release version
         id: release
         shell: pwsh

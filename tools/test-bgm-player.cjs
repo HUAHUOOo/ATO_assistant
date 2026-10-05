@@ -35,7 +35,8 @@ test("清单：今日流程每一步都有阶段，且阶段曲目可解析", ()
   });
   assert.ok(manifest.stages[manifest.defaultStage], "defaultStage 必须是有效阶段");
   assert.equal(manifest.baseDir, "./", "baseDir 应按 manifest.js 自身目录解析，不能是页面相对路径");
-  assert.equal(manifest.audioDir, "./audio/", "audioDir 应指向 assets/bgm/audio/（Docker 只挂载这一个子目录）");
+  assert.equal(manifest.audioDir, "./audio/", "audioDir 应指向手动音频目录");
+  assert.equal(manifest.packDir, "./media/", "packDir 应指向 Docker 资料包音频挂载");
   Object.keys(manifest.stages).forEach((key) => {
     const stage = manifest.stages[key];
     assert.ok(stage.label, `${key} 缺少 label`);
@@ -160,6 +161,19 @@ test("音频放在 assets/bgm/audio/ 时也能播（Docker 只挂载这一个子
   assert.equal(api.state().url, "http://ato.local/assets/bgm/audio/LB_Grand_Agora.mp3");
 });
 
+test("Docker 安装后导入平铺资料包音频即可播放；手动 audio/ 同名音频优先", async () => {
+  for (const manual of [false, true]) {
+    const harness = createHarness({
+      exists: (url) => url.includes("/assets/bgm/media/") || (manual && url.includes("/assets/bgm/audio/")),
+    });
+    harness.api.setEnabled(true);
+    await harness.api.setStage("hub");
+    await waitFor(() => harness.loudest() === "LB_Grand_Agora.mp3", "资料包音频");
+    assert.equal(harness.api.state().url, `http://ato.local/assets/bgm/${manual ? "audio" : "media"}/LB_Grand_Agora.mp3`);
+    harness.close();
+  }
+});
+
 test("本目录优先于 audio/；清单把 audioDir 写成空字符串后只认本目录", async () => {
   // 两处都有文件时用本目录：便携版 / Android / 桌面的既有行为不变
   const both = createHarness();
@@ -171,7 +185,7 @@ test("本目录优先于 audio/；清单把 audioDir 写成空字符串后只认
   // audioDir: "" → 关掉回退，audio/ 里有文件也当缺失
   const off = createHarness({
     exists: (url) => url.includes("/assets/bgm/audio/"),
-    manifest: { audioDir: "" },
+    manifest: { audioDir: "", packDir: "" },
   });
   off.api.setEnabled(true);
   await off.api.setStage("hub");

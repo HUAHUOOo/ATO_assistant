@@ -16,6 +16,51 @@ from export_android import asset_studio_catalog
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def exploration_requirements(source: str) -> tuple[dict[str, set[str]], dict[str, set[str]]]:
+    """Read both dashboard catalogs so every visible and hidden card is checked."""
+    catalogs = []
+    for name in ("explorationDecks", "hiddenExplorationCards"):
+        block = re.search(rf"const {name} = \{{([\s\S]*?)\n    \}};", source)
+        assert block, f"{name} not found; update this coverage check."
+        headings = list(re.finditer(r"^      (c\d+):\s*\[", block[1], re.MULTILINE))
+        assert {heading[1] for heading in headings} == {"c1", "c2", "c3", "c4", "c5"}
+        assert len(headings) == 5, f"Duplicate cycle in {name}"
+        cycles = {}
+        for index, heading in enumerate(headings):
+            end = headings[index + 1].start() if index + 1 < len(headings) else len(block[1])
+            # Deck identifiers are words; physical card identifiers are numbers.
+            body = block[1][heading.end():end]
+            ids = re.findall(r'\bid:\s*"(\d+)"', body)
+            generated = list(re.finditer(
+                r"cards:\s*Array\.from\(\{\s*length:\s*(\d+)\s*\},\s*"
+                r"\(_,\s*index\)\s*=>\s*\{\s*const id = String\((\d+)\s*\+\s*index\);",
+                body,
+            ))
+            assert len(generated) == len(re.findall(r"cards:\s*Array\.from", body)), (
+                f"Unrecognized generated cards in {name}.{heading[1]}; update this coverage check."
+            )
+            for group in generated:
+                start, count = int(group[2]), int(group[1])
+                ids.extend(str(start + offset) for offset in range(count))
+            if name == "explorationDecks":
+                assert ids, f"No ordinary cards found in {heading[1]}; update this coverage check."
+            assert len(ids) == len(set(ids)), f"Duplicate card in {name}.{heading[1]}"
+            cycles[heading[1]] = set(ids)
+        catalogs.append(cycles)
+    return catalogs[0], catalogs[1]
+
+
+def check_exploration_catalog(targets: dict, source: str) -> tuple[int, int]:
+    regular, hidden = exploration_requirements(source)
+    for cycle in regular:
+        assert not regular[cycle] & hidden[cycle], f"Hidden card is already in {cycle}'s ordinary decks"
+        for card_id in regular[cycle] | hidden[cycle]:
+            key = (f"{cycle}:exploration:cards:{card_id}", "front")
+            expected = f"assets/exploration-cards/{cycle}/{card_id}.png"
+            assert targets.get(key) == expected, f"Android import catalog missing/mismatched: {key}"
+    return sum(map(len, regular.values())), sum(map(len, hidden.values()))
+
+
 def check_catalog(catalog: dict) -> None:
     assert catalog["format"] == "ato-android-resource-catalog"
     targets = {}
@@ -65,18 +110,9 @@ def check_catalog(catalog: dict) -> None:
                for target in glyph_targets), "密语字形目标路径不合规"
 
     source = (ROOT / "index.html").read_text(encoding="utf-8")
-    block = re.search(r"const hiddenExplorationCards = \{([\s\S]*?)\n    \};", source)
-    assert block, "Hidden exploration catalog not found; update this coverage check."
-    cycles = re.findall(r"(c\d+):\s*\[([^\]]*)\]", block[1])
-    assert {cycle for cycle, _ in cycles} == {"c1", "c2", "c3", "c4", "c5"}
-    checked = 0
-    for cycle, cards in cycles:
-        for card_id in re.findall(r'id:\s*"([^\"]+)"', cards):
-            key = (f"{cycle}:exploration:cards:{card_id}", "front")
-            expected = f"assets/exploration-cards/{cycle}/{card_id}.png"
-            assert targets.get(key) == expected, f"Android import catalog missing/mismatched: {key}"
-            checked += 1
-    assert checked, "No hidden exploration entries checked."
+    regular_count, hidden_count = check_exploration_catalog(targets, source)
+    assert regular_count >= 200, "Exploration coverage unexpectedly lost ordinary decks."
+    assert hidden_count, "No hidden exploration entries checked."
     declared = json.loads((ROOT / "aibp/ps/other/3b6e9d20/catalog.json").read_text(encoding="utf-8"))["targets"]
     assert declared, "Supplemental resource list is empty"
     # 模拟 GitHub 的干净检出：只有路径名单，没有任何 .bin 文件。
@@ -91,7 +127,8 @@ def check_catalog(catalog: dict) -> None:
         assert paths == {f"aibp/ps/other/{path}" for path in declared}
         for item in items:
             assert targets.get((item.id, "front")) == item.faces["front"], "APK lacks binary import mapping"
-    print(f"Android resource catalog passed: {len(targets)} mappings, {checked} hidden exploration entries.")
+    print(f"Android resource catalog passed: {len(targets)} mappings, "
+          f"{regular_count} ordinary and {hidden_count} hidden exploration entries.")
 
 
 if __name__ == "__main__":

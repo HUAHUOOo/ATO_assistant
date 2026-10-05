@@ -18,7 +18,7 @@
   const CONTAINER_ID = "bgmControls";
   const AUTO_LABEL = "自动（跟随今日流程）";
   // 改动本文件时同步更新 BUILD 与主控台的 ?v= 标签。
-  const BUILD = "bgm17";
+  const BUILD = "bgm18";
 
   if (!manifest || !manifest.stages || !Object.keys(manifest.stages).length) {
     window.ATO_BGM = createDisabledApi("缺少 assets/bgm/manifest.js");
@@ -32,6 +32,7 @@
   // 清单没写这个字段时按默认值走（老的自定义清单也能用上 Docker 部署）；
   // 想彻底关掉回退，在清单里写 audioDir: ""。
   const audioDir = normalizeAudioDir(manifest.audioDir === undefined ? "audio/" : manifest.audioDir);
+  const packDir = normalizeAudioDir(manifest.packDir);
   const scriptDir = resolveScriptDir();
   const assetBase = resolveAssetBase();
 
@@ -496,7 +497,7 @@
   function displayBase() {
     const flat = displayFlatBase();
     // 有备用目录时把两处都写出来，免得用户放着音乐在 audio/ 里却以为没生效
-    return audioDir ? flat + " 或 " + flat + audioDir : flat;
+    return [flat].concat([audioDir, packDir].filter(Boolean).map(function (dir) { return flat + dir; })).join(" 或 ");
   }
 
   function displayFlatBase() {
@@ -516,10 +517,9 @@
     const files = Array.isArray(value)
       ? value
       : (value && Array.isArray(value.files) ? value.files : []);
-    // 本目录优先（便携版 / Android / 桌面），再来 audioDir（Docker 只挂载它）。
-    const names = audioDir
-      ? files.concat(files.map(function (file) { return audioDir + String(file).replace(/^\/+/, ""); }))
-      : files;
+    // 本目录优先，其次手动音频目录，最后 Docker 资料包的平铺音频挂载。
+    const names = ["", audioDir, packDir].filter(function (dir, index) { return index === 0 || dir; })
+      .flatMap(function (dir) { return files.map(function (file) { return dir + String(file).replace(/^\/+/, ""); }); });
     return names.map(joinUrl);
   }
 

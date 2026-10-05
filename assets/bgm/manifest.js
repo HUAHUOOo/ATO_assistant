@@ -26,11 +26,12 @@ window.ATO_BGM_MANIFEST = {
   baseDir: "./",
   // 备用音频目录（相对本文件，同样按本文件所在目录解析）。
   // 本目录找不到的曲目会再来这里找一次，两处先命中的生效。
-  // 存在的理由：Docker / NAS 只把 audio/ 子目录挂进容器，播放器代码（本文件与
-  // bgm.js）由镜像提供，这样 docker compose pull 才能更新到播放器；
-  // 所以那边把音频放进 ./audio/ 即可，其它平台继续放在本目录。
+  // Docker / NAS 把手动放置的 audio/ 子目录挂到这里，播放器代码由镜像提供。
   // 想只认本目录，把这里改成空字符串 ""。
   audioDir: "./audio/",
+  // 资料包在安装后复制进宿主机 assets/bgm/ 时，通过独立的只读挂载实时可见。
+  // 同名音频优先使用 audio/ 中手动放置的版本；播放器程序不会被这份目录遮住。
+  packDir: "./media/",
   defaults: {
     volume: 0.5,
     stageGain: 0.6,

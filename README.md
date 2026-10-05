@@ -72,7 +72,7 @@ Android 无法增量更新，请在发布页下载新的 APK 覆盖安装。Dock
 
 包内保留项目相对路径，按上述方式复制后即可使用图片和故事数据。根目录的 `manifest.json` 是包清单，留着不影响运行。
 
-不方便手动铺文件的环境（Android、Docker / NAS）改用界面里的「从 .atopack 导入资源」，它会顺带完成路径归属和背景音乐解包。
+Android 在界面里使用「从 .atopack 导入资源」。Docker / NAS 将解压后的这些目录复制到安装目录的 `app/` 下，然后刷新页面；容器里的只读素材目录需要在宿主机上填充，网页没有资料包导入入口。平铺的 `assets/bgm/*.mp3` 也会直接生效。
 
 需要拍摄、整理或导出素材时，使用 [素材库工具](asset-studio/README.md)。
 
@@ -93,7 +93,7 @@ docker compose up -d
 
 新增素材挂载还需要同步新版 `compose.yaml`（旧版工具同步 `compose.legacy.yaml`）：`pull` 只更新镜像，不会更新宿主机上的 Compose 文件。例如界面图标必须有 `./app/assets/icons:/app/assets/icons:ro` 这一条；更新配置后执行 `up -d` 重建容器，将图标放到 `app/assets/icons/`。
 
-compose 里的 `pull_policy` 是 `always`：镜像标签 `latest` 会移动，用默认的 `missing` 时 `docker compose pull` 可能认为「本地已有同名镜像」而什么都不拉，更新看起来成功、实际还在跑旧版。代价是 GHCR 不可达时手动 `docker compose up -d` 会报错（已经在跑的容器不受影响）；想固定版本可以在安装目录建一个 `.env`，写上 `ATO_VERSION=1.3.1` 这样的具体版本号。
+Compose 默认在启动时拉取镜像（`ATO_PULL_POLICY=always`）；本地构建使用 `never`。需要固定版本时，在 `.env` 写上 `ATO_VERSION=<发布页上的版本号>`，再运行安装脚本，它会同时取该版本的 Compose 配置与镜像。手动部署也必须使用同一版本标签下的 Compose 文件；旧镜像可能缺少新版素材挂载所需的启动还原逻辑，不能只改镜像版本号。
 
 ### 旧版 docker-compose（含 32 位系统）
 
@@ -107,19 +107,19 @@ touch app/ss/battle-board.jpg
 docker-compose -f compose.legacy.yaml pull && docker-compose -f compose.legacy.yaml up -d
 ~~~
 
-访问 `http://服务器IP:8793/`。更新仍执行上面的 `pull && up -d`，停止使用 `docker-compose -f compose.legacy.yaml down`。如需固定版本，在同目录的 `.env` 中写 `ATO_VERSION=1.3.6`。所有命令都带 `-f compose.legacy.yaml`，避免旧版工具读到仅供 Compose v2 使用的 `compose.yaml`。
+访问 `http://服务器IP:8793/`。更新仍执行上面的 `pull && up -d`，停止使用 `docker-compose -f compose.legacy.yaml down`。如需固定版本，在同目录的 `.env` 中写 `ATO_VERSION=<发布页上的版本号>`，并取该版本标签下的兼容配置。所有命令都带 `-f compose.legacy.yaml`，避免旧版工具读到仅供 Compose v2 使用的 `compose.yaml`。
 
 ### 镜像架构与树莓派
 
 公开镜像按 `linux/amd64` 与 `linux/arm/v7` 两个架构发布，同一个标签同时指向两份，Docker 会按本机架构自动挑，不需要写 `--platform`。**32 位 Raspberry Pi OS 用的就是 `linux/arm/v7`**，树莓派 3/4/5 装 32 位系统时也可使用该镜像；只有 `docker-compose` 时按上面的兼容配置启动，有 Compose v2.17+ 时可使用一键安装命令。
 
-其它架构（`linux/arm64`、`riscv64` 等）没有预构建镜像。一键安装脚本在这种情况下**不会**停在 `no matching manifest`，而是自己取对应版本的源码、用发布镜像那份 Dockerfile 在本机构建（基础镜像 `php:8.4-cli-alpine` 有 arm32v7/arm64 清单，应用是纯静态文件加 PHP 内置服务器，不需要编译任何东西）。这时脚本会把安装目录里的 compose 改成指向本地镜像，并把 `pull_policy` 改成 `never`：镜像不在任何 registry 里，留着 `always` 会去拉一个不存在的东西。以后升级只要重跑一次安装命令。
+其它架构没有预构建应用镜像时，一键安装脚本会取对应版本源码，先用发布导出器准备完整的 `app/` 构建目录，再在本机构建。`linux/arm64` 可使用这条路径；其它架构还需要 PHP 与 Python 基础镜像支持本机架构。脚本在 `.env` 保存准确的本地镜像标签及 `ATO_PULL_POLICY=never`，后续 `docker compose up -d` 可直接启动。以后升级重跑一次安装命令。
 
 64-bit Raspberry Pi OS 属于 `linux/arm64`，走的就是上面这条本地构建路径；想省掉自己构建，装 32 位系统用现成的 `linux/arm/v7` 镜像更省事。
 
-安装脚本默认从 GitHub 取最新 tag 的源码。GitHub 不可达时可以在安装目录的 `.env` 里写明版本（`ATO_VERSION=1.3.2`），或直接 `ATO_VERSION=1.3.2 bash install-docker.sh`。
+安装脚本默认从 GitHub 取最新 tag 的源码。固定源码版本时可在安装目录的 `.env` 里写 `ATO_VERSION=<发布页上的版本号>`；构建仍需能访问源码与基础镜像。使用自建镜像时同时设置 `ATO_IMAGE=ato-assistant:local` 和 `ATO_PULL_POLICY=never`；两份 Compose 配置都支持 `ATO_IMAGE`。
 
-一键安装默认使用执行命令时的当前文件夹；也可以通过 `ATO_DIR=/path/to/dir` 指定安装目录。脚本会建好挂载点：决战版图底图的占位文件 `app/ss/battle-board.jpg`（把真图覆盖上去，文件名不要改）、BGM 目录 `app/assets/bgm/audio/`，并把旧版直接放在 `app/assets/bgm/` 下的音频移进 `audio/`。
+一键安装默认使用执行命令时的当前文件夹；也可以通过 `ATO_DIR=/path/to/dir` 指定安装目录。脚本会建好挂载点和决战版图底图占位文件 `app/ss/battle-board.jpg`（把真图覆盖上去，文件名不要改），并下载 [Docker 完整说明](tools/packaging/docker/README.txt) 到安装目录。BGM 可放在 `app/assets/bgm/audio/`，资料包平铺到 `app/assets/bgm/` 的音频同样实时可用，无需重跑安装脚本。
 
 data/ 和 app/ 下的本地素材目录会挂载到容器，拉取新镜像不会删除它们。
 
@@ -129,11 +129,12 @@ data/ 和 app/ 下的本地素材目录会挂载到容器，拉取新镜像不�
 | --- | --- |
 | 决战版图底图 | `app/ss/battle-board.jpg`（单文件挂载；v2 配置缺文件会报错，v1 兼容配置需提前创建文件） |
 | 第二屏地形图 / 地形卡 | `app/ss/terrain/`、`app/ss/terrain-cards/` |
-| 主控台背景音乐 | `app/assets/bgm/audio/`（`.mp3` / `.ogg`，文件名见 [bgm 说明](assets/bgm/README.md)） |
+| 主控台背景音乐 | `app/assets/bgm/`（资料包平铺音频）或 `app/assets/bgm/audio/`（同名时优先使用；文件名见 [bgm 说明](assets/bgm/README.md)） |
 | 主控台界面图标 | `app/assets/icons/`（资料包提供的 SVG 图标；只读挂载） |
 | 循环标记 / 探索卡 / 故事与厄运卡 | `app/assets/cycle-symbols/`、`app/assets/exploration-cards/`、`app/assets/story-doom-cards/` |
 | 其它本地图片 | `app/map/images/`、`app/technology/images/`、`app/story/images/` 等（见 `compose.yaml`） |
 | 私有故事书数据 | `app/story/data/`（只读挂载） |
+| 巴别语 / 塞壬语密语字形 | `app/story/assets/cryptic/glyphs/`（资料包的 PNG 字形；只读挂载，缺少时密语键盘为空） |
 
 `app/ss/` 下的 `index.html` / `app.js` / `styles.css` / `terrain-data.js` 是镜像提供的程序文件，宿主机上的同名旧副本不会生效，可以直接删掉。
 

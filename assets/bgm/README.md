@@ -39,7 +39,7 @@ for %f in ("D:\desktop\mp3\*.ogg") do ffmpeg -y -i "%f" -map_metadata -1 -codec:
 
 ### 手动放文件
 
-把音频按下面的文件名丢进 `assets/bgm/`，控制条就会自动识别；Docker / NAS 上请丢进 `assets/bgm/audio/`（见下面的「Docker / NAS 部署」）：
+把音频按下面的文件名丢进 `assets/bgm/`，控制条就会自动识别；Docker / NAS 上可放在宿主机 `app/assets/bgm/` 或 `app/assets/bgm/audio/`，同名时优先使用后者（见下面的「Docker / NAS 部署」）：
 
 | 阶段 | 文件名 |
 | --- | --- |
@@ -69,19 +69,20 @@ for %f in ("D:\desktop\mp3\*.ogg") do ffmpeg -y -i "%f" -map_metadata -1 -codec:
 
 ### Docker / NAS 部署
 
-容器里跑的是镜像自带的播放器（`bgm.js` + `manifest.js`），只有**音频**是从宿主机挂进去的，挂在 `app/assets/bgm/audio/`：
+容器里跑的是镜像自带的播放器（`bgm.js` + `manifest.js`），宿主机音频可放在以下两处：
 
 ```text
 <安装目录>/app/assets/bgm/audio/LB_Armory.mp3      ← 音频
+<安装目录>/app/assets/bgm/LB_Armory.mp3            ← 资料包平铺音频
 <安装目录>/app/assets/bgm/bgm.js                   ← 镜像提供，宿主机上这份不生效
 <安装目录>/app/assets/bgm/manifest.js              ← 同上
 ```
 
-音频放这里的原因：`assets/bgm/` 一个目录里混着播放器代码和自备音频，如果整目录挂进容器，`docker compose pull` 就永远更新不到播放器（第二屏曾经就是这么坏掉的）。所以播放器留在镜像里，音频下沉一层。
+音频目录分别挂到容器的 `assets/bgm/audio/` 和 `assets/bgm/media/`，播放器自身的目录仍由镜像提供，`docker compose pull` 可以更新播放器。
 
-- 播放器会先在 `assets/bgm/` 找，再去 `assets/bgm/audio/` 找，两处先命中的生效 —— 便携版 / Android / 桌面继续把音频放在 `assets/bgm/` 即可，不用改。
-- 清单里 `audioDir` 控制这个回退目录（默认 `"./audio/"`，写 `""` 就只认本目录）。
-- `tools/install-docker.sh` 每次执行都会把直接放在 `app/assets/bgm/` 下的音频搬进 `audio/`，不会丢文件。
+- 播放器依次查找 `assets/bgm/`、`assets/bgm/audio/`、`assets/bgm/media/`。Docker 中同名音频优先用宿主机 `audio/` 中的版本；其它平台继续直接放在 `assets/bgm/`。
+- 清单里 `audioDir` 和 `packDir` 控制两个回退目录，都写 `""` 才只认本目录。
+- 安装后再把资料包复制到宿主机 `app/`，平铺音频也会实时可见，不需要重跑脚本或搬文件。正在打开的页面刷新后会重新检查音频。
 - 想改阶段 / 文件名 / 淡入淡出，改的是容器里那份 `manifest.js`，所以要在宿主机覆盖它：在 `compose.yaml` 里加一行
   `- ./app/assets/bgm/manifest.js:/app/assets/bgm/manifest.js:ro`（默认不加，保持 `pull` 能更新它）。
 

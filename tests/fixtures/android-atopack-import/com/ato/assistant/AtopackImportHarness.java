@@ -1,0 +1,291 @@
+package com.ato.assistant;
+
+import android.content.ContentResolver;
+import android.content.Context;
+import android.net.Uri;
+import android.util.AtomicFile;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.security.MessageDigest;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
+import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+public final class AtopackImportHarness {
+  private static final String ASSET = "assets/cards/test.png";
+  private static final String GLYPH = "story/assets/cryptic/glyphs/babelian-1.png";
+  private final File directory;
+  private final Context context;
+  private AtopackStore store;
+  private int checks;
+  private int packNumber;
+
+  private record Member(String name, byte[] bytes) {}
+
+  private AtopackImportHarness(File directory) {
+    this.directory = directory;
+    JSONObject catalog = new JSONObject().put("format", "ato-android-resource-catalog")
+        .put("items", new JSONArray().put(item("test", ASSET)).put(item("glyph", GLYPH)));
+    context = new Context(new File(directory, "app"), catalog.toString());
+    store = new AtopackStore(context);
+  }
+
+  private static byte[] bytes(String value) { return value.getBytes(StandardCharsets.UTF_8); }
+  private static String sha(byte[] value) throws Exception {
+    return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value));
+  }
+  private static JSONObject item(String id, String target) {
+    return new JSONObject().put("id", id).put("faces", new JSONObject().put("front", target));
+  }
+  private static JSONObject manifest() {
+    return new JSONObject().put("format", "ato-asset-pack").put("version", 3)
+        .put("items", new JSONArray().put(item("test", ASSET)).put(item("glyph", GLYPH)))
+        .put("assets", new JSONArray());
+  }
+  private static JSONObject resource(String member, byte[] content) throws Exception {
+    return new JSONObject().put("target", member).put("member", member)
+        .put("sha256", sha(content)).put("bytes", content.length);
+  }
+  private static JSONObject asset(String id, String member, byte[] content) throws Exception {
+    return resource(member, content).put("itemId", id).put("face", "front");
+  }
+  private static JSONObject stories(String id) {
+    return new JSONObject().put("books", new JSONArray().put(new JSONObject().put("id", id).put("title", id)));
+  }
+  private File pack(JSONObject manifest, Member... members) throws Exception {
+    File file = new File(directory, "test-" + (++packNumber) + ".atopack");
+    try (ZipArchiveOutputStream output = new ZipArchiveOutputStream(file)) {
+      List<Member> all = new ArrayList<>();
+      all.add(new Member("manifest.json", bytes(manifest.toString())));
+      all.addAll(Arrays.asList(members));
+      for (Member member : all) {
+        output.putArchiveEntry(new ZipArchiveEntry(member.name));
+        output.write(member.bytes);
+        output.closeArchiveEntry();
+      }
+    }
+    return file;
+  }
+  private AtopackStore.ImportResult install(File pack) throws Exception {
+    return store.importPackage(new ContentResolver(), Uri.parse(pack.toURI().toString()));
+  }
+  private void check(boolean condition, String message) {
+    if (!condition) throw new AssertionError(message);
+    checks++;
+  }
+  private String open(String target) throws Exception {
+    AtopackStore.OpenedResource resource = store.open(target);
+    if (resource == null) return null;
+    try (InputStream input = resource.input) { return new String(input.readAllBytes(), StandardCharsets.UTF_8); }
+  }
+  private File root() { return new File(context.getFilesDir(), "atopack"); }
+  private Map<String, String> snapshot() throws Exception {
+    Map<String, String> result = new TreeMap<>();
+    try (var files = Files.walk(root().toPath())) {
+      for (var file : files.filter(Files::isRegularFile).toList()) {
+        result.put(root().toPath().relativize(file).toString(), sha(Files.readAllBytes(file)));
+      }
+    }
+    return result;
+  }
+  private void reject(File pack) throws Exception {
+    Map<String, String> before = snapshot();
+    String status = store.status().toString();
+    try { install(pack); throw new AssertionError("Invalid ZIP import succeeded"); }
+    catch (java.io.IOException expected) { checks++; }
+    check(before.equals(snapshot()), "Failed import changed persistent resources/stories/index or left blobs");
+    check(status.equals(store.status().toString()), "Failed import changed active catalog or updatedAt");
+    File[] staging = root().listFiles((dir, name) -> name.endsWith(".staging"));
+    check(staging != null && staging.length == 0, "Import staging directory leaked");
+    check(context.getCacheDir().list().length == 0, "Copied package cache leaked");
+  }
+  private static void patchCentralSizes(File file, long size) throws Exception {
+    byte[] zip = Files.readAllBytes(file.toPath());
+    ByteBuffer buffer = ByteBuffer.wrap(zip).order(ByteOrder.LITTLE_ENDIAN);
+    for (int index = 0; index + 46 < zip.length; index++) {
+      if (buffer.getInt(index) != 0x02014b50) continue;
+      int nameLength = Short.toUnsignedInt(buffer.getShort(index + 28));
+      String name = new String(zip, index + 46, nameLength, StandardCharsets.UTF_8);
+      if (!name.equals("manifest.json")) buffer.putInt(index + 24, (int) size);
+    }
+    Files.write(file.toPath(), zip);
+  }
+
+  private void run() throws Exception {
+    byte[] old = bytes("old-card"), fresh = bytes("new-card"), glyph = bytes("original-glyph");
+    JSONObject first = manifest().put("assets", new JSONArray().put(asset("test", ASSET, old)))
+        .put("stories", stories("first"));
+    check(install(pack(first, new Member(ASSET, old))).assets == 1, "Baseline asset not installed");
+    check("old-card".equals(open(ASSET)), "Baseline resource unreadable");
+    check(open("story/data/storybook-data.js").contains("first"), "Baseline story missing");
+    check(!new File(root(), "stories.json").exists(), "Stories must commit inside index, not a second mutable file");
+    File cachedBlob = new File(root(), "blobs/" + sha(old));
+    Files.write(cachedBlob.toPath(), bytes("disk-damage"));
+    AtomicFile.failDuringWrite = true;
+    reject(pack(first, new Member(ASSET, old)));
+    check("disk-damage".equals(open(ASSET)), "Failed repair did not restore the pre-import disk state");
+    check(install(pack(first, new Member(ASSET, old))).assets == 1, "Valid reimport failed to repair cached content");
+    check("old-card".equals(open(ASSET)), "Corrupt destination blob was retained on reimport");
+
+    JSONObject lateFailure = manifest().put("assets", new JSONArray().put(asset("test", ASSET, fresh)))
+        .put("stories", stories("failed"));
+    JSONArray oversizedBgmList = new JSONArray();
+    for (int i = 0; i < 129; i++) oversizedBgmList.put(JSONObject.NULL);
+    lateFailure.put("bgmFiles", oversizedBgmList);
+    reject(pack(lateFailure, new Member(ASSET, fresh)));
+    check("old-card".equals(open(ASSET)), "Late validation failure replaced active card");
+
+    JSONObject next = manifest().put("assets", new JSONArray().put(asset("test", ASSET, fresh)))
+        .put("stories", stories("second"));
+    AtomicFile.failNextWrite = "index.json";
+    reject(pack(next, new Member(ASSET, fresh)));
+    AtomicFile.failDuringWrite = true;
+    reject(pack(next, new Member(ASSET, fresh)));
+    store = new AtopackStore(context);
+    check("old-card".equals(open(ASSET)), "Commit failure did not preserve old catalog after restart");
+    check(!open("story/data/storybook-data.js").contains("second"), "Commit failure persisted new story");
+
+    // Always verify the selected archive bytes, even if the declared hash is cached.
+    JSONObject cachedHash = manifest().put("assets", new JSONArray().put(asset("test", ASSET, old)));
+    byte[] forged = bytes("bad-card");
+    check(install(pack(cachedHash, new Member(ASSET, forged))).skipped == 1, "Cached hash bypassed SHA verification");
+    check("old-card".equals(open(ASSET)), "Forged cached content changed resource");
+
+    JSONObject wrongBytes = manifest().put("assets", new JSONArray().put(asset("test", ASSET, fresh).put("bytes", fresh.length + 1)));
+    check(install(pack(wrongBytes, new Member(ASSET, fresh))).skipped == 1, "Assets ignored declared bytes");
+    JSONObject fractionalBytes = manifest().put("assets", new JSONArray().put(asset("test", ASSET, fresh).put("bytes", fresh.length + 0.5)));
+    check(install(pack(fractionalBytes, new Member(ASSET, fresh))).skipped == 1, "Fractional bytes were truncated and accepted");
+    File wrongCentral = pack(manifest().put("assets", new JSONArray().put(asset("test", ASSET, fresh).put("bytes", 1))), new Member(ASSET, fresh));
+    patchCentralSizes(wrongCentral, 1);
+    check(install(wrongCentral).skipped == 1, "Actual decompressed bytes were not checked against entry size");
+
+    JSONObject segments = manifest();
+    List<Member> payloads = new ArrayList<>();
+    for (String[] segment : new String[][] {
+        {"resourceFiles", "story/data/storybook-official-data.js"},
+        {"bgmFiles", "assets/bgm/test.mp3"}, {"iconFiles", "assets/icons/test.svg"},
+        {"crypticFiles", GLYPH}, {"storyFiles", "story/entity-index.json"}}) {
+      byte[] payload = bytes("{\"entities\":[{\"id\":\"one\"}]}");
+      JSONObject declaration = resource(segment[1], payload).put("bytes", payload.length + 1).put("kind", "entity-index");
+      segments.put(segment[0], new JSONArray().put(declaration));
+      payloads.add(new Member(segment[1], payload));
+    }
+    JSONObject skipped = install(pack(segments, payloads.toArray(Member[]::new))).toJson();
+    check(skipped.getInt("skipped") == 5, "All segments must validate bytes");
+    check(skipped.getInt("cryptic_skipped") == 1, "Invalid glyph missing separate count");
+    check(skipped.getJSONArray("cryptic_warnings").getJSONObject(0).getString("target").equals(GLYPH), "Glyph warning lacks target");
+    check(!skipped.getJSONArray("cryptic_warnings").getJSONObject(0).getString("reason").isEmpty(), "Glyph warning lacks reason");
+    for (String section : new String[] {"resourceFiles", "bgmFiles", "iconFiles", "crypticFiles", "storyFiles"}) {
+      JSONObject declaration = segments.getJSONArray(section).getJSONObject(0);
+      declaration.put("bytes", payloads.stream().filter(member -> member.name.equals(declaration.getString("member"))).findFirst().orElseThrow().bytes.length);
+    }
+    AtopackStore.ImportResult validSegments = install(pack(segments, payloads.toArray(Member[]::new)));
+    check(validSegments.skipped == 0 && validSegments.entityIndex, "Valid segment files were not staged/committed");
+    for (Member member : payloads) {
+      String target = member.name.equals("story/entity-index.json") ? "story/data/entity-index.json" : member.name;
+      check(new String(member.bytes, StandardCharsets.UTF_8).equals(open(target)), "Valid segment failed roundtrip: " + target);
+    }
+
+    // Old packs used one name twice: identical content and reencoded/original glyphs.
+    for (byte[] catalogGlyph : new byte[][] {glyph, bytes("reencoded-glyph"), bytes("ORIGINAL-GLYPH")}) {
+      JSONObject legacy = manifest().put("assets", new JSONArray().put(asset("glyph", GLYPH, catalogGlyph)))
+          .put("crypticFiles", new JSONArray().put(resource(GLYPH, glyph)));
+      check(install(pack(legacy, new Member(GLYPH, catalogGlyph), new Member(GLYPH, glyph))).skipped == 0,
+          "Legacy duplicate members could not be resolved");
+      check("original-glyph".equals(open(GLYPH)), "Dedicated glyph declaration did not retain original bytes");
+    }
+
+    File tooLarge = pack(manifest(), new Member("unreferenced.bin", new byte[] {1}));
+    patchCentralSizes(tooLarge, 128L * 1024 * 1024 + 1);
+    reject(tooLarge);
+    Member[] aggregate = new Member[65];
+    for (int index = 0; index < aggregate.length; index++) aggregate[index] = new Member("unreferenced-" + index, new byte[] {1});
+    File tooMuch = pack(manifest(), aggregate);
+    patchCentralSizes(tooMuch, 128L * 1024 * 1024);
+    reject(tooMuch);
+    Member[] many = new Member[20_000];
+    for (int index = 0; index < many.length; index++) many[index] = new Member("entry-" + index, new byte[0]);
+    reject(pack(manifest(), many));
+
+    // A lying ZIP directory cannot evade the stream bound; exercise the same copier.
+    Method copy = Arrays.stream(AtopackStore.class.getDeclaredMethods()).filter(method -> method.getName().equals("copy")).findFirst().orElseThrow();
+    copy.setAccessible(true);
+    File streamFile = new File(directory, "stream.tmp");
+    try (FileOutputStream output = new FileOutputStream(streamFile)) {
+      try {
+        copy.invoke(null, new ByteArrayInputStream(new byte[] {1, 2, 3}), output, null, 2L, null);
+        throw new AssertionError("Oversized stream was accepted");
+      } catch (InvocationTargetException expected) {
+        check(expected.getCause() instanceof java.io.IOException, "Stream limit raised the wrong error");
+        check(streamFile.length() == 0, "Oversized stream wrote beyond its cap");
+      }
+    }
+    Class<?> transactionClass = Arrays.stream(AtopackStore.class.getDeclaredClasses()).filter(type -> type.getSimpleName().equals("ImportTransaction")).findFirst().orElseThrow();
+    var constructor = transactionClass.getDeclaredConstructor(AtopackStore.class);
+    constructor.setAccessible(true);
+    Object transaction = constructor.newInstance(store);
+    var readBytes = transactionClass.getDeclaredField("readBytes");
+    readBytes.setAccessible(true);
+    readBytes.setLong(transaction, 8L * 1024 * 1024 * 1024 - 1);
+    try (FileOutputStream output = new FileOutputStream(streamFile)) {
+      try {
+        copy.invoke(null, new ByteArrayInputStream(new byte[] {1, 2, 3}), output, null, 100L, transaction);
+        throw new AssertionError("Aggregate stream budget was ignored");
+      } catch (InvocationTargetException expected) {
+        check(expected.getCause() instanceof java.io.IOException, "Aggregate stream budget raised wrong error");
+        check(streamFile.length() == 0, "Aggregate oversized stream wrote past budget");
+      }
+    } finally { ((AutoCloseable) transaction).close(); }
+
+    check(install(pack(next, new Member(ASSET, fresh))).books == 1, "Successful replacement story missing");
+    store = new AtopackStore(context);
+    check("new-card".equals(open(ASSET)), "Replacement did not survive restart");
+    String merged = open("story/data/storybook-data.js");
+    check(merged.contains("first") && merged.contains("second") && !merged.contains("failed"), "Stories did not merge atomically");
+
+    // Recover an interrupted pre-commit import and AtomicFile's previous index.
+    File orphan = new File(root(), "blobs/" + "a".repeat(64));
+    Files.write(orphan.toPath(), new byte[] {9});
+    File stale = new File(root(), "import-killed.staging");
+    stale.mkdir();
+    Files.write(new File(stale, "pending").toPath(), new byte[] {9});
+    File interruptedRepair = new File(root(), "blobs/" + sha(fresh));
+    Files.move(interruptedRepair.toPath(), new File(stale, "previous-" + sha(fresh)).toPath());
+    File index = new File(root(), "index.json");
+    Files.move(index.toPath(), new File(root(), "index.json.bak").toPath());
+    store = new AtopackStore(context);
+    check("new-card".equals(open(ASSET)), "Atomic backup index was not recovered");
+    check(!orphan.exists() && !stale.exists(), "Interrupted import left orphan storage after restart");
+    Context legacyContext = new Context(new File(directory, "legacy-app"), new JSONObject().put("format", "ato-android-resource-catalog").put("items", new JSONArray()).toString());
+    File legacyRoot = new File(legacyContext.getFilesDir(), "atopack");
+    legacyRoot.mkdirs();
+    File legacyStories = new File(legacyRoot, "stories.json");
+    byte[] oldStories = bytes(stories("legacy").toString());
+    Files.write(legacyStories.toPath(), oldStories);
+    store = new AtopackStore(legacyContext);
+    check(install(pack(manifest().put("stories", stories("migrated")))).books == 1, "Legacy stories migration failed");
+    check(open("story/data/storybook-data.js").contains("legacy") && open("story/data/storybook-data.js").contains("migrated"), "Legacy stories were lost during migration");
+    check(Arrays.equals(oldStories, Files.readAllBytes(legacyStories.toPath())), "Import mutated legacy stories.json outside atomic index");
+    Files.write(new File(legacyRoot, "index.json").toPath(), bytes("damaged-index"));
+    store = new AtopackStore(legacyContext);
+    check(install(pack(manifest().put("stories", stories("recovered")))).books == 1, "Damaged index blocked a future valid import");
+    check(open("story/data/storybook-data.js").contains("recovered"), "Valid import did not replace damaged index");
+    System.out.println("Android .atopack import passed: " + checks + " behavioral checks.");
+  }
+
+  public static void main(String[] args) throws Exception { new AtopackImportHarness(new File(args[0])).run(); }
+}

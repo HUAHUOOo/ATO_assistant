@@ -10,7 +10,7 @@ Architectures
 -------------
 The published image covers linux/amd64 and linux/arm/v7 (32-bit Raspberry Pi OS),
 so `docker compose pull` picks the right one on its own. On any other architecture
-(linux/arm64, riscv64, ...) there is no prebuilt image: build it here instead on
+(linux/arm64, ...) there is no prebuilt image: build it here instead on
 the machine that will run it, which resolves the base image for the local
 architecture:
 
@@ -20,11 +20,13 @@ Then point compose at that image before starting, in a `.env` file next to
 compose.yaml:
 
   ATO_IMAGE=ato-assistant:local
+  ATO_PULL_POLICY=never
 
 The one-line installer (tools/install-docker.sh in the repository) does this by
 itself when the prebuilt image does not exist for the local architecture: it
-fetches the matching source tag, builds, and rewrites compose to use the local
-image with `pull_policy: never` (a locally built image is not in any registry, so
+fetches the matching source tag, prepares an audited app/ export using a Python
+helper container, builds, and saves the exact image tag and ATO_PULL_POLICY=never
+in .env (a locally built image is not in any registry, so
 `always` would try to pull something that does not exist). Upgrading then means
 running the installer again.
 
@@ -51,7 +53,7 @@ Legacy docker-compose (including 32-bit Raspberry Pi OS)
 Use compose.legacy.yaml next to data/ and app/. It uses version "2.4" and omits
 pull_policy and bind.create_host_path, which v1 does not support. The image, port,
 saves and artwork paths are the same as in compose.yaml. It pulls the published
-image; for a local build, build with docker build and edit its image: line.
+image; for a local build, set ATO_IMAGE in .env and omit the pull command.
 
 Before the first start, app/ss/battle-board.jpg must be a FILE, not a directory.
 Move aside any directory created there by an earlier failed start before running:
@@ -65,7 +67,9 @@ real board image later. Visit http://127.0.0.1:8793/ (or use your server's IP).
 
 Update: repeat the pull && up -d command above; up alone may reuse the old image.
 Stop: docker-compose -f compose.legacy.yaml down
-Pin a version: put ATO_VERSION=1.3.6 in .env next to compose.legacy.yaml.
+Pin a version: put ATO_VERSION=<release version> in .env and use the Compose file
+from that same release tag. Older images may not restore the program data hidden
+by newer aibp/ps mounts. The installer selects matching Compose and image versions.
 Always pass -f compose.legacy.yaml; compose.yaml requires Compose v2.
 
 Which parts live on the host
@@ -79,6 +83,10 @@ mounted from this folder:
   app/ss/terrain-cards/     第二屏地形卡 (second-screen terrain cards)
   app/assets/bgm/audio/    主控台背景音乐. Put .mp3 / .ogg files here; the file names
                             are listed in assets/bgm/README.md.
+  app/assets/bgm/          Resource-pack audio may also stay flat in this directory;
+                            it is mounted at assets/bgm/media/ without hiding the
+                            player code. Importing after installation works directly.
+                            A same-name file in audio/ takes precedence.
   app/assets/icons/        主控台界面 SVG 图标. Install the resource pack into app/;
                             its assets/icons/*.svg files are mounted read-only.
   app/story/assets/cryptic/glyphs/  巴别语／塞壬语字形 (glyphs/*.png). Install the resource
@@ -105,7 +113,16 @@ asset sub-paths:
     the image. An older copy of those files sitting in app/ss/ on the host is ignored
     and can be deleted.
   - 播放器 (assets/bgm/bgm.js, assets/bgm/manifest.js) comes from the image, which is
-    why the audio lives one level deeper in assets/bgm/audio/.
+    why host audio folders are mounted at audio/ and media/ instead of covering
+    the player's own directory.
+
+Resource packs in Docker / NAS
+-----------------------------
+The web .atopack import button is available on Android only. In Docker / NAS,
+unzip the pack on the host and copy its aibp/, assets/, story/, etc. directories
+into this package's app/ directory, then refresh the page. Read-only mounts are
+populated from the host. Glyph PNGs belong in app/story/assets/cryptic/glyphs/;
+without them the Babelian/Siren keyboard has no glyphs.
 
 No audio files and no official game artwork are included in the public image (copyright),
 so those folders are yours to fill.

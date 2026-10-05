@@ -83,6 +83,7 @@ from app.bgm_resources import mime_for as bgm_mime  # noqa: E402
 from app.icon_resources import collect as collect_icon_files  # noqa: E402
 from app.icon_resources import mime_for as icon_mime  # noqa: E402
 from app.cryptic_resources import collect as collect_cryptic_files  # noqa: E402
+from app.cryptic_resources import allowed_target as is_cryptic_target  # noqa: E402
 from app.cryptic_resources import mime_for as cryptic_mime  # noqa: E402
 from app.fixed_catalog import collect_supplemental_resources  # noqa: E402
 from app.fixed_catalog import fixed_catalog_payload  # noqa: E402
@@ -394,6 +395,9 @@ def load_catalog(
             stats.broken_items += 1
             reporter.warn(f"清单条目没有可用的面定义，已跳过：{raw.get('id')}")
             continue
+        faces = {face: target for face, target in faces.items() if not is_cryptic_target(target)}
+        if not faces:
+            continue
         items.append(
             ItemRow(
                 id=str(raw["id"]),
@@ -496,8 +500,8 @@ def plan_assets(
         clear_official_cache()
     for item in items:
         for face, target in item.faces.items():
-            if is_bgm_target(target):
-                # 音频走 bgmFiles 段，和素材库导出（BGM 目标不进 assets）一致。
+            if is_bgm_target(target) or is_cryptic_target(target):
+                # 附加资源只走各自的段；字形必须保留原字节，不能再经图片重编码。
                 continue
             try:
                 member = installable_target(target)
@@ -1244,6 +1248,8 @@ def verify_partial(
     with zipfile.ZipFile(partial) as archive:
         names = archive.namelist()
         name_set = set(names)
+        if len(names) != len(name_set):
+            raise PackError("写出来的包有重名成员")
 
         if manifest.get("format") != PACKAGE_FORMAT:
             raise PackError("写出来的包清单格式不对")
