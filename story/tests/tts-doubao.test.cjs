@@ -11,15 +11,26 @@ const source = fs.readFileSync(path.join(__dirname, "../assets/app.js"), "utf8")
 function functionSource(name) {
   const start = source.search(new RegExp(`  (?:async )?function ${name}\\(`));
   assert.ok(start >= 0, `missing function ${name}`);
+  // 先跳过参数表（默认值里可能有 `{}`），再从函数体的左花括号开始配对。
+  let parameters = 0;
+  let bodyStart = -1;
+  for (let index = source.indexOf("(", start); index < source.length; index += 1) {
+    if (source[index] === "(") parameters += 1;
+    else if (source[index] === ")") {
+      parameters -= 1;
+      if (parameters === 0) {
+        bodyStart = source.indexOf("{", index);
+        break;
+      }
+    }
+  }
+  assert.ok(bodyStart > 0, `missing body of ${name}`);
   let depth = 0;
-  let opened = false;
-  for (let index = source.indexOf("{", start); index < source.length; index += 1) {
-    if (source[index] === "{") {
-      depth += 1;
-      opened = true;
-    } else if (source[index] === "}") {
+  for (let index = bodyStart; index < source.length; index += 1) {
+    if (source[index] === "{") depth += 1;
+    else if (source[index] === "}") {
       depth -= 1;
-      if (opened && depth === 0) return source.slice(start, index + 1);
+      if (depth === 0) return source.slice(start, index + 1);
     }
   }
   throw new Error(`unterminated function ${name}`);
@@ -42,7 +53,7 @@ const DOUBAO_DEFAULTS = {
 
 const FUNCTIONS = [
   "doubaoConfig", "isDoubaoConfigured", "doubaoEndpoint", "doubaoMimeType",
-  "doubaoVoiceLabel", "doubaoErrorHint", "doubaoRequestId",
+  "doubaoVoiceLabel", "doubaoErrorHint", "doubaoRequestId", "decodeBase64Audio",
   "synthesizeDoubaoOnline", "requestWithTimeout",
 ];
 
