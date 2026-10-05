@@ -329,6 +329,8 @@ def install_plan(db: Database, library: Path, root: Path, replace_books: set[str
     # 同一个目标文件（大小写、结尾点/空格等价）只能计划一次：否则后面的条目会把
     # 备份覆盖成中间态图片，回滚就把用户原文件删成别的内容。
     planned: dict[str, tuple[str, Callable[[], str], dict]] = {}
+    cryptic_files = collect_cryptic_library(library)
+    dedicated_cryptic_targets = {relative for relative, _ in cryptic_files}
 
     def add_file(entry: dict, digest_of: Callable[[], str]) -> bool:
         key = _plan_key(entry["target"])
@@ -346,6 +348,9 @@ def install_plan(db: Database, library: Path, root: Path, replace_books: set[str
     for row in rows:
         relative = json.loads(row["faces_json"]).get(row["face"])
         if not relative:
+            continue
+        # 旧包曾把同一字形同时写进 assets 与 crypticFiles；保留专用段的原始 PNG。
+        if relative in dedicated_cryptic_targets:
             continue
         # 只允许清单声明的素材树/类型，避免共享资料包往原项目写任意文件。
         relative = installable_relative(relative)
@@ -427,7 +432,7 @@ def install_plan(db: Database, library: Path, root: Path, replace_books: set[str
                   "source": source.relative_to(library).as_posix(), "target": relative,
                   "status": status, "direct_copy": True},
                  lambda source=source: sha256_file(source))
-    for relative, source in collect_cryptic_library(library):
+    for relative, source in cryptic_files:
         destination = safe_target(root, relative)
         if destination.exists() and not destination.is_file():
             raise ValueError(f"目标位置已存在同名文件夹，无法安装：{relative}")

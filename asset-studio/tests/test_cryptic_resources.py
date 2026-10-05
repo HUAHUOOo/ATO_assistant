@@ -11,13 +11,17 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
+import random
 import shutil
+import struct
 import unittest
 import zipfile
 from pathlib import Path
 from unittest.mock import patch
+from PIL import Image
 
 from app.cryptic_resources import GLYPH_DIR, LIBRARY as CRYPTIC_LIBRARY
 from app.cryptic_resources import checked_bytes, collect, glyph_names
@@ -25,6 +29,8 @@ from app.db import Database
 from app.fixed_catalog import fixed_catalog_payload
 from app.installer import apply_install, install_plan, installable_relative
 from app.packages import export_compat, export_package, import_package, inspect_package
+from app.storage import store_image
+from tools.build_full_pack import build as build_full_pack
 from tools.update_full_pack import update_full_pack
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,6 +38,11 @@ SCRATCH = ROOT / ".local" / "tests" / "cryptic-resources"
 
 PNG_ONE = b"\x89PNG\r\n\x1a\n" + b"babelian-one" * 4
 PNG_TWO = b"\x89PNG\r\n\x1a\n" + b"siren-one" * 4
+
+
+def glyph_catalog_items() -> list[dict]:
+    """保留实际的 84 条登记，覆盖旧测试只放卡片而漏掉的普通素材通道。"""
+    return [item for item in fixed_catalog_payload()["items"] if item["module"] == "密语字形"]
 
 
 class CrypticResourceTests(unittest.TestCase):
@@ -143,6 +154,150 @@ class CrypticResourceTests(unittest.TestCase):
             manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
         self.assertNotIn("crypticFiles", manifest)
 
+    def test_export_ignores_glyph_revisions_in_ordinary_assets(self) -> None:
+        glyph = glyph_catalog_items()[0]
+        target = glyph["faces"]["front"]
+        self.db.execute(
+            "INSERT INTO catalog_items(id,cycle,module,name,sort_order,faces_json) VALUES(?,?,?,?,?,?)",
+            (glyph["id"], glyph["cycle"], glyph["module"], glyph["name"], 0, json.dumps(glyph["faces"])),
+        )
+        uploaded = SCRATCH / "legacy-glyph.png"
+        Image.new("RGB", (3, 3), "red").save(uploaded)
+        store_image(self.db, self.library, uploaded, glyph["id"], "front", uploaded.name, "image/png", "package")
+        # 即使素材库仍保存旧包的普通图片登记，也只有专用段分发字形。
+        for include in (True, False):
+            output = SCRATCH / f"revisions-{include}.atopack"
+            export_package(self.db, self.library, output, {"include_cryptic": include}, ato_root=self.source)
+            with zipfile.ZipFile(output) as archive:
+                manifest = json.loads(archive.read("manifest.json"))
+                self.assertEqual([], manifest["assets"])
+                self.assertEqual([], manifest["items"])
+                self.assertEqual(len(archive.namelist()), len(set(archive.namelist())))
+                self.assertEqual(include, target in archive.namelist())
+            compat = SCRATCH / f"revisions-{include}.zip"
+            export_compat(self.db, self.library, compat, {"include_cryptic": include}, ato_root=self.source)
+            with zipfile.ZipFile(compat) as archive:
+                self.assertEqual(include, target in archive.namelist())
+                self.assertEqual(len(archive.namelist()), len(set(archive.namelist())))
+
+    def test_bad_glyphs_are_reported_without_losing_valid_resources(self) -> None:
+        export_package(self.db, self.library, self.pack, ato_root=self.source)
+        with zipfile.ZipFile(self.pack) as archive:
+            members = {name: archive.read(name) for name in archive.namelist()}
+        manifest = json.loads(members["manifest.json"])
+        manifest["crypticFiles"][0]["sha256"] = "0" * 64
+        manifest["crypticFiles"].append({"target": "../escape.png", "member": "../escape.png", "sha256": "0" * 64})
+        manifest["crypticFiles"].append({"target": f"{GLYPH_DIR}/missing.png", "member": f"{GLYPH_DIR}/missing.png", "sha256": "0" * 64})
+        with zipfile.ZipFile(self.pack, "w") as archive:
+            for name, raw in members.items():
+                archive.writestr(name, json.dumps(manifest) if name == "manifest.json" else raw)
+        inspection = inspect_package(self.db, self.pack, verify_hashes=True)
+        self.assertEqual(1, inspection["cryptic_files"])
+        self.assertEqual(3, inspection["cryptic_skipped"])
+        self.assertEqual(3, len(inspection["cryptic_warnings"]))
+        imported = import_package(self.db, self.library, self.pack)
+        self.assertEqual(1, imported["cryptic_imported"])
+        self.assertEqual(3, imported["cryptic_skipped"])
+        self.assertEqual(PNG_TWO, (self.library / CRYPTIC_LIBRARY / GLYPH_DIR / "siren-01.png").read_bytes())
+        self.assertFalse((self.library / CRYPTIC_LIBRARY / GLYPH_DIR / "babelian-01.png").exists())
+
+    def test_corrupt_deflate_glyph_does_not_abort_other_resources(self) -> None:
+        export_package(self.db, self.library, self.pack, ato_root=self.source)
+        target = f"{GLYPH_DIR}/babelian-01.png"
+        with zipfile.ZipFile(self.pack) as archive:
+            info = archive.getinfo(target)
+            self.assertEqual(zipfile.ZIP_DEFLATED, info.compress_type)
+        raw = bytearray(self.pack.read_bytes())
+        name_size, extra_size = struct.unpack_from("<HH", raw, info.header_offset + 26)
+        raw[info.header_offset + 30 + name_size + extra_size] = 0xff
+        self.pack.write_bytes(raw)
+        inspection = inspect_package(self.db, self.pack)
+        self.assertEqual(1, inspection["cryptic_files"])
+        self.assertEqual(1, inspection["cryptic_skipped"])
+        imported = import_package(self.db, self.library, self.pack)
+        self.assertEqual(1, imported["cryptic_imported"])
+        self.assertEqual(target, imported["cryptic_warnings"][0]["target"])
+        self.assertEqual(PNG_TWO, (self.library / CRYPTIC_LIBRARY / GLYPH_DIR / "siren-01.png").read_bytes())
+
+    def test_legacy_library_reexports_glyph_without_project_or_dedicated_copy(self) -> None:
+        glyph = glyph_catalog_items()[0]
+        target = glyph["faces"]["front"]
+        self.db.execute(
+            "INSERT INTO catalog_items(id,cycle,module,name,sort_order,faces_json) VALUES(?,?,?,?,?,?)",
+            (glyph["id"], glyph["cycle"], glyph["module"], glyph["name"], 0, json.dumps(glyph["faces"])),
+        )
+        uploaded = SCRATCH / "legacy-only.png"
+        Image.new("RGB", (3, 3), "red").save(uploaded)
+        original = uploaded.read_bytes()
+        store_image(self.db, self.library, uploaded, glyph["id"], "front", uploaded.name, "image/png", "package")
+        for include in (True, False):
+            for exporter, suffix in ((export_package, "atopack"), (export_compat, "zip")):
+                with self.subTest(include=include, exporter=exporter.__name__):
+                    output = SCRATCH / f"legacy-only-{include}.{suffix}"
+                    result = exporter(self.db, self.library, output, {"include_cryptic": include})
+                    self.assertEqual(int(include), result["cryptic_files"])
+                    with zipfile.ZipFile(output) as archive:
+                        self.assertEqual(int(include), archive.namelist().count(target))
+                        if include:
+                            self.assertEqual(original, archive.read(target))
+                        if suffix == "atopack":
+                            manifest = json.loads(archive.read("manifest.json"))
+                            self.assertEqual([], manifest["assets"])
+                            self.assertEqual([], manifest["items"])
+                            self.assertEqual(int(include), len(manifest.get("crypticFiles", [])))
+
+    def test_glyph_bytes_declaration_is_checked(self) -> None:
+        export_package(self.db, self.library, self.pack, ato_root=self.source)
+        with zipfile.ZipFile(self.pack) as archive:
+            entry = json.loads(archive.read("manifest.json"))["crypticFiles"][0]
+            with self.assertRaisesRegex(ValueError, "大小不符"):
+                checked_bytes(archive, {**entry, "bytes": entry["bytes"] + 1})
+
+    def test_legacy_duplicate_assets_use_original_glyph_for_install(self) -> None:
+        glyph = glyph_catalog_items()[0]
+        target = glyph["faces"]["front"]
+        self.db.execute(
+            "INSERT INTO catalog_items(id,cycle,module,name,sort_order,faces_json) VALUES(?,?,?,?,?,?)",
+            (glyph["id"], glyph["cycle"], glyph["module"], glyph["name"], 0, json.dumps(glyph["faces"])),
+        )
+        uploaded = SCRATCH / "legacy.png"
+        Image.new("RGB", (3, 3), "red").save(uploaded)
+        store_image(self.db, self.library, uploaded, glyph["id"], "front", uploaded.name, "image/png", "package")
+        export_package(self.db, self.library, self.pack, ato_root=self.source)
+        import_package(self.db, self.library, self.pack)
+        installed = SCRATCH / "legacy-installed"
+        installed.mkdir()
+        (installed / "index.html").touch()
+        for folder in ("aibp", "map", "story"):
+            (installed / folder).mkdir()
+        plan = install_plan(self.db, self.library, installed)
+        self.assertEqual(1, sum(entry["target"] == target for entry in plan["files"]))
+        apply_install(self.db, self.library, installed, [])
+        self.assertEqual(PNG_ONE, (installed / target).read_bytes())
+
+    def test_legacy_pack_with_conflicting_duplicate_hashes_imports_dedicated_glyph(self) -> None:
+        glyph = glyph_catalog_items()[0]
+        target = glyph["faces"]["front"]
+        encoded = b"reencoded-glyph-bytes"
+        manifest = {
+            "format": "ato-asset-pack", "version": 2, "items": [glyph],
+            "assets": [{"itemId": glyph["id"], "face": "front", "member": target,
+                        "sha256": hashlib.sha256(encoded).hexdigest(), "mimeType": "image/jpeg"}],
+            "crypticFiles": [{"target": target, "member": target, "sha256": hashlib.sha256(PNG_ONE).hexdigest(),
+                              "bytes": len(PNG_ONE), "mimeType": "image/png"}],
+        }
+        with zipfile.ZipFile(self.pack, "w") as archive:
+            archive.writestr(target, encoded)
+            with self.assertWarns(UserWarning):
+                archive.writestr(target, PNG_ONE)
+            archive.writestr("manifest.json", json.dumps(manifest))
+        imported = import_package(self.db, self.library, self.pack)
+        self.assertEqual(0, imported["imported"])
+        self.assertEqual(1, imported["cryptic_imported"])
+        self.assertEqual(0, imported["cryptic_skipped"])
+        self.assertEqual(PNG_ONE, (self.library / CRYPTIC_LIBRARY / target).read_bytes())
+        self.assertEqual([], self.db.all("SELECT * FROM asset_revisions"))
+
     def test_compat_zip_carries_cryptic(self) -> None:
         compat = SCRATCH / "compat.zip"
         export_compat(self.db, self.library, compat, {"include_stories": False}, None, self.source)
@@ -199,7 +354,7 @@ class CrypticResourceTests(unittest.TestCase):
         (project / GLYPH_DIR / "notes.txt").write_text("note\n", encoding="utf-8")
         (project / "index.html").write_text("ATO", encoding="utf-8")
 
-        catalog = {"source": {"catalog_version": "test-cryptic"}, "items": [card]}
+        catalog = {"source": {"catalog_version": "test-cryptic"}, "items": [card] + glyph_catalog_items()}
         kwargs = {
             "ato_root": project, "library_path": None, "cycles": [], "modules": [],
             "complete_only": False, "include_story_data": False, "include_bgm": False,
@@ -213,11 +368,16 @@ class CrypticResourceTests(unittest.TestCase):
             ("without.atopack", False, 0),
         ):
             output = SCRATCH / name
+            if not include:
+                shutil.rmtree(project / GLYPH_DIR)
             with patch("tools.build_fan_pack.fixed_catalog_payload", return_value=catalog):
                 result = build_fan_pack(output=output, include_cryptic=include, **kwargs)
             self.assertEqual(expected, result.cryptic_files)
             with zipfile.ZipFile(output) as archive:
                 manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
+                self.assertEqual(len(archive.namelist()), len(set(archive.namelist())))
+                self.assertEqual(["assets/cards/001.jpg"], [a["member"] for a in manifest["assets"]])
+                self.assertEqual([card["id"]], [item["id"] for item in manifest["items"]])
                 if include:
                     target = f"{GLYPH_DIR}/babelian-01.png"
                     self.assertEqual(target, manifest["crypticFiles"][0]["target"])
@@ -229,6 +389,79 @@ class CrypticResourceTests(unittest.TestCase):
                     self.assertNotIn(f"{GLYPH_DIR}/notes.txt", archive.namelist())
                 else:
                     self.assertNotIn("crypticFiles", manifest)
+                    self.assertFalse(any(name.startswith(GLYPH_DIR) for name in archive.namelist()))
+
+    def test_image_quality_keeps_glyph_once_and_import_installs_it(self) -> None:
+        from tools.build_fan_pack import Reporter, build as build_fan_pack
+        from tools.image_shrink import shrink_image
+
+        project = SCRATCH / "quality-project"
+        (project / "assets/cards").mkdir(parents=True)
+        (project / GLYPH_DIR).mkdir(parents=True)
+        (project / "index.html").touch()
+        Image.new("RGB", (3, 3), "white").save(project / "assets/cards/001.jpg")
+        image = Image.frombytes("RGB", (200, 200), random.Random(7).randbytes(200 * 200 * 3))
+        buffer = io.BytesIO()
+        image.save(buffer, "PNG")
+        glyph_raw = buffer.getvalue()
+        target = f"{GLYPH_DIR}/babelian-01.png"
+        self.assertGreater(len(glyph_raw), 40 * 1024)
+        self.assertLess(len(glyph_raw), 128 * 1024)
+        self.assertIsNotNone(shrink_image(glyph_raw, 85, member=target), "该字形走普通图片通道时会被重编码")
+        (project / target).write_bytes(glyph_raw)
+        card = {"id": "common:card", "cycle": "common", "module": "决战版图", "name": "卡片",
+                "sort_order": 0, "faces": {"front": "assets/cards/001.jpg"}, "capture_required": True}
+        catalog = {"source": {"catalog_version": "test-quality"}, "items": [card] + glyph_catalog_items()}
+        with patch("tools.build_fan_pack.fixed_catalog_payload", return_value=catalog):
+            result = build_fan_pack(
+                ato_root=project, output=self.pack, library_path=None, cycles=[], modules=[], complete_only=False,
+                include_story_data=False, include_bgm=False, include_icons=False, include_story_files=False,
+                official_story=False, official_scans=False, official_assets=False, skip_missing=False,
+                force=True, dry_run=False, compression_name="store", verify_mode="full", verify_sample=32,
+                reporter=Reporter(quiet=True), image_quality=85,
+            )
+        self.assertEqual(1, result.cryptic_files)
+        with zipfile.ZipFile(self.pack) as archive:
+            manifest = json.loads(archive.read("manifest.json"))
+            self.assertEqual(1, archive.namelist().count(target))
+            self.assertEqual(glyph_raw, archive.read(target))
+            self.assertFalse(any(a["member"] == target for a in manifest["assets"]))
+            self.assertEqual(hashlib.sha256(glyph_raw).hexdigest(), manifest["crypticFiles"][0]["sha256"])
+            self.assertEqual(len(glyph_raw), manifest["crypticFiles"][0]["bytes"])
+        imported = import_package(self.db, self.library, self.pack)
+        self.assertEqual(1, imported["imported"])
+        installed = SCRATCH / "quality-installed"
+        installed.mkdir()
+        (installed / "index.html").touch()
+        for folder in ("aibp", "map", "story"):
+            (installed / folder).mkdir()
+        apply_install(self.db, self.library, installed, [])
+        self.assertEqual(glyph_raw, (installed / target).read_bytes())
+
+    def test_full_pack_moves_apk_glyphs_to_dedicated_section(self) -> None:
+        card = {"id": "common:card", "cycle": "common", "module": "卡片", "name": "卡片",
+                "sort_order": 0, "faces": {"front": "assets/cards/001.jpg"}, "capture_required": True}
+        catalog = {"source": {"catalog_version": "test-full"}, "items": [card] + glyph_catalog_items()}
+        target = f"{GLYPH_DIR}/babelian-01.png"
+        apk = SCRATCH / "owned.apk"
+        with zipfile.ZipFile(apk, "w") as archive:
+            archive.writestr("assets/web/assets/cards/001.jpg", b"card")
+            archive.writestr("assets/web/story/data/storybook-data.js", 'window.STORYBOOK_DATA = {"books":[]};')
+            archive.writestr("assets/web/story/data/entity-index.json", '{"entities":[{"id":"a","name":"A"}]}')
+            archive.writestr(f"assets/web/{target}", PNG_ONE)
+        for include in (True, False):
+            output = SCRATCH / f"full-{include}.atopack"
+            with patch("tools.build_full_pack.fixed_catalog_payload", return_value=catalog):
+                result = build_full_pack(apk, output, include_cryptic=include)
+            self.assertEqual(int(include), result["cryptic_files"])
+            with zipfile.ZipFile(output) as archive:
+                manifest = json.loads(archive.read("manifest.json"))
+                self.assertEqual(len(archive.namelist()), len(set(archive.namelist())))
+                self.assertEqual([card["id"]], [item["id"] for item in manifest["items"]])
+                self.assertEqual(["assets/cards/001.jpg"], [asset["member"] for asset in manifest["assets"]])
+                self.assertEqual(include, target in archive.namelist())
+                if include:
+                    self.assertEqual(PNG_ONE, archive.read(target))
 
     def test_incremental_export_reuses_and_updates_glyphs(self) -> None:
         """增量打包：未改动的字形搬旧字节、改动的重读、新增的补进来。
@@ -392,7 +625,7 @@ class CrypticResourceTests(unittest.TestCase):
         (overlay / GLYPH_DIR / "babelian-01.png").write_bytes(PNG_ONE)
         (overlay / GLYPH_DIR / "notes.txt").write_text("note\n", encoding="utf-8")
 
-        catalog = {"source": {"catalog_version": "test-cryptic"}, "items": [card]}
+        catalog = {"source": {"catalog_version": "test-cryptic"}, "items": [card] + glyph_catalog_items()}
         destination = SCRATCH / "updated.atopack"
         with patch("tools.update_full_pack.fixed_catalog_payload", return_value=catalog):
             result = update_full_pack(base, destination, overlay)
@@ -405,6 +638,7 @@ class CrypticResourceTests(unittest.TestCase):
             self.assertEqual(hashlib.sha256(PNG_ONE).hexdigest(),
                              manifest["crypticFiles"][0]["sha256"])
             self.assertEqual(PNG_ONE, archive.read(target))
+            self.assertEqual(len(archive.namelist()), len(set(archive.namelist())))
             self.assertTrue(manifest["build"]["crypticIncluded"])
             # 字形不进图片清单，只出现在 crypticFiles 段；非 PNG 不随包分发。
             self.assertEqual(["assets/cards/001.jpg"], [a["member"] for a in manifest["assets"]])
@@ -412,6 +646,14 @@ class CrypticResourceTests(unittest.TestCase):
             self.assertEqual(b"current card", archive.read("assets/cards/001.jpg"))
             # crypticFiles 是附加字段，不改变资料包版本号。
             self.assertEqual(2, manifest["version"])
+        shutil.rmtree(overlay / GLYPH_DIR)
+        without = SCRATCH / "updated-without.atopack"
+        with patch("tools.update_full_pack.fixed_catalog_payload", return_value=catalog):
+            result = update_full_pack(base, without, overlay, include_cryptic=False)
+        self.assertEqual(0, result["cryptic_files"])
+        with zipfile.ZipFile(without) as archive:
+            self.assertFalse(any(name.startswith(GLYPH_DIR) for name in archive.namelist()))
+            self.assertNotIn("crypticFiles", json.loads(archive.read("manifest.json")))
 
 
 if __name__ == "__main__":

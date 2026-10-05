@@ -152,9 +152,13 @@ PDF 必须带有可提取的文字层。扫描图片型 PDF 不支持 OCR；检�
    所以干净检出（没有 PNG）也能生成同一份清单。
 2. 导出 `.atopack` 时勾选“包含密语字形”，`story/assets/cryptic/glyphs/*.png` 会原样写入包内的
    `crypticFiles` 段；工程目录没有字形时退回素材库里已导入的副本。该段是附加字段，
-   不改变资料包版本号，旧版本读取方会直接忽略。
+   不改变资料包版本号，旧版本读取方会直接忽略。字形不再重复进入普通图片段，图片质量
+   压缩也不会改写字形；取消勾选或使用 `--no-cryptic` 后，包里完全不带字形 PNG，且无需
+   在工程目录准备字形文件。
 3. 导入资料包时字形存进素材库的 `sources/cryptic/`，再由“预览自动安装／安装”落回
    ATO_assistant 的 `story/assets/cryptic/glyphs/`。
+   单张字形路径、大小或哈希不符时跳过该张，继续导入其它资源；检查和导入结果会列出
+   跳过数量、文件名与原因。旧包把字形重复登记为普通图片时，以 `crypticFiles` 的原图为准。
 4. Android 端在“从 .atopack 导入资源”时会把这些字形解包到 Web 根目录的
    `story/assets/cryptic/glyphs/`（上限 256 张、单张 128KB），故事页按
    `./assets/cryptic/glyphs/<名称>.png`（相对 `story/index.html`）取用。

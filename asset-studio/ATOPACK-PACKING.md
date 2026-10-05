@@ -51,6 +51,10 @@ python asset-studio/tools/build_fan_pack.py \
 `--no-story-data`、`--no-bgm`、`--no-icons`、`--no-cryptic`、`--cycle` / `--module` /
 `--complete-only`、`--verify full`、`--json`。`--complete-only` 不看 BGM 条目。
 
+密语字形只写入 `crypticFiles`，不进入普通 `assets`，每个字形在 ZIP 中只有一个成员，
+且不受 `--image-quality` 重编码影响。`--no-cryptic` 完全排除字形，不要求本地存在 PNG；
+素材库的“包含密语字形”勾选框和完整资料包构建／更新工具遵循同一规则。
+
 ## 官方版
 
 ```bash

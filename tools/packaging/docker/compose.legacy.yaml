@@ -10,7 +10,7 @@ version: "2.4"
 
 services:
   ato:
-    image: ghcr.io/banard2049-cpu/ato_assistant:${ATO_VERSION:-latest}
+    image: ${ATO_IMAGE:-ghcr.io/banard2049-cpu/ato_assistant:${ATO_VERSION:-latest}}
     ports:
       - "8793:8793"
     volumes:
@@ -24,6 +24,7 @@ services:
       # Interface SVG icons are supplied by the user's resource pack.
       - ./app/assets/icons:/app/assets/icons:ro
       - ./app/assets/bgm/audio:/app/assets/bgm/audio:ro
+      - ./app/assets/bgm:/app/assets/bgm/media:ro
       - ./app/hero/assets:/app/hero/assets
       - ./app/map/images:/app/map/images
       - ./app/map/tokens:/app/map/tokens

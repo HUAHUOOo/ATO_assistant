@@ -6,6 +6,7 @@ import re
 import tempfile
 import uuid
 import zipfile
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
@@ -20,6 +21,9 @@ from .icon_resources import import_resources as import_icon_resources
 from .cryptic_resources import add_to_archive as add_cryptic_to_archive
 from .cryptic_resources import checked_bytes as cryptic_checked_bytes
 from .cryptic_resources import import_resources as import_cryptic_resources
+from .cryptic_resources import allowed_target as is_cryptic_target
+from .cryptic_resources import MAX_FILES as MAX_CRYPTIC_FILES
+from .cryptic_resources import MAX_FILE_BYTES as MAX_CRYPTIC_BYTES
 from .official_assets import resolve as resolve_official_asset
 from .official_resources import LIBRARY, collect, add_to_archive, checked_bytes, import_resources
 from .db import Database
@@ -89,6 +93,26 @@ def safe_member(name: str) -> PurePosixPath:
 Progress = Callable[[int, int, str], None]
 
 
+def _legacy_cryptic_files(rows: list[dict], library: Path, present: set[str]) -> list[tuple[str, Path]]:
+    files = {}
+    for row in rows:
+        target = json.loads(row["faces_json"]).get(row["face"])
+        if not is_cryptic_target(target) or target in present:
+            continue
+        source = (library / row["original_path"]).resolve()
+        if not source.is_relative_to(library.resolve()):
+            raise ValueError(f"密语字形来源不在素材库内：{target}")
+        if source.stat().st_size > MAX_CRYPTIC_BYTES:
+            raise ValueError(f"密语字形过大：{target}")
+        digest = sha256_file(source)
+        if digest != row["sha256"]:
+            raise ValueError(f"密语字形校验失败：{target}")
+        if target in files and digest != sha256_file(files[target]):
+            raise ValueError(f"清单资源路径冲突：{target}")
+        files[target] = source
+    return sorted(files.items())
+
+
 def export_package(
     db: Database, library: Path, destination: Path, filters: dict | None = None,
     progress: Progress | None = None, ato_root: Path | None = None,
@@ -110,10 +134,16 @@ def export_package(
       WHERE a.is_current=1 ORDER BY c.cycle,c.module,c.sort_order,a.face
     """)
     rows = [row for row in rows if (not cycles or row["cycle"] in cycles) and (not modules or row["module"] in modules)]
+    legacy_cryptic_rows = rows
+    rows = [row for row in rows if not is_cryptic_target(json.loads(row["faces_json"]).get(row["face"]))]
     complete_ids = _complete_item_ids(db) if filters.get("complete_only") else None
     if complete_ids is not None:
         rows = [row for row in rows if row["item_id"] in complete_ids]
     items = db.all("SELECT * FROM catalog_items ORDER BY cycle,module,sort_order")
+    # 固定清单仍登记字形，方便查找和 APK 白名单；包里的字形只走 crypticFiles。
+    items = [{**item, "faces_json": json.dumps({face: target for face, target in json.loads(item["faces_json"]).items()
+                                               if not is_cryptic_target(target)}, ensure_ascii=False)} for item in items]
+    items = [item for item in items if json.loads(item["faces_json"])]
     items = [item for item in items if (not cycles or item["cycle"] in cycles) and (not modules or item["module"] in modules)]
     if complete_ids is not None:
         items = [item for item in items if item["id"] in complete_ids]
@@ -190,7 +220,8 @@ def export_package(
         if filters.get("include_icons", True):
             add_icon_to_archive(archive, manifest, ato_root, fallback_library=library)
         if filters.get("include_cryptic", True):
-            add_cryptic_to_archive(archive, manifest, ato_root, fallback_library=library)
+            add_cryptic_to_archive(archive, manifest, ato_root, fallback_library=library,
+                                  fallback_files=lambda present: _legacy_cryptic_files(legacy_cryptic_rows, library, present))
         archive.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
     return {
         "path": str(destination),
@@ -260,14 +291,25 @@ def inspect_package(
         existing = {(r["item_id"], r["face"]): r for r in db.all("SELECT * FROM asset_revisions WHERE is_current=1")}
         summary = {"add": 0, "same": 0, "replace": 0, "missing": 0}
         assets = []
+        cryptic_entries = list(manifest.get("crypticFiles", []) or [])
+        dedicated_targets = {str(entry.get("target") or "") for entry in cryptic_entries if isinstance(entry, dict)}
+        face_targets = {(str(item["id"]), str(face)): target
+                        for item in manifest.get("items", []) for face, target in (item.get("faces") or {}).items()}
         manifest_assets = manifest.get("assets", [])
         total = max(len(manifest_assets), 1)
         for index, asset in enumerate(manifest_assets, 1):
+            identity = (str(asset.get("itemId") or ""), str(asset.get("face") or ""))
+            glyph_target = face_targets.get(identity)
+            if is_cryptic_target(glyph_target):
+                # 兼容旧包里的重复登记：专用段优先；只有 assets 的旧字形也走逐张校验。
+                if glyph_target not in dedicated_targets:
+                    cryptic_entries.append({**asset, "target": glyph_target})
+                    dedicated_targets.add(glyph_target)
+                continue
             member = str(safe_member(asset["member"]))
             digest_value = str(asset.get("sha256") or "")
             if not _SHA256.fullmatch(digest_value):
                 raise ValueError(f"资料包中的哈希格式无效：{member}")
-            identity = (str(asset.get("itemId") or ""), str(asset.get("face") or ""))
             if identity not in declared_faces:
                 raise ValueError(f"资料包资源没有对应的清单条目：{identity[0]} / {identity[1]}")
             if member not in names:
@@ -297,9 +339,20 @@ def inspect_package(
         icon_files = manifest.get("iconFiles", []) or []
         for resource in icon_files:
             icon_checked_bytes(archive, resource)
-        cryptic_files = manifest.get("crypticFiles", []) or []
-        for resource in cryptic_files:
-            cryptic_checked_bytes(archive, resource)
+        cryptic_files = []
+        cryptic_warnings = []
+        for index, resource in enumerate(cryptic_entries):
+            try:
+                if index >= MAX_CRYPTIC_FILES:
+                    raise ValueError(f"密语字形数量超过 {MAX_CRYPTIC_FILES} 个上限")
+                if not isinstance(resource, dict):
+                    raise ValueError("密语字形清单条目格式无效")
+                cryptic_checked_bytes(archive, resource)
+            except (ValueError, KeyError, TypeError, OSError, zipfile.BadZipFile, zlib.error, EOFError) as error:
+                cryptic_warnings.append({"target": str(resource.get("target") or "") if isinstance(resource, dict) else "",
+                                         "reason": str(error)})
+                continue
+            cryptic_files.append(resource)
         entity_summary = _inspect_story_files(archive, manifest, names, verify_hashes, library)
         if int(manifest.get("version", 0)) >= 2 and incoming_books and not entity_summary["included"]:
             raise ValueError("新版资料包含有故事，但没有人物小传索引")
@@ -312,6 +365,9 @@ def inspect_package(
         "bgm_files": len(bgm_files),
         "icon_files": len(icon_files),
         "cryptic_files": len(cryptic_files),
+        "cryptic_skipped": len(cryptic_warnings),
+        "cryptic_warnings": cryptic_warnings,
+        "valid_cryptic_files": cryptic_files,
         "manifest": manifest,
     }
 
@@ -478,7 +534,9 @@ def import_package(
                 import_resources(archive, manifest, library, replace)
                 bgm_imported = import_bgm_resources(archive, manifest, library, replace)
                 icon_imported = import_icon_resources(archive, manifest, library, replace)
-                cryptic_imported = import_cryptic_resources(archive, manifest, library, replace)
+                cryptic_imported = import_cryptic_resources(
+                    archive, {"crypticFiles": inspection["valid_cryptic_files"]}, library, replace
+                )
                 for story_file in manifest.get("storyFiles", []):
                     if story_file.get("kind") != ENTITY_INDEX_KIND:
                         continue
@@ -523,6 +581,8 @@ def import_package(
         "bgm_imported": bgm_imported,
         "icon_imported": icon_imported,
         "cryptic_imported": cryptic_imported,
+        "cryptic_skipped": inspection["cryptic_skipped"],
+        "cryptic_warnings": inspection["cryptic_warnings"],
     }
 
 
@@ -640,6 +700,8 @@ def export_compat(
       WHERE a.is_current=1 ORDER BY c.sort_order
     """)
     rows = [row for row in rows if (not cycles or row["cycle"] in cycles) and (not modules or row["module"] in modules)]
+    legacy_cryptic_rows = rows
+    rows = [row for row in rows if not is_cryptic_target(json.loads(row["faces_json"]).get(row["face"]))]
     if filters.get("complete_only"):
         complete_ids = _complete_item_ids(db)
         rows = [row for row in rows if row["item_id"] in complete_ids]
@@ -706,7 +768,8 @@ def export_compat(
         cryptic_written = 0
         if filters.get("include_cryptic", True):
             cryptic_manifest: dict = {}
-            cryptic_written = add_cryptic_to_archive(archive, cryptic_manifest, ato_root, fallback_library=library)
+            cryptic_written = add_cryptic_to_archive(archive, cryptic_manifest, ato_root, fallback_library=library,
+                                                  fallback_files=lambda present: _legacy_cryptic_files(legacy_cryptic_rows, library, present))
             written += cryptic_written
     return {
         "path": str(destination),

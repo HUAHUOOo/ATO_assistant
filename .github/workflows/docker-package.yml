@@ -58,6 +58,15 @@ jobs:
           VERSION: ${{ steps.release.outputs.version }}
         run: python tools/export_portable.py --version "$VERSION" --target docker
 
+      - name: Upload Docker package and host resource guide
+        uses: actions/upload-artifact@v4
+        with:
+          name: ATO-Assistant-Docker-${{ steps.release.outputs.version }}
+          path: |
+            export/ATO-Assistant-Docker-${{ steps.release.outputs.version }}.zip
+            tools/packaging/docker/README.txt
+          if-no-files-found: error
+
       - name: Extract Docker image context
         shell: bash
         env:

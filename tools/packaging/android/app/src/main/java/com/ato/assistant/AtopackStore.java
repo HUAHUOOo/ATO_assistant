@@ -17,6 +17,7 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,9 +25,14 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 final class AtopackStore {
@@ -40,6 +46,9 @@ final class AtopackStore {
   private static final long MAX_CRYPTIC_BYTES = 128L * 1024;
   private static final int MAX_CRYPTIC_FILES = 256;
   private static final int MAX_ASSETS = 20_000;
+  // Match Asset Studio's archive limits, including members outside known sections.
+  private static final long MAX_MEMBER_BYTES = 128L * 1024 * 1024;
+  private static final long MAX_PACKAGE_TOTAL_BYTES = 8L * 1024 * 1024 * 1024;
   private static final String WEB_PREFIX = "/android_asset/web/";
   // 二进制素材（不是图片）只允许落在这个前缀下，与 tools/build_fan_pack.py、
   // app/installer.py 的同名规则保持一致。
@@ -65,7 +74,11 @@ final class AtopackStore {
     indexFile = new AtomicFile(new File(root, "index.json"));
     storiesFile = new AtomicFile(new File(root, "stories.json"));
     knownTargets = loadCatalog();
+    File[] leftovers = root.listFiles((directory, name) -> name.startsWith("import-") && name.endsWith(".staging"));
+    if (leftovers != null) for (File leftover : leftovers) restoreInterruptedRepairs(leftover);
     resources = loadIndex();
+    removeUnreferencedBlobs();
+    if (leftovers != null) for (File leftover : leftovers) removeStaging(leftover);
   }
 
   WebResourceResponse intercept(Uri uri) {
@@ -121,7 +134,7 @@ final class AtopackStore {
     try {
       try (InputStream input = resolver.openInputStream(sourceUri); FileOutputStream output = new FileOutputStream(packageFile)) {
         if (input == null) throw new IOException("无法读取所选资料包");
-        copy(input, output, null);
+        copy(input, output, null, MAX_PACKAGE_TOTAL_BYTES, null);
       }
       return importZip(packageFile);
     } finally {
@@ -130,10 +143,11 @@ final class AtopackStore {
   }
 
   private ImportResult importZip(File packageFile) throws Exception {
-    try (ZipFile archive = new ZipFile(packageFile)) {
+    try (ZipFile archive = new ZipFile(packageFile); ImportTransaction transaction = new ImportTransaction()) {
+      validateArchive(archive);
       ZipArchiveEntry manifestEntry = archive.getEntry("manifest.json");
       if (manifestEntry == null) throw new IOException("资料包缺少 manifest.json");
-      JSONObject manifest = new JSONObject(new String(readLimited(archive, manifestEntry, MAX_MANIFEST_BYTES), StandardCharsets.UTF_8));
+      JSONObject manifest = new JSONObject(new String(readLimited(archive, manifestEntry, MAX_MANIFEST_BYTES, transaction), StandardCharsets.UTF_8));
       if (!"ato-asset-pack".equals(manifest.optString("format"))) throw new IOException("不是有效的 .atopack 资料包");
       int version = manifest.optInt("version", 0);
       if (version < 1 || version > PACKAGE_VERSION) throw new IOException("不支持的资料包版本：" + version);
@@ -166,16 +180,16 @@ final class AtopackStore {
           member = safePath(asset.optString("member"), "资料包成员路径");
           sha256 = validSha256(asset.optString("sha256"));
         } catch (IOException invalid) { stats.skipped++; continue; }
-        ZipArchiveEntry entry = archive.getEntry(member);
+        ZipArchiveEntry entry = findEntry(archive, member, asset);
         if (entry == null || entry.isDirectory()) { stats.skipped++; continue; }
-        try { installBlob(archive, entry, sha256); }
+        try { installBlob(archive, entry, sha256, asset, MAX_MEMBER_BYTES, transaction); }
         catch (InvalidPackEntry invalid) { stats.skipped++; continue; }
         next.put(target, new ResourceEntry(sha256, safeMime(asset.optString("mimeType"), target)));
         importedAssets++;
       }
 
       JSONObject incomingStories = manifest.optJSONObject("stories");
-      boolean entityIndexImported = importStoryFiles(archive, manifest.optJSONArray("storyFiles"), next, stats);
+      boolean entityIndexImported = importStoryFiles(archive, manifest.optJSONArray("storyFiles"), next, stats, transaction);
       JSONArray officialFiles = manifest.optJSONArray("resourceFiles");
       if (officialFiles != null) {
         if (officialFiles.length() > MAX_ASSETS) throw new IOException("官方资料数量超过限制");
@@ -194,13 +208,13 @@ final class AtopackStore {
             continue;
           }
           if (!target.equals(resource.optString("member"))) { stats.skipped++; continue; }
-          ZipArchiveEntry entry = archive.getEntry(target);
+          ZipArchiveEntry entry = findEntry(archive, target, resource);
           if (entry == null || entry.isDirectory() || entry.getSize() < 0 || entry.getSize() > MAX_ENTITY_INDEX_BYTES) { stats.skipped++; continue; }
           if (resource.has("bytes") && resource.optLong("bytes", -1) != entry.getSize()) {
             stats.skipped++;
             continue;
           }
-          try { installBlob(archive, entry, sha256); }
+          try { installBlob(archive, entry, sha256, resource, MAX_ENTITY_INDEX_BYTES, transaction); }
           catch (InvalidPackEntry invalid) { stats.skipped++; continue; }
           next.put(target, new ResourceEntry(sha256, storyData ? "application/javascript" : scanMime(target)));
         }
@@ -224,7 +238,7 @@ final class AtopackStore {
             continue;
           }
           if (!target.equals(resource.optString("member"))) { stats.skipped++; continue; }
-          ZipArchiveEntry entry = archive.getEntry(target);
+          ZipArchiveEntry entry = findEntry(archive, target, resource);
           if (entry == null || entry.isDirectory() || entry.getSize() < 0 || entry.getSize() > MAX_BGM_BYTES) {
             stats.skipped++;
             continue;
@@ -233,7 +247,7 @@ final class AtopackStore {
             stats.skipped++;
             continue;
           }
-          try { installBlob(archive, entry, sha256); }
+          try { installBlob(archive, entry, sha256, resource, MAX_BGM_BYTES, transaction); }
           catch (InvalidPackEntry invalid) { stats.skipped++; continue; }
           next.put(target, new ResourceEntry(sha256, safeMime(resource.optString("mimeType"), target)));
         }
@@ -257,7 +271,7 @@ final class AtopackStore {
             continue;
           }
           if (!target.equals(resource.optString("member"))) { stats.skipped++; continue; }
-          ZipArchiveEntry entry = archive.getEntry(target);
+          ZipArchiveEntry entry = findEntry(archive, target, resource);
           if (entry == null || entry.isDirectory() || entry.getSize() < 0 || entry.getSize() > MAX_ICON_BYTES) {
             stats.skipped++;
             continue;
@@ -266,7 +280,7 @@ final class AtopackStore {
             stats.skipped++;
             continue;
           }
-          try { installBlob(archive, entry, sha256); }
+          try { installBlob(archive, entry, sha256, resource, MAX_ICON_BYTES, transaction); }
           catch (InvalidPackEntry invalid) { stats.skipped++; continue; }
           next.put(target, new ResourceEntry(sha256, safeMime(resource.optString("mimeType"), target)));
         }
@@ -278,37 +292,39 @@ final class AtopackStore {
         if (crypticFiles.length() > MAX_CRYPTIC_FILES) throw new IOException("密语字形数量超过限制");
         for (int index = 0; index < crypticFiles.length(); index++) {
           JSONObject resource = crypticFiles.optJSONObject(index);
-          if (resource == null) { stats.skipped++; continue; }
+          if (resource == null) { stats.skipCryptic("", "字形条目不是对象"); continue; }
           String target;
           String sha256;
           try {
             target = safePath(resource.optString("target"), "密语字形路径");
             sha256 = validSha256(resource.optString("sha256"));
-          } catch (IOException invalid) { stats.skipped++; continue; }
+          } catch (IOException invalid) { stats.skipCryptic(resource.optString("target"), invalid.getMessage()); continue; }
           if (!target.matches("story/assets/cryptic/glyphs/[A-Za-z0-9][A-Za-z0-9._-]*\\.png")) {
-            stats.skipped++;
+            stats.skipCryptic(target, "字形目标路径不受支持");
             continue;
           }
-          if (!target.equals(resource.optString("member"))) { stats.skipped++; continue; }
-          ZipArchiveEntry entry = archive.getEntry(target);
+          if (!target.equals(resource.optString("member"))) { stats.skipCryptic(target, "成员路径与字形目标不一致"); continue; }
+          ZipArchiveEntry entry = findEntry(archive, target, resource);
           if (entry == null || entry.isDirectory() || entry.getSize() < 0 || entry.getSize() > MAX_CRYPTIC_BYTES) {
-            stats.skipped++;
+            stats.skipCryptic(target, "字形成员缺失、无效或超过大小限制");
             continue;
           }
           if (resource.has("bytes") && resource.optLong("bytes", -1) != entry.getSize()) {
-            stats.skipped++;
+            stats.skipCryptic(target, "字形声明大小与成员不一致");
             continue;
           }
-          try { installBlob(archive, entry, sha256); }
-          catch (InvalidPackEntry invalid) { stats.skipped++; continue; }
+          try { installBlob(archive, entry, sha256, resource, MAX_CRYPTIC_BYTES, transaction); }
+          catch (InvalidPackEntry invalid) { stats.skipCryptic(target, invalid.getMessage()); continue; }
           next.put(target, new ResourceEntry(sha256, safeMime(resource.optString("mimeType"), target)));
         }
       }
-      int importedBooks = mergeStories(incomingStories, next, stats);
-      updatedAt = Long.toString(System.currentTimeMillis());
-      writeIndex(next);
+      int importedBooks = mergeStories(incomingStories, next, stats, transaction);
+      String nextUpdatedAt = Long.toString(System.currentTimeMillis());
+      transaction.commit(next, nextUpdatedAt);
       resources = next;
-      return new ImportResult(importedAssets, importedBooks, entityIndexImported, next.size(), stats.skipped);
+      updatedAt = nextUpdatedAt;
+      removeUnreferencedBlobs();
+      return new ImportResult(importedAssets, importedBooks, entityIndexImported, next.size(), stats);
     }
   }
 
@@ -324,10 +340,10 @@ final class AtopackStore {
     return result;
   }
 
-  private int mergeStories(JSONObject incoming, Map<String, ResourceEntry> next, ImportStats stats) throws Exception {
+  private int mergeStories(JSONObject incoming, Map<String, ResourceEntry> next, ImportStats stats, ImportTransaction transaction) throws Exception {
     JSONArray incomingBooks = incoming == null ? null : incoming.optJSONArray("books");
     if (incomingBooks == null || incomingBooks.length() == 0) return 0;
-    JSONObject merged = readJson(storiesFile, new JSONObject().put("books", new JSONArray()));
+    JSONObject merged = transaction.stories;
     JSONArray currentBooks = merged.optJSONArray("books");
     if (currentBooks == null) currentBooks = new JSONArray();
     Map<String, JSONObject> byId = new TreeMap<>();
@@ -350,13 +366,14 @@ final class AtopackStore {
     JSONObject payload = new JSONObject();
     payload.put("generatedAt", incoming.optString("generatedAt", "Android .atopack import"));
     payload.put("books", books);
-    writeJson(storiesFile, payload);
-    installGenerated(next, "story/data/storybook-data.js", "application/javascript", "window.STORYBOOK_DATA = " + payload + ";\n");
+    transaction.stories = payload;
+    installGenerated(next, "story/data/storybook-data.js", "application/javascript", "window.STORYBOOK_DATA = " + payload + ";\n", transaction);
     return imported;
   }
 
-  private boolean importStoryFiles(ZipFile archive, JSONArray files, Map<String, ResourceEntry> next, ImportStats stats) throws Exception {
+  private boolean importStoryFiles(ZipFile archive, JSONArray files, Map<String, ResourceEntry> next, ImportStats stats, ImportTransaction transaction) throws Exception {
     if (files == null) return false;
+    if (files.length() > MAX_ASSETS) throw new IOException("故事附加文件数量超过限制");
     boolean imported = false;
     for (int index = 0; index < files.length(); index++) {
       JSONObject storyFile = files.optJSONObject(index);
@@ -372,45 +389,69 @@ final class AtopackStore {
         expected = validSha256(storyFile.optString("sha256"));
       } catch (IOException invalid) { stats.skipped++; continue; }
       if (!"story/entity-index.json".equals(member)) { stats.skipped++; continue; }
-      ZipArchiveEntry entry = archive.getEntry(member);
-      if (entry == null || entry.isDirectory() || entry.getSize() > MAX_ENTITY_INDEX_BYTES) { stats.skipped++; continue; }
-      byte[] raw = readLimited(archive, entry, MAX_ENTITY_INDEX_BYTES);
+      ZipArchiveEntry entry = findEntry(archive, member, storyFile);
+      if (entry == null || entry.isDirectory()) { stats.skipped++; continue; }
+      byte[] raw;
+      try {
+        validateSize(entry, storyFile, MAX_ENTITY_INDEX_BYTES);
+        raw = readLimited(archive, entry, MAX_ENTITY_INDEX_BYTES, transaction);
+        validateActualSize(entry, storyFile, raw.length);
+      } catch (InvalidPackEntry invalid) { stats.skipped++; continue; }
       if (!expected.equals(hex(digest(raw)))) { stats.skipped++; continue; }
       JSONObject entityIndex;
       try { entityIndex = new JSONObject(new String(raw, StandardCharsets.UTF_8)); }
       catch (JSONException invalid) { stats.skipped++; continue; }
       JSONArray entities = entityIndex.optJSONArray("entities");
       if (entities == null || entities.length() == 0) { stats.skipped++; continue; }
-      installGenerated(next, "story/data/entity-index.json", "application/json", entityIndex.toString());
-      installGenerated(next, "story/data/entity-index.js", "application/javascript", "(function () {\n  window.STORY_ENTITY_INDEX = " + entityIndex + ";\n})();\n");
+      installGenerated(next, "story/data/entity-index.json", "application/json", entityIndex.toString(), transaction);
+      installGenerated(next, "story/data/entity-index.js", "application/javascript", "(function () {\n  window.STORY_ENTITY_INDEX = " + entityIndex + ";\n})();\n", transaction);
       imported = true;
     }
     return imported;
   }
 
-  private void installGenerated(Map<String, ResourceEntry> next, String target, String mimeType, String content) throws Exception {
+  private void installGenerated(Map<String, ResourceEntry> next, String target, String mimeType, String content, ImportTransaction transaction) throws Exception {
     byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
     String sha256 = hex(digest(bytes));
-    File blob = new File(blobs, sha256);
+    if (bytes.length > MAX_MEMBER_BYTES) throw new IOException("生成的资源超过大小限制：" + target);
+    transaction.account(bytes.length);
+    File blob = new File(transaction.staging, sha256);
     if (!blob.isFile()) {
-      File temporary = File.createTempFile("blob-", ".tmp", blobs);
-      try (FileOutputStream output = new FileOutputStream(temporary)) {
+      try (FileOutputStream output = new FileOutputStream(blob)) {
         output.write(bytes);
       }
-      moveBlob(temporary, blob);
     }
     next.put(target, new ResourceEntry(sha256, mimeType));
   }
 
-  private void installBlob(ZipFile archive, ZipArchiveEntry entry, String expected) throws Exception {
-    File destination = new File(blobs, expected);
-    if (destination.isFile()) return;
-    File temporary = File.createTempFile("blob-", ".tmp", blobs);
+  private void installBlob(ZipFile archive, ZipArchiveEntry entry, String expected, JSONObject resource, long maximum, ImportTransaction transaction) throws Exception {
+    InvalidPackEntry failure = null;
+    // Older exporters wrote catalog glyphs and crypticFiles under the same ZIP
+    // member, sometimes with different encodings. Resolve each declaration by
+    // its bytes and digest instead of trusting getEntry's first matching member.
+    for (ZipArchiveEntry candidate : archive.getEntries(entry.getName())) {
+      if (candidate.isDirectory()) continue;
+      try {
+        stageBlob(archive, candidate, expected, resource, maximum, transaction);
+        return;
+      } catch (InvalidPackEntry invalid) {
+        failure = invalid;
+      }
+    }
+    throw failure == null ? new InvalidPackEntry("资料包成员缺失：" + entry.getName()) : failure;
+  }
+
+  private void stageBlob(ZipFile archive, ZipArchiveEntry entry, String expected, JSONObject resource, long maximum, ImportTransaction transaction) throws Exception {
+    validateSize(entry, resource, maximum);
+    File destination = new File(transaction.staging, expected);
+    File temporary = File.createTempFile("blob-", ".tmp", transaction.staging);
     MessageDigest digest = sha256();
     try {
+      long actual;
       try (InputStream input = archive.getInputStream(entry); FileOutputStream output = new FileOutputStream(temporary)) {
-        copy(input, output, digest);
+        actual = copy(input, output, digest, maximum, transaction);
       }
+      validateActualSize(entry, resource, actual);
       if (!expected.equals(hex(digest.digest()))) throw new InvalidPackEntry("资料包文件校验失败：" + entry.getName());
       moveBlob(temporary, destination);
     } finally {
@@ -424,6 +465,144 @@ final class AtopackStore {
       return;
     }
     if (!temporary.renameTo(destination)) throw new IOException("无法保存导入资源");
+  }
+
+  private static ZipArchiveEntry findEntry(ZipFile archive, String member, JSONObject resource) {
+    for (ZipArchiveEntry entry : archive.getEntries(member)) {
+      if (!entry.isDirectory() && matchesDeclaredSize(resource, entry.getSize())) return entry;
+    }
+    return archive.getEntry(member);
+  }
+
+  private static void validateArchive(ZipFile archive) throws IOException {
+    Enumeration<ZipArchiveEntry> entries = archive.getEntries();
+    long total = 0;
+    int members = 0;
+    while (entries.hasMoreElements()) {
+      ZipArchiveEntry entry = entries.nextElement();
+      if (++members > MAX_ASSETS) throw new IOException("资料包成员数量超过限制");
+      long size = entry.getSize();
+      if (size < 0 || size > MAX_MEMBER_BYTES) throw new IOException("资料包文件大小无效或超过限制：" + entry.getName());
+      if (size > MAX_PACKAGE_TOTAL_BYTES - total) throw new IOException("资料包解压总量超过限制");
+      total += size;
+    }
+  }
+
+  private static void validateSize(ZipArchiveEntry entry, JSONObject resource, long maximum) throws IOException {
+    if (entry.getSize() < 0 || entry.getSize() > maximum) throw new InvalidPackEntry("资料包文件大小无效或超过限制：" + entry.getName());
+    if (!matchesDeclaredSize(resource, entry.getSize())) {
+      throw new InvalidPackEntry("资料包声明大小与成员不一致：" + entry.getName());
+    }
+  }
+
+  private static void validateActualSize(ZipArchiveEntry entry, JSONObject resource, long actual) throws IOException {
+    if (actual != entry.getSize() || !matchesDeclaredSize(resource, actual)) {
+      throw new InvalidPackEntry("资料包实际大小与声明不一致：" + entry.getName());
+    }
+  }
+
+  private static boolean matchesDeclaredSize(JSONObject resource, long actual) {
+    if (!resource.has("bytes")) return true; // Legacy packages did not declare sizes.
+    Object value = resource.opt("bytes");
+    if (!(value instanceof Number)) return false;
+    Number declared = (Number) value;
+    return declared.longValue() == actual && declared.doubleValue() == (double) actual;
+  }
+
+  private void removeUnreferencedBlobs() {
+    Set<String> referenced = new HashSet<>();
+    for (ResourceEntry entry : resources.values()) referenced.add(entry.sha256);
+    File[] files = blobs.listFiles();
+    if (files != null) for (File file : files) if (file.isFile() && !referenced.contains(file.getName())) file.delete();
+  }
+
+  private static void removeStaging(File staging) {
+    File[] files = staging.listFiles();
+    if (files != null) for (File file : files) if (file.isFile()) file.delete();
+    staging.delete();
+  }
+
+  private void restoreInterruptedRepairs(File staging) {
+    File[] previous = staging.listFiles((directory, name) -> name.matches("previous-[0-9a-f]{64}"));
+    if (previous == null) return;
+    for (File file : previous) {
+      File destination = new File(blobs, file.getName().substring("previous-".length()));
+      if (!destination.isFile()) file.renameTo(destination);
+    }
+  }
+
+  // Only index.json is mutable committed state. Story metadata lives in that same
+  // atomic commit; old stories.json remains a read-only migration fallback.
+  private final class ImportTransaction implements AutoCloseable {
+    final File staging;
+    final List<File> created = new ArrayList<>();
+    final Map<File, File> replaced = new HashMap<>();
+    JSONObject stories;
+    long readBytes;
+    boolean committed;
+
+    ImportTransaction() throws Exception {
+      JSONObject current;
+      try { current = readJson(indexFile, new JSONObject()); }
+      catch (Exception damaged) { current = new JSONObject(); }
+      stories = current.optJSONObject("stories");
+      if (stories == null) {
+        try { stories = readJson(storiesFile, new JSONObject().put("books", new JSONArray())); }
+        catch (Exception damaged) { stories = new JSONObject().put("books", new JSONArray()); }
+      }
+      staging = File.createTempFile("import-", ".staging", root);
+      if (!staging.delete() || !staging.mkdir()) throw new IOException("无法创建资料包暂存目录");
+    }
+
+    void account(int count) throws IOException {
+      if (count > MAX_PACKAGE_TOTAL_BYTES - readBytes) throw new IOException("资料包解压总量超过限制");
+      readBytes += count;
+    }
+
+    void commit(Map<String, ResourceEntry> next, String nextUpdatedAt) throws Exception {
+      Set<String> hashes = new HashSet<>();
+      for (ResourceEntry entry : next.values()) hashes.add(entry.sha256);
+      for (String hash : hashes) {
+        File temporary = new File(staging, hash);
+        File destination = new File(blobs, hash);
+        if (temporary.isFile() && !blobMatches(destination, hash)) {
+          if (destination.isFile()) {
+            File previous = new File(staging, "previous-" + hash);
+            if (!destination.renameTo(previous)) throw new IOException("无法修复损坏的导入资源");
+            replaced.put(destination, previous);
+          }
+          moveBlob(temporary, destination);
+          created.add(destination);
+        }
+      }
+      writeIndex(next, nextUpdatedAt, stories);
+      committed = true;
+    }
+
+    @Override public void close() {
+      if (!committed) {
+        for (File file : created) file.delete();
+        for (Map.Entry<File, File> previous : replaced.entrySet()) previous.getValue().renameTo(previous.getKey());
+      }
+      removeStaging(staging);
+    }
+  }
+
+  private static boolean blobMatches(File file, String expected) throws Exception {
+    if (!file.isFile() || file.length() > MAX_MEMBER_BYTES) return false;
+    MessageDigest digest = sha256();
+    try (InputStream input = new FileInputStream(file)) {
+      byte[] buffer = new byte[64 * 1024];
+      long total = 0;
+      for (int count; (count = input.read(buffer)) != -1;) {
+        if (count > MAX_MEMBER_BYTES - total) return false;
+        total += count;
+        digest.update(buffer, 0, count);
+      }
+      return expected.equals(hex(digest.digest()));
+    } catch (IOException damaged) {
+      return false;
+    }
   }
 
   private Map<String, ResourceEntry> loadIndex() {
@@ -472,26 +651,29 @@ final class AtopackStore {
     return result;
   }
 
-  private void writeIndex(Map<String, ResourceEntry> values) throws Exception {
+  private void writeIndex(Map<String, ResourceEntry> values, String nextUpdatedAt, JSONObject stories) throws Exception {
     JSONObject files = new JSONObject();
     for (Map.Entry<String, ResourceEntry> value : values.entrySet()) {
       files.put(value.getKey(), new JSONObject().put("sha256", value.getValue().sha256).put("mimeType", value.getValue().mimeType));
     }
-    writeJson(indexFile, new JSONObject().put("version", 1).put("updatedAt", updatedAt).put("files", files));
+    writeJson(indexFile, new JSONObject().put("version", 2).put("updatedAt", nextUpdatedAt).put("files", files).put("stories", stories));
   }
 
   private static JSONObject readJson(AtomicFile file, JSONObject fallback) throws Exception {
-    if (!file.getBaseFile().isFile()) return fallback;
     try (InputStream input = file.openRead()) {
       return new JSONObject(new String(readAll(input, MAX_MANIFEST_BYTES), StandardCharsets.UTF_8));
+    } catch (FileNotFoundException missing) {
+      return fallback;
     }
   }
 
   private static void writeJson(AtomicFile file, JSONObject value) throws IOException {
     FileOutputStream output = null;
     try {
+      byte[] bytes = value.toString().getBytes(StandardCharsets.UTF_8);
+      if (bytes.length > MAX_MANIFEST_BYTES) throw new IOException("资料包安装索引超过大小限制");
       output = file.startWrite();
-      output.write(value.toString().getBytes(StandardCharsets.UTF_8));
+      output.write(bytes);
       file.finishWrite(output);
     } catch (IOException error) {
       if (output != null) file.failWrite(output);
@@ -499,10 +681,20 @@ final class AtopackStore {
     }
   }
 
-  private static byte[] readLimited(ZipFile archive, ZipArchiveEntry entry, int maximum) throws IOException {
-    if (entry.getSize() > maximum) throw new IOException("资料包文件过大：" + entry.getName());
+  private static byte[] readLimited(ZipFile archive, ZipArchiveEntry entry, int maximum, ImportTransaction transaction) throws IOException {
+    if (entry.getSize() < 0 || entry.getSize() > maximum) throw new InvalidPackEntry("资料包文件过大：" + entry.getName());
     try (InputStream input = archive.getInputStream(entry)) {
-      return readAll(input, maximum);
+      ByteArrayOutputStream output = new ByteArrayOutputStream();
+      byte[] buffer = new byte[64 * 1024];
+      long total = 0;
+      for (int count; (count = readPackChunk(input, buffer)) != -1;) {
+        if (count > maximum - total) throw new InvalidPackEntry("资料包文件过大：" + entry.getName());
+        transaction.account(count);
+        total += count;
+        output.write(buffer, 0, count);
+      }
+      if (total != entry.getSize()) throw new InvalidPackEntry("资料包实际大小与成员不一致：" + entry.getName());
+      return output.toByteArray();
     }
   }
 
@@ -518,11 +710,24 @@ final class AtopackStore {
     return output.toByteArray();
   }
 
-  private static void copy(InputStream input, FileOutputStream output, MessageDigest digest) throws IOException {
+  private static long copy(InputStream input, FileOutputStream output, MessageDigest digest, long maximum, ImportTransaction transaction) throws IOException {
     byte[] buffer = new byte[1024 * 1024];
-    for (int count; (count = input.read(buffer)) != -1;) {
+    long total = 0;
+    for (int count; (count = transaction == null ? input.read(buffer) : readPackChunk(input, buffer)) != -1;) {
+      if (count > maximum - total) throw new InvalidPackEntry("资料包文件超过大小限制");
+      if (transaction != null) transaction.account(count);
+      total += count;
       output.write(buffer, 0, count);
       if (digest != null) digest.update(buffer, 0, count);
+    }
+    return total;
+  }
+
+  private static int readPackChunk(InputStream input, byte[] buffer) throws IOException {
+    try {
+      return input.read(buffer);
+    } catch (IOException damaged) {
+      throw new InvalidPackEntry("无法解压资料包成员：" + damaged.getMessage());
     }
   }
 
@@ -597,6 +802,12 @@ final class AtopackStore {
 
   private static final class ImportStats {
     int skipped;
+    final JSONArray crypticSkipped = new JSONArray();
+
+    void skipCryptic(String target, String reason) throws JSONException {
+      skipped++;
+      crypticSkipped.put(new JSONObject().put("target", target).put("reason", reason));
+    }
   }
 
   private static final class InvalidPackEntry extends IOException {
@@ -609,18 +820,21 @@ final class AtopackStore {
     final boolean entityIndex;
     final int totalResources;
     final int skipped;
+    final JSONArray crypticSkipped;
 
-    ImportResult(int assets, int books, boolean entityIndex, int totalResources, int skipped) {
+    ImportResult(int assets, int books, boolean entityIndex, int totalResources, ImportStats stats) {
       this.assets = assets;
       this.books = books;
       this.entityIndex = entityIndex;
       this.totalResources = totalResources;
-      this.skipped = skipped;
+      this.skipped = stats.skipped;
+      this.crypticSkipped = stats.crypticSkipped;
     }
 
     JSONObject toJson() throws JSONException {
       return new JSONObject().put("ok", true).put("assets", assets).put("books", books)
-        .put("entityIndex", entityIndex).put("totalResources", totalResources).put("skipped", skipped);
+        .put("entityIndex", entityIndex).put("totalResources", totalResources).put("skipped", skipped)
+        .put("cryptic_skipped", crypticSkipped.length()).put("cryptic_warnings", crypticSkipped);
     }
   }
 

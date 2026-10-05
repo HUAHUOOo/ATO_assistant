@@ -21,6 +21,7 @@ from app.bgm_resources import add_to_archive as add_bgm_to_archive  # noqa: E402
 from app.bgm_resources import allowed_target as is_bgm_target  # noqa: E402
 from app.icon_resources import add_to_archive as add_icon_to_archive  # noqa: E402
 from app.cryptic_resources import add_to_archive as add_cryptic_to_archive  # noqa: E402
+from app.cryptic_resources import allowed_target as is_cryptic_target  # noqa: E402
 from app.official_resources import add_to_archive
 from app.official_assets import resolve as resolve_official_asset  # noqa: E402
 from app.fixed_catalog import fixed_catalog_payload  # noqa: E402
@@ -40,6 +41,7 @@ def copy_stream(source, destination, digest) -> None:
 def update_full_pack(
     base_pack: Path, destination: Path, overlay_root: Path,
     bgm_library: Path | None = None, include_official_scans: bool = False,
+    include_cryptic: bool = True,
 ) -> dict:
     if base_pack == destination:
         raise ValueError("输出资料包不能覆盖输入资料包")
@@ -47,7 +49,9 @@ def update_full_pack(
         raise FileExistsError(f"输出资料包已存在：{destination}")
 
     fixed = fixed_catalog_payload()
-    items = fixed["items"]
+    items = [{**item, "faces": {face: target for face, target in item["faces"].items()
+                              if not is_cryptic_target(target)}} for item in fixed["items"]]
+    items = [item for item in items if item["faces"]]
     faces = [
         (item, face, target)
         for item in items
@@ -187,9 +191,10 @@ def update_full_pack(
                     output_zip, manifest, overlay_root, fallback_library=bgm_library
                 )
                 # 密语字形（巴别语／塞壬语）：同样是本地私有素材，随 crypticFiles 段分发。
-                cryptic_count = add_cryptic_to_archive(
-                    output_zip, manifest, overlay_root, fallback_library=bgm_library
-                )
+                if include_cryptic:
+                    cryptic_count = add_cryptic_to_archive(
+                        output_zip, manifest, overlay_root, fallback_library=bgm_library
+                    )
                 manifest.setdefault("build", {})["audioIncluded"] = bool(bgm_count)
                 manifest["build"]["iconsIncluded"] = bool(icon_count)
                 manifest["build"]["crypticIncluded"] = bool(cryptic_count)
@@ -250,6 +255,7 @@ def main() -> None:
              "（story/data/ato-storybook-key-scans/*，后缀 .jpg/.jpeg/.png/.webp 均可，不限大小写）。"
              "默认不打包截图，只带官方故事书正文数据。",
     )
+    parser.add_argument("--no-cryptic", action="store_true", help="不带密语字形")
     args = parser.parse_args()
     result = update_full_pack(
         args.base_pack.expanduser().resolve(),
@@ -257,6 +263,7 @@ def main() -> None:
         args.overlay_root.expanduser().resolve(),
         args.bgm_library.expanduser().resolve() if args.bgm_library else None,
         args.include_official_scans,
+        not args.no_cryptic,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2), flush=True)
 

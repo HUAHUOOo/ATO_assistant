@@ -1,12 +1,9 @@
 services:
   ato:
-    image: ghcr.io/banard2049-cpu/ato_assistant:${ATO_VERSION:-latest}
-    build: .
-    # latest 是会移动的标签，而 missing 的语义是「本地已经有同名镜像就别拉」：
-    # 两者凑在一起，`docker compose pull` 有可能什么都不拉，更新看起来成功、
-    # 实际还在跑旧镜像。这里必须是 always，pull 才是真的 pull。
-    # （代价：GHCR 不可达时手动 `docker compose up -d` 会报错；已经在跑的容器不受影响。）
-    pull_policy: always
+    image: ${ATO_IMAGE:-ghcr.io/banard2049-cpu/ato_assistant:${ATO_VERSION:-latest}}
+    # 默认每次启动拉取镜像；本地构建在 .env 设置 ATO_PULL_POLICY=never。
+    # Dockerfile 只在分发包/构建上下文里，普通安装目录不提供 build: 兜底。
+    pull_policy: ${ATO_PULL_POLICY:-always}
     ports:
       - "8793:8793"
     volumes:
@@ -35,6 +32,8 @@ services:
       # 和自备音频，整目录挂载会把播放器代码一起钉死在宿主机上，pull 就再也更新不到它；
       # 所以音频放 ./app/assets/bgm/audio/，程序交给镜像（见 assets/bgm/README.md）。
       - ./app/assets/bgm/audio:/app/assets/bgm/audio:ro
+      # 资料包的平铺 assets/bgm/*.mp3 也实时可用；放在额外子路径，避免盖住播放器代码。
+      - ./app/assets/bgm:/app/assets/bgm/media:ro
       - ./app/hero/assets:/app/hero/assets
       - ./app/map/images:/app/map/images
       - ./app/map/tokens:/app/map/tokens
