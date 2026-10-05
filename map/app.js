@@ -92,6 +92,12 @@ const alwaysVisibleStartTileIds = {
   c4: ["029", "052", "074"],
   c5: ["047"],
 };
+// 「虽然是城市（带 city 标签），但按规则永远不会成为『最后到访的城市』」的格子：
+// 离开这些格子时不移动 last_city 标记。c1 的 027 开局就在场上（见上），它是城市，
+// 但不会成为最后到访的城市 —— 所以它不进 `isLastVisitedCityTile`。
+const lastCityExcludedTileIds = {
+  c1: ["027"],
+};
 const adversaryBattleByCycle = {
   c1: {
     book: "c1",
@@ -527,6 +533,13 @@ function tileHasTag(cycleId, tileId, tagId) {
   return tileTagIds(cycleId, tileId).includes(tagId);
 }
 
+// 离开这一格时要不要把「最后到访的城市」标记移过来：带 city 标签是必要条件，
+// 但 `lastCityExcludedTileIds` 里的格子是例外（例如 c1 的 027）。
+function isLastVisitedCityTile(cycleId, tileId) {
+  if (!tileHasTag(cycleId, tileId, "city")) return false;
+  return !(lastCityExcludedTileIds[cycleId] || []).includes(tileId);
+}
+
 function removeMarkerEverywhere(cycleState, tokenId) {
   Object.keys(cycleState.tokens.markers || {}).forEach((tileId) => {
     if (!cycleState.tokens.markers[tileId]) return;
@@ -628,7 +641,7 @@ function inheritCycleFiveTileFace(cycleState, destinationId) {
 function syncDepartedLandmarkMarkers(cycleState, nextTileId) {
   const departedTileId = cycleState.currentTile;
   if (!departedTileId || departedTileId === nextTileId) return;
-  if (tileHasTag(state.activeCycleId, departedTileId, "city")) {
+  if (isLastVisitedCityTile(state.activeCycleId, departedTileId)) {
     moveMarkerToTile(cycleState, "last_city", departedTileId);
   }
   if (

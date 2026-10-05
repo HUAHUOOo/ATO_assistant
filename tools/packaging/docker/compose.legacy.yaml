@@ -35,8 +35,14 @@ services:
       - ./app/ss/terrain:/app/ss/terrain:ro
       - ./app/ss/terrain-cards:/app/ss/terrain-cards:ro
       - ./app/story/images:/app/story/images
+      # c1.5 / c2.5 preface chapter art moved from story/images/OO/ to story/assets/OO/.
+      - ./app/story/assets/OO:/app/story/assets/OO:ro
       # Cryptic glyphs (Babelian/Siren) come from the user's resource pack (crypticFiles section).
       - ./app/story/assets/cryptic/glyphs:/app/story/assets/cryptic/glyphs:ro
+      # Mixed-media material (book crops + mapping) comes from the resource pack
+      # (mixedMediaFiles section). Create mapping.js as a FILE before up, like battle-board.jpg.
+      - ./app/story/assets/mixed-media/images:/app/story/assets/mixed-media/images:ro
+      - ./app/story/assets/mixed-media/mapping.js:/app/story/assets/mixed-media/mapping.js:ro
       - ./app/story/data:/app/story/data:ro
       - ./app/technology/images:/app/technology/images
     restart: unless-stopped

@@ -28,6 +28,9 @@ import org.json.JSONObject;
 public final class AtopackImportHarness {
   private static final String ASSET = "assets/cards/test.png";
   private static final String GLYPH = "story/assets/cryptic/glyphs/babelian-1.png";
+  private static final String MIXED_MAPPING = "story/assets/mixed-media/mapping.js";
+  private static final String MIXED_PNG = "story/assets/mixed-media/images/c1/c1-p001-block.png";
+  private static final String MIXED_SVG = "story/assets/mixed-media/images/c5/c5-p001-inline.svg";
   private final File directory;
   private final Context context;
   private AtopackStore store;
@@ -178,18 +181,22 @@ public final class AtopackImportHarness {
     for (String[] segment : new String[][] {
         {"resourceFiles", "story/data/storybook-official-data.js"},
         {"bgmFiles", "assets/bgm/test.mp3"}, {"iconFiles", "assets/icons/test.svg"},
-        {"crypticFiles", GLYPH}, {"storyFiles", "story/entity-index.json"}}) {
+        {"crypticFiles", GLYPH}, {"mixedMediaFiles", MIXED_PNG},
+        {"storyFiles", "story/entity-index.json"}}) {
       byte[] payload = bytes("{\"entities\":[{\"id\":\"one\"}]}");
       JSONObject declaration = resource(segment[1], payload).put("bytes", payload.length + 1).put("kind", "entity-index");
       segments.put(segment[0], new JSONArray().put(declaration));
       payloads.add(new Member(segment[1], payload));
     }
     JSONObject skipped = install(pack(segments, payloads.toArray(Member[]::new))).toJson();
-    check(skipped.getInt("skipped") == 5, "All segments must validate bytes");
+    check(skipped.getInt("skipped") == 6, "All segments must validate bytes");
     check(skipped.getInt("cryptic_skipped") == 1, "Invalid glyph missing separate count");
     check(skipped.getJSONArray("cryptic_warnings").getJSONObject(0).getString("target").equals(GLYPH), "Glyph warning lacks target");
     check(!skipped.getJSONArray("cryptic_warnings").getJSONObject(0).getString("reason").isEmpty(), "Glyph warning lacks reason");
-    for (String section : new String[] {"resourceFiles", "bgmFiles", "iconFiles", "crypticFiles", "storyFiles"}) {
+    check(skipped.getInt("mixed_media_skipped") == 1, "Invalid mixed-media entry missing separate count");
+    check(skipped.getJSONArray("mixed_media_warnings").getJSONObject(0).getString("target").equals(MIXED_PNG), "Mixed-media warning lacks target");
+    check(!skipped.getJSONArray("mixed_media_warnings").getJSONObject(0).getString("reason").isEmpty(), "Mixed-media warning lacks reason");
+    for (String section : new String[] {"resourceFiles", "bgmFiles", "iconFiles", "crypticFiles", "mixedMediaFiles", "storyFiles"}) {
       JSONObject declaration = segments.getJSONArray(section).getJSONObject(0);
       declaration.put("bytes", payloads.stream().filter(member -> member.name.equals(declaration.getString("member"))).findFirst().orElseThrow().bytes.length);
     }
@@ -199,6 +206,59 @@ public final class AtopackImportHarness {
       String target = member.name.equals("story/entity-index.json") ? "story/data/entity-index.json" : member.name;
       check(new String(member.bytes, StandardCharsets.UTF_8).equals(open(target)), "Valid segment failed roundtrip: " + target);
     }
+
+    // 混合媒体（mapping.js + 书籍裁图）：合法目标要能落地（PNG 与 SVG 都收），
+    // 白名单外的路径、路径与成员不一致的声明只跳过，不打断其余素材。
+    byte[] mapping = bytes("window.ATO_MIXED_MEDIA_MAP = {};");
+    String outsideCycle = "story/assets/mixed-media/images/c6/c6-p001-block.png";
+    String upperName = "story/assets/mixed-media/images/c1/UPPER.png";
+    String rendererCode = "story/assets/mixed-media/renderer.js";
+    String elsewhere = "story/assets/mixed-media/images/c2/other.png";
+    JSONObject mixed = manifest().put("mixedMediaFiles", new JSONArray()
+        .put(resource(MIXED_MAPPING, mapping))
+        .put(resource(MIXED_PNG, glyph))
+        .put(resource(MIXED_SVG, glyph))
+        .put(resource(outsideCycle, glyph))
+        .put(resource(upperName, glyph))
+        .put(resource(rendererCode, glyph))
+        .put(new JSONObject().put("target", MIXED_PNG).put("member", elsewhere)
+            .put("sha256", sha(glyph)).put("bytes", glyph.length)));
+    AtopackStore.ImportResult mixedMedia = install(pack(mixed,
+        new Member(MIXED_MAPPING, mapping), new Member(MIXED_PNG, glyph), new Member(MIXED_SVG, glyph),
+        new Member(outsideCycle, glyph), new Member(upperName, glyph), new Member(rendererCode, glyph),
+        new Member(elsewhere, glyph)));
+    JSONObject mixedJson = mixedMedia.toJson();
+    check(mixedJson.getInt("mixed_media_skipped") == 4, "Illegal mixed-media entries must be skipped and counted separately");
+    check(mixedJson.getJSONArray("mixed_media_warnings").length() == 4, "Mixed-media warnings missing");
+    for (int index = 0; index < mixedJson.getJSONArray("mixed_media_warnings").length(); index++) {
+      JSONObject warning = mixedJson.getJSONArray("mixed_media_warnings").getJSONObject(index);
+      check(!warning.getString("target").isEmpty() && !warning.getString("reason").isEmpty(),
+          "Mixed-media warning lacks target or reason");
+    }
+    check("window.ATO_MIXED_MEDIA_MAP = {};".equals(open(MIXED_MAPPING)), "Mixed-media mapping.js did not land");
+    check("original-glyph".equals(open(MIXED_PNG)), "Mixed-media PNG did not land");
+    check("original-glyph".equals(open(MIXED_SVG)), "Mixed-media SVG did not land");
+    check(open(outsideCycle) == null, "Mixed media outside c1..c5 was indexed");
+    check(open(upperName) == null, "Mixed-media name outside the renderer whitelist was indexed");
+    check(open(rendererCode) == null, "Program code must never be imported from a pack");
+    check(open(elsewhere) == null, "Member/target mismatch landed under the declared member");
+    check(open(MIXED_PNG) != null, "Target/member mismatch dropped the valid declaration too");
+
+    // 单张裁图上限 8MB、映射表单份 32MB：只把目录里的声明大小抬到上限之上，成员本身很小。
+    File oversizedImage = pack(
+        manifest().put("mixedMediaFiles", new JSONArray().put(resource(MIXED_PNG, glyph))),
+        new Member(MIXED_PNG, glyph));
+    patchCentralSizes(oversizedImage, 8L * 1024 * 1024 + 1);
+    check(install(oversizedImage).toJson().getInt("mixed_media_skipped") == 1, "Oversized mixed-media image must be skipped");
+    File oversizedMapping = pack(
+        manifest().put("mixedMediaFiles", new JSONArray().put(resource(MIXED_MAPPING, mapping))),
+        new Member(MIXED_MAPPING, mapping));
+    patchCentralSizes(oversizedMapping, 32L * 1024 * 1024 + 1);
+    check(install(oversizedMapping).toJson().getInt("mixed_media_skipped") == 1, "Oversized mapping.js must be skipped");
+    // 成员数上限 2048 + 1：整段超限直接拒收，和 BGM／字形一样不让它改到任何状态。
+    JSONArray oversizedMixedList = new JSONArray();
+    for (int index = 0; index < 2050; index++) oversizedMixedList.put(JSONObject.NULL);
+    reject(pack(manifest().put("mixedMediaFiles", oversizedMixedList)));
 
     // Old packs used one name twice: identical content and reencoded/original glyphs.
     for (byte[] catalogGlyph : new byte[][] {glyph, bytes("reencoded-glyph"), bytes("ORIGINAL-GLYPH")}) {

@@ -54,10 +54,26 @@ services:
       - ./app/ss/terrain:/app/ss/terrain:ro
       - ./app/ss/terrain-cards:/app/ss/terrain-cards:ro
       - ./app/story/images:/app/story/images
+      # 剧情章节配图（story/assets/OO/DY1P5.png、DY2P5.png，c1.5 / c2.5 的「导言」图）：
+      # 私有素材（.gitignore 的 *.png），公开镜像里没有，由资料包提供，
+      # 2026-10-05 从 story/images/OO/ 搬到 story/assets/OO/，所以这里单独挂这一层。
+      - ./app/story/assets/OO:/app/story/assets/OO:ro
       # 密语字形（story/assets/cryptic/glyphs/*.png，巴别语／塞壬语）：版权素材，公开镜像
       # 不含，由资料包的 crypticFiles 段提供，使用者把它们放进宿主机这一目录。
       # 只挂字形子目录：同级的 glyph-catalog.js / word-data.js 是程序代码，必须由镜像提供。
       - ./app/story/assets/cryptic/glyphs:/app/story/assets/cryptic/glyphs:ro
+      # 混合媒体素材（story/assets/mixed-media/）：mapping.js 与书籍裁图（PNG/SVG）都是私有素材，
+      # 公开镜像里没有，由资料包的 mixedMediaFiles 段提供、使用者放进宿主机这一层。
+      # 同目录的 renderer.js / styles.css 是程序代码，必须由镜像提供，所以只挂素材本身：
+      # 裁图整目录挂载，mapping.js 单文件挂载（文件缺失时 create_host_path: false 直接报错，
+      # 免得 Docker 建个同名目录顶上来、混排图静默全丢）。
+      - ./app/story/assets/mixed-media/images:/app/story/assets/mixed-media/images:ro
+      - type: bind
+        source: ./app/story/assets/mixed-media/mapping.js
+        target: /app/story/assets/mixed-media/mapping.js
+        read_only: true
+        bind:
+          create_host_path: false
       # Keep Storybook data local; it is intentionally absent from the public image.
       # Put the private storybook-data.js in ./app/story/data on the host.
       - ./app/story/data:/app/story/data:ro

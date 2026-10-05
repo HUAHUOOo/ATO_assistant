@@ -19,6 +19,10 @@ Covers the defects confirmed by the adversarial review of api/campaign-state.php
      other while both reported success;
   9. a full-campaign import was sent as one request per section, so a single failure
      left the save file mixing sections from two different archives.
+
+It also covers the second-screen appearance that has to travel through the server:
+the theme posted with ?action=second-screen-status comes back from
+?action=second-screen, and partial settings updates never reset it.
 """
 import http.cookiejar
 import json
@@ -348,6 +352,68 @@ class HardeningTest(unittest.TestCase):
         status, disabled = self.json_request(self.ports[0], '?action=second-screen-status',
                                              {'enabled': False}, opener=client)
         self.assertEqual(status, 200)
+        status, body = self.json_request(self.ports[0], '?action=second-screen&token=' + token)
+        self.assertEqual((status, body['code']), (404, 'SCREEN_NOT_FOUND'))
+
+    # 7b --------------------------------------------------------------------
+    def test_second_screen_theme_round_trips_with_the_settings(self):
+        """第二屏是另一台设备，外观只能跟着设置走服务端：写进去的必须原样读回来。"""
+        account = 'theme' + uuid.uuid4().hex[:6]
+        client = self.opener()
+        self.assertEqual(self.register(account, opener=client)[0], 200)
+        status, body = self.json_request(self.ports[0], '?action=second-screen-status', opener=client)
+        self.assertEqual(status, 200)
+        self.assertEqual(body['theme'], {'mode': 'auto', 'rgb': [127, 75, 38]})
+        self.assertFalse(body['enabled'], '读状态不该顺手把第二屏打开')
+
+        status, _ = self.json_request(self.ports[0], '', {'section': 'dashboard', 'state': {
+            'activeProfileId': 'p', 'profiles': {'p': {
+                'name': 'Theme Hero', 'activeCycleId': 'c4',
+                'cycles': {'c4': {'state': {'day': 3}}}}}}}, opener=client)
+        self.assertEqual(status, 200)
+        # 开启时连同当前外观一起写进去。
+        status, status_body = self.json_request(self.ports[0], '?action=second-screen-status',
+                                                {'enabled': True, 'theme': {'mode': 'custom', 'rgb': [200, 30, 30]}},
+                                                opener=client)
+        self.assertEqual(status, 200)
+        self.assertEqual(status_body['theme'], {'mode': 'custom', 'rgb': [200, 30, 30]})
+        token = re.search(r'token=([0-9a-f]+)', status_body['urls'][0]).group(1)
+        status, body = self.json_request(self.ports[0], '?action=second-screen&token=' + token)
+        self.assertEqual(status, 200)
+        self.assertEqual(body['screen']['theme'], {'mode': 'custom', 'rgb': [200, 30, 30]})
+        self.assertEqual(body['screen']['cycleId'], 'c4', 'auto 模式靠战役循环取色')
+
+        # 换档：下一次轮询就该拿到新循环。
+        status, _ = self.json_request(self.ports[0], '', {'section': 'dashboard', 'state': {
+            'activeProfileId': 'p', 'profiles': {'p': {
+                'name': 'Theme Hero', 'activeCycleId': 'c5',
+                'cycles': {'c5': {'state': {'day': 3}}}}}}}, opener=client)
+        self.assertEqual(status, 200)
+        status, body = self.json_request(self.ports[0], '?action=second-screen&token=' + token)
+        self.assertEqual(body['screen']['cycleId'], 'c5')
+
+        # 坏值退回默认；颜色夹到 0-255 的整数。
+        status, body = self.json_request(self.ports[0], '?action=second-screen-status',
+                                         {'enabled': True, 'theme': {'mode': 'nope', 'rgb': [999, -5, 12.6]}},
+                                         opener=client)
+        self.assertEqual(body['theme'], {'mode': 'auto', 'rgb': [255, 0, 13]})
+        status, body = self.json_request(self.ports[0], '?action=second-screen-status',
+                                         {'enabled': True, 'theme': {'mode': 'c5', 'rgb': 'not-a-list'}},
+                                         opener=client)
+        self.assertEqual(body['theme'], {'mode': 'c5', 'rgb': [127, 75, 38]})
+        # 不带 theme 的局部更新（改大小、转版图）不能把主题清掉。
+        status, body = self.json_request(self.ports[0], '?action=second-screen-status',
+                                         {'enabled': True, 'battleRotation': 90}, opener=client)
+        self.assertEqual(body['theme'], {'mode': 'c5', 'rgb': [127, 75, 38]})
+        self.assertEqual(body['battleRotation'], 90)
+        status, body = self.json_request(self.ports[0], '?action=second-screen&token=' + token)
+        self.assertEqual(body['screen']['theme'], {'mode': 'c5', 'rgb': [127, 75, 38]})
+
+        # 关掉第二屏以后：设置条目没了，令牌地址与主题一并失效。
+        status, body = self.json_request(self.ports[0], '?action=second-screen-status',
+                                         {'enabled': False}, opener=client)
+        self.assertEqual(status, 200)
+        self.assertFalse(body['enabled'])
         status, body = self.json_request(self.ports[0], '?action=second-screen&token=' + token)
         self.assertEqual((status, body['code']), (404, 'SCREEN_NOT_FOUND'))
 

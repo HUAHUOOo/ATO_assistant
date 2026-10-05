@@ -1,12 +1,21 @@
-/* C5 战斗模块的版图设置：条目 → 版图图片的映射、文件存在性与优先后备。
-
-背景：C5 补充包的战斗条目在条目数据里自带 imageList（整页扫描页），而 c1/c3/c4 的
-版图是靠 app.js 的 localBattleImages 按 id/key 匹配挂上去的。这里盯住四件事：
-  1. 6 场 C5 战斗都能匹配到本机裁好的版图（不被数据里的整页扫描盖掉）；
-  2. 声明的文件真的在 story/images/battles/c5/ 里，且是能读的 JPEG；
-  3. 尺寸与现有 c1/c4 素材同一量级（别塞进一张几十像素的缩略图）；
-  4. 没有本地版图时，数据里的 imageList（整页扫描）仍然是后备。
-*/
+/* 战斗版图与条目图片引用的现状契约（2026-10-05 之后：本机战斗版图全部退场）。
+ *
+ * 背景：
+ *   1. C1–C5 的战斗版图现在都由混合媒体的行内混排图提供（`story/assets/mixed-media/`
+ *      的 mapping.js + 裁图，两者随同一个 .atopack 下发）；混排裁图与原先 story/images/battles/
+ *      下的文件本来就是同一批版图的不同裁切（C4 六张曾逐像素核对相等）。
+ *   2. 因此 story/images/battles/ 下的 29 张（c1 8 / c2 23）与 C5 版图、C5 补充页扫描
+ *      全部删除，素材库登记与引用同步清理，备份在 tmp/image-audit/removed-20261005/。
+ *   3. story/images/ 已整棵退场（2026-10-05）：c1.5 / c2.5 的两张「导言」配图仍在用，但已从
+ *      story/images/OO/ 搬到 story/assets/OO/（DY1P5.png、DY2P5.png），不再有 story/images/ 目录。
+ *
+ * 这里盯住五件事：
+ *   a. localBattleImages 已清空，story/images/battles/ 目录不存在；
+ *   b. story/images/ 里只剩在用的导言图；
+ *   c. 条目数据里不再有任何 imageList 引用（有的话必须指向真实存在的文件）；
+ *   d. battleImageList 的后备契约仍然成立（没有本机版图时回落条目数据，并标成可放大）；
+ *   e. 战斗 AIBP 入口的解析函数仍在（供渲染路径使用）。
+ */
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -16,13 +25,9 @@ const vm = require("node:vm");
 const storyRoot = path.join(__dirname, "..");
 const appSource = fs.readFileSync(path.join(storyRoot, "assets", "app.js"), "utf8");
 
-// 故事书数据与本机版图素材都不随源码发布（见 .gitignore）：干净检出里缺任一项就整体跳过，
-// 免得把「素材未安装」报成失败（矩阵内容测试用的是同一套路）。
+// 故事书数据不随源码发布（见 .gitignore）：干净检出里缺它就整体跳过。
 const storybookPath = path.join(storyRoot, "data", "storybook-data.js");
-const boardsPath = path.join(storyRoot, "images", "battles", "c5");
-const skip = !fs.existsSync(storybookPath)
-  ? "本地故事书数据未安装"
-  : (!fs.existsSync(boardsPath) ? "本地战斗版图素材未安装" : false);
+const skip = !fs.existsSync(storybookPath) ? "本地故事书数据未安装" : false;
 
 const arrayStart = appSource.indexOf("  const localBattleImages = [");
 const functionEnd = appSource.indexOf("  function prepareSpeechText(text) {", arrayStart);
@@ -41,137 +46,68 @@ const { localBattleImages, localBattleImageList, battleImageList } = vm.runInNew
 
 const storyContext = { window: {} };
 vm.createContext(storyContext);
-if (!skip) {
-  vm.runInContext(fs.readFileSync(storybookPath, "utf8"), storyContext);
-}
-const c5 = storyContext.window.STORYBOOK_DATA?.books.find((book) => book.id === "c5") || null;
-if (!skip) assert.ok(c5, "C5 story book is missing");
+if (!skip) vm.runInContext(fs.readFileSync(storybookPath, "utf8"), storyContext);
+const storyData = storyContext.window.STORYBOOK_DATA || null;
+if (!skip) assert.ok(storyData, "STORYBOOK_DATA 没有解析出来");
 
-// 条目 id → 期望的版图文件（顺序即模块里的显示顺序）
-const EXPECTED = {
-  "dragon-of-phobos-battle": [
-    "c5/dragon-of-phobos-battle-level-1-2.jpg",
-    "c5/dragon-of-phobos-battle-level-3-plus.jpg",
-  ],
-  "meduketos-battle": ["c5/meduketos-battle.jpg"],
-  "the-devil-himself-battle": [
-    "c5/the-devil-himself-battle-level-1-4.jpg",
-    "c5/the-devil-himself-battle-level-5-plus.jpg",
-  ],
-  "thicker-than-water-battle": ["c5/thicker-than-water-battle.jpg"],
-  "harsh-truth-battle": ["c5/harsh-truth-battle.jpg"],
-  "white-lie-battle": ["c5/white-lie-battle.jpg"],
-};
+test("本机战斗版图名单已清空，story/images/battles 目录不存在", () => {
+  assert.ok(Array.isArray(localBattleImages), "localBattleImages 还在");
+  assert.equal(localBattleImages.length, 0, `名单里仍有条目：${localBattleImages.map((i) => i.test.source).join(", ")}`);
+  assert.equal(fs.existsSync(path.join(storyRoot, "images", "battles")), false, "story/images/battles 仍存在");
+});
 
-function jpegSize(file) {
-  const buffer = fs.readFileSync(file);
-  assert.equal(buffer[0], 0xff, `${file} 不是 JPEG`);
-  assert.equal(buffer[1], 0xd8, `${file} 不是 JPEG`);
-  let offset = 2;
-  while (offset < buffer.length) {
-    if (buffer[offset] !== 0xff) {
-      offset += 1;
-      continue;
-    }
-    const marker = buffer[offset + 1];
-    const length = buffer.readUInt16BE(offset + 2);
-    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
-      return { height: buffer.readUInt16BE(offset + 5), width: buffer.readUInt16BE(offset + 7) };
-    }
-    offset += 2 + length;
+test("story/images 整棵退场，导言配图已搬到 story/assets/OO", () => {
+  assert.equal(fs.existsSync(path.join(storyRoot, "images")), false, "story/images 目录又出现了");
+  const ooDir = path.join(storyRoot, "assets", "OO");
+  assert.ok(fs.existsSync(ooDir), "story/assets/OO 不存在");
+  const files = fs.readdirSync(ooDir).sort();
+  assert.deepEqual(files, ["DY1P5.png", "DY2P5.png"], `story/assets/OO 内容不符：${files.join(", ")}`);
+  // 两张图都要能被 c1.5 / c2.5 的导言条目按新路径取到。
+  for (const bookId of ["c1.5", "c2.5"]) {
+    const book = storyData?.books.find((candidate) => candidate.id === bookId);
+    if (!book) continue;
+    const preface = book.entries.find((entry) => entry.id === "preface");
+    assert.ok(preface?.image, `${bookId} 导言条目没有 image 字段`);
+    assert.match(preface.image, /^\.\/assets\/OO\/DY[12]P5\.png$/, `${bookId} 导言配图路径不对：${preface.image}`);
+    assert.ok(fs.existsSync(path.join(storyRoot, preface.image.replace(/^\.\//, ""))), `${bookId} 导言配图文件缺失：${preface.image}`);
   }
-  throw new Error(`${file} 里找不到 SOF 段`);
-}
+});
 
-for (const [entryId, expected] of Object.entries(EXPECTED)) {
-  test(`C5 ${entryId} 使用本机裁好的版图`, { skip }, () => {
-    const entry = c5.entries.find((candidate) => candidate.id === entryId);
-    assert.ok(entry, `C5 battle entry is missing: ${entryId}`);
-
-    // 条目数据里确实带整页扫描：这正是「本地优先」需要挡住的那条路径。
-    assert.ok(
-      Array.isArray(entry.imageList) && entry.imageList.length > 0,
-      `${entryId} 的条目数据里应当仍有整页扫描（作为后备）`
-    );
-
-    const picked = battleImageList(entry);
-    // vm 里造出来的数组是另一个 realm 的对象，deepStrictEqual 会因为原型不同而失败，
-    // 这里统一摊平成普通字符串数组再比。
-    const pickedImages = Array.from(picked.images, (value) => String(value));
-    assert.deepEqual(
-      pickedImages,
-      expected.map((name) => `./images/battles/${name}`),
-      `${entryId} 的版图列表与期望不一致`
-    );
-    assert.equal(Boolean(picked.zoomablePages), false, "本机版图不应该挂原书页放大查看器");
-
-    for (const name of expected) {
-      const file = path.join(storyRoot, "images", "battles", name);
-      assert.ok(fs.existsSync(file), `缺少版图文件：${name}`);
-      const { width, height } = jpegSize(file);
-      assert.ok(width >= 850 && height >= 550, `${name} 太小（${width}x${height}）：源页只有 1500px 宽，至少放大到 850px 以上`);
-      assert.ok(width < 4000 && height < 4000, `${name} 尺寸异常（${width}x${height}）`);
-      const ratio = width / height;
-      assert.ok(ratio > 0.6 && ratio < 3, `${name} 长宽比异常（${width}x${height}）`);
+test("条目数据里没有残留的 imageList 引用", { skip }, () => {
+  let found = 0;
+  for (const book of storyData.books) {
+    for (const entry of book.entries) {
+      for (const src of entry.imageList || []) {
+        found += 1;
+        assert.ok(
+          fs.existsSync(path.join(storyRoot, String(src).replace(/^\.\//, ""))),
+          `${book.id}/${entry.key} 引用了不存在的图：${src}`
+        );
+      }
     }
-  });
-}
+  }
+  assert.equal(found, 0, `应当已清空所有 imageList 引用，仍有 ${found} 条`);
+});
 
-test("没有本机版图时回落到条目数据里的 imageList", { skip }, () => {
+test("没有本机版图时回落到条目数据里的 imageList", () => {
   const orphan = {
     id: "some-new-battle",
     key: "c9-supplement-some-new-battle",
-    imageList: ["./images/c5/supplement-pages/page-174.jpg"],
+    // 用一个真实存在的图片路径来验证回落契约（战斗版图本身已全部退场）。
+    imageList: ["./assets/OO/DY1P5.png"],
     supplementSource: "五循环故事书OCR.pdf",
     originalText: "--- Storybook page 174 ---",
   };
-  assert.equal(Array.from(localBattleImageList(orphan)).length, 0, "不该匹配到任何本机版图");
+  assert.equal(Array.from(localBattleImageList(orphan)).length, 0, "空名单不该匹配到任何条目");
   const fallback = battleImageList(orphan);
   assert.deepEqual(Array.from(fallback.images, (value) => String(value)), orphan.imageList);
-  assert.equal(Boolean(fallback.zoomablePages), true, "整页扫描仍应可放大查看");
+  assert.equal(Boolean(fallback.zoomablePages), true, "条目数据里的图像仍应可放大查看");
 });
 
-test("本地版图路径都在 story/images/battles 下且被 c5 目录收拢", { skip }, () => {
-  const c5Entries = localBattleImages.filter((item) => item.test.source.includes("-battle"));
-  assert.ok(c5Entries.length >= 6, "C5 版图条目少于 6 条");
-  for (const item of localBattleImages) {
-    for (const src of item.images) {
-      assert.match(src, /^\.\/images\/battles\/c\d\//, `路径不符合目录约定：${src}`);
-      const file = path.join(storyRoot, src.replace(/^\.\//, ""));
-      assert.ok(fs.existsSync(file), `localBattleImages 指向了不存在的文件：${src}`);
-    }
-  }
-});
-
-test("C1 的条目数据 imageList 仍按原书页处理（可放大查看）", { skip }, () => {
-  const c1 = storyContext.window.STORYBOOK_DATA.books.find((book) => book.id === "c1");
-  const hekaton = c1.entries.find((entry) => entry.id === "百臂巨人之战-hekaton-battle");
-  assert.ok(hekaton, "C1 百臂巨人之战条目缺失");
-  const picked = battleImageList(hekaton);
-  // C1 数据里的 imageList 指的就是 images/battles/c1/ 下同一批文件，本机列表命中后
-  // 仍然返回同一批路径；差别只在「整页扫描页」的放大标记上：C1 这些是版图块，不挂放大。
-  assert.equal(Array.from(picked.images).length, (hekaton.imageList || []).length);
-  for (const src of Array.from(picked.images, (value) => String(value))) {
-    assert.ok((hekaton.imageList || []).includes(src), `C1 命中结果混进了别的图：${src}`);
-    assert.ok(fs.existsSync(path.join(storyRoot, src.replace(/^\.\//, ""))), `C1 版图缺失：${src}`);
-  }
-});
-
-test("C5 战斗条目数据里已删除的原页不会再被引用", { skip }, () => {
-  // 六场 C5 战斗的原页扫描（174-185）已删除，条目数据（本地生成物）里仍写着它们；
-  // battleImageList 必须把它们过滤掉，否则模块会挂出指向已删文件的碎图。
-  for (const [entryId] of Object.entries(EXPECTED)) {
-    const entry = c5.entries.find((candidate) => candidate.id === entryId);
-    const picked = Array.from(battleImageList(entry).images, (value) => String(value));
-    for (const src of picked) {
-      assert.ok(
-        fs.existsSync(path.join(storyRoot, src.replace(/^\.\//, ""))),
-        `${entryId} 引用了不存在的图：${src}`
-      );
-      assert.ok(
-        !/c5\/supplement-pages\/page-1[78][4-9]|page-18[0-5]/.test(src),
-        `${entryId} 仍引用已删除的战斗原页：${src}`
-      );
-    }
-  }
+test("战斗 AIBP 入口的解析函数仍在", () => {
+  assert.match(appSource, /function battleAibpLink\(entry\)/, "battleAibpLink 不见了");
+  assert.match(appSource, /function renderBattleImages\(entry, options = \{\}\)/, "renderBattleImages 不见了");
+  // 行内混排已挂出版图时去重的判断仍在（依赖渲染器的计划结果，而不是另抄一套规则）。
+  assert.match(appSource, /function mixedMediaBoardCount\(entry\)/, "mixedMediaBoardCount 不见了");
+  assert.match(appSource, /if \(mixedMediaBoardCount\(entry\)\) return aibpLink;/, "去重分支不见了");
 });

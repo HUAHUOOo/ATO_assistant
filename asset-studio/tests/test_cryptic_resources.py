@@ -318,7 +318,7 @@ class CrypticResourceTests(unittest.TestCase):
                 installable_relative(bad)
         # 内置清单里本来就有的图片目标（含 story/ 下的 PNG）照旧通过。
         for good in (
-            "story/images/OO/DY1P5.png",
+            "story/assets/OO/DY1P5.png",
             "story/images/battles/c1/001.jpg",
             "assets/cards/001.jpg",
             "assets/icons/argo.svg",

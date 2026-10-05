@@ -30,6 +30,7 @@ from app.db import Database
 from app.fixed_catalog import ensure_fixed_catalog, fixed_catalog_payload
 from app.fixed_resources import RESOURCE_MAP, card_resource_note, card_resources
 from app.installer import apply_install, install_plan
+from app.mixed_media_resources import allowed_target as is_mixed_media_target
 from app.packages import export_compat, export_package, import_package, inspect_package
 from app.storage import ensure_preview, store_image
 from app.story_extras import find_entity_index
@@ -223,11 +224,11 @@ class CoreTests(unittest.TestCase):
         empty = Database(self.root / "empty.sqlite3")
         result = ensure_fixed_catalog(empty)
         payload = fixed_catalog_payload()
-        # 2742 项固定素材（含自定义 Token 和特性卡底，不含旧科技树底图）+ 19 首主控台 BGM
-        # + 84 张密语字形（巴别语 58 + 塞壬语 26）+ 8 张 C5 战斗版图
-        # - 12 页已删除的 C5 战斗原页（174-185，改用版图块），后三类都登记为「无需拍摄」
-        # （见 test_bgm_resources / test_cryptic_resources / test_c5_battle_boards）。
-        self.assertEqual(2841, result["items"])
+        # 3203 条：内置清单 2663 + 故事书配图 2（只剩后日奥德赛的两张章节配图，战斗版图
+        # 52 条——C1/C3/C4 的 21 张 + C2 的 23 张扫描件 + C5 的 8 张版图块——已全部随文件
+        # 删除退场）+ 19 首主控台 BGM + 84 张密语字形 + 435 个混排素材（映射表 1 + 裁图 434）。
+        # 后三类都登记为「无需拍摄」（见 test_bgm_resources / test_cryptic_resources）。
+        self.assertEqual(3203, result["items"])
         self.assertEqual(19, result["aibp_enemies"])
         self.assertEqual({"c1", "c1.5", "c2", "c2.5", "c3", "c4", "c5"}, {book["id"] for book in payload["source"]["stories"]})
         self.assertNotIn("apk", payload["source"])
@@ -257,17 +258,39 @@ class CoreTests(unittest.TestCase):
             },
             {item["faces"]["front"] for item in hero_icons},
         )
-        # 故事书配图：c1 8 + c2 23 + c3 6 + c4 7 + c5 8 张战斗版图 + c1.5/c2.5 各 1 = 54 条，
-        # 其中 c5 的 8 张标记为「无需拍摄」（本机裁好的成品素材，随 .atopack 分发）。
-        self.assertEqual(54, len([item for item in payload["items"] if item["module"] == "故事书配图"]))
-        c5_boards = [
+        # 故事书配图：战斗版图整批退场（C1/C3/C4 的 21 张随 story/images/battles/ 删除，
+        # C2 的 23 张扫描件与 C5 的 8 张版图块更早退场），只剩 c1.5/c2.5 两张章节配图。
+        self.assertEqual(2, len([item for item in payload["items"] if item["module"] == "故事书配图"]))
+        self.assertEqual([], [
             item for item in payload["items"]
-            if item["module"] == "故事书配图" and item["cycle"] == "c5"
-        ]
-        self.assertEqual(8, len(c5_boards))
-        self.assertTrue(all(not item["capture_required"] for item in c5_boards))
-        # C5 补充页扫描只剩 153-173：174-185 是六场战斗的原页，已由版图块取代并删除。
-        self.assertEqual(21, len([item for item in payload["items"] if item["module"] == "故事书补充页"]))
+            if item["module"] == "故事书配图" and item["subgroup"] == "战斗配图"
+        ])
+        # C5 补充页扫描（153-173）本轮随 story/images/c5/supplement-pages/ 一起删除，登记归零。
+        self.assertEqual([], [item for item in payload["items"] if item["module"] == "故事书补充页"])
+        # 故事书混排素材：mapping.js 一份 + images/c1..c5/ 下 434 张裁图（PNG/SVG 混用），
+        # 全部 capture_required=False（私有素材，只随 .atopack 的 mixedMediaFiles 段分发）。
+        mixed_media = [item for item in payload["items"] if item["module"] == "故事书混排素材"]
+        self.assertEqual(435, len(mixed_media))
+        self.assertEqual(1, sum(1 for item in mixed_media if item["subgroup"] == "映射表"))
+        self.assertEqual(434, sum(1 for item in mixed_media if item["subgroup"] == "书籍裁图"))
+        self.assertFalse(any(item["capture_required"] for item in mixed_media))
+        self.assertEqual(
+            {"common", "c1", "c2", "c3", "c4", "c5"},
+            {item["cycle"] for item in mixed_media},
+        )
+        for item in mixed_media:
+            self.assertTrue(is_mixed_media_target(item["faces"]["front"]), item["id"])
+        mapping = next(item for item in mixed_media if item["subgroup"] == "映射表")
+        self.assertEqual("story/assets/mixed-media/mapping.js", mapping["faces"]["front"])
+        self.assertEqual("混排素材映射表", mapping["name"])
+        crop = next(
+            item for item in mixed_media
+            if item["number"] == "c1-battle-p106-15-0-08-terrain-diagram"
+        )
+        self.assertEqual(
+            "混排素材：c1/c1-battle-p106-15-0-08-terrain-diagram.png", crop["name"])
+        self.assertEqual("c1", crop["cycle"])
+        self.assertEqual({"front"}, set(crop["faces"]))
         self.assertFalse(any(item["module"] == "科技树总览" for item in payload["items"]))
         self.assertEqual(17, len([item for item in payload["items"] if item["module"] == "泰坦职业配图"]))
         self.assertEqual(2, len([item for item in payload["items"] if item["module"] == "地图模块图标"]))
@@ -280,21 +303,27 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(45, len(terrain_cards))
         self.assertTrue(any(item["number"] == "CJ1475" for item in payload["items"]))
         fixed_paths = {path for item in payload["items"] for path in item["faces"].values()}
-        # 4231 张固定素材（含自定义 Token 和特性卡底，不含旧科技树底图）
+        # 4187 张固定素材（含自定义 Token 和特性卡底，不含旧科技树底图；C1/C3/C4 的 21 张
+        #   战斗版图、C2 的 23 张扫描件与 C5 的 8 张版图块都已随文件删除退场）
         # + 84 张密语字形（随 crypticFiles 段分发）
         # + 19 首主控台 BGM（随 bgmFiles 段分发）
-        # + 8 张 C5 战斗版图 + 21 页 C5 补充页扫描（都随 .atopack 的图片清单分发，
-        #   六场战斗的原页 174-185 已删除）
+        # + 435 个混排素材（1 份映射表 + 434 张裁图，随 mixedMediaFiles 段分发）
         bgm_paths = {path for path in fixed_paths if path.startswith("assets/bgm/")}
         cryptic_paths = {path for path in fixed_paths if path.startswith("story/assets/cryptic/glyphs/")}
-        c5_paths = {path for path in fixed_paths if path.startswith("story/images/c5/")}
-        c5_boards = {path for path in fixed_paths if path.startswith("story/images/battles/c5/")}
-        self.assertEqual(4231, len(fixed_paths - bgm_paths - cryptic_paths - c5_paths - c5_boards))
+        mixed_media_paths = {
+            path for path in fixed_paths if path.startswith("story/assets/mixed-media/")
+        }
+        self.assertEqual(4187, len(fixed_paths - bgm_paths - cryptic_paths - mixed_media_paths))
         self.assertEqual(19, len(bgm_paths))
         self.assertEqual(84, len(cryptic_paths))
-        self.assertEqual(8, len(c5_boards))
-        self.assertEqual(21, len(c5_paths))
-        self.assertEqual(4363, len(fixed_paths))
+        self.assertEqual(435, len(mixed_media_paths))
+        self.assertEqual(4725, len(fixed_paths))
+        # 已退场的故事书图片不能残留在清单里（story/images/battles/ 整个目录已删，
+        # C5 补充页扫描在上一轮删除）。
+        self.assertEqual([], [
+            path for path in fixed_paths
+            if path.startswith(("story/images/battles/", "story/images/c5/supplement-pages/"))
+        ])
         self.assertFalse(any(path.startswith("technology/images/tech_tree_pages/") for path in fixed_paths))
         self.assertIn("map/images/c5-face-a.png", fixed_paths)
         self.assertIn("map/images/c5-face-b.png", fixed_paths)

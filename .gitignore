@@ -40,6 +40,9 @@
 /story/data/
 /story/audio/
 /story/audio-packs/
+# Source excerpts and original book graphics are private optional materials.
+/story/assets/mixed-media/mapping.js
+/story/assets/mixed-media/images/
 /supplements/
 
 # Locally generated story/OCR/reference datasets (scripts remain publishable)

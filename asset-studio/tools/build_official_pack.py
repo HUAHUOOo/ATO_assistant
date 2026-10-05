@@ -34,6 +34,7 @@
     --no-official-scans       不打包原书扫描图（只带官方正文数据）
     --no-icons                不带主控台界面图标（assets/icons/*.svg）
     --no-cryptic              不带密语字形（story/assets/cryptic/glyphs/*.png）
+    --no-mixed-media          不带混合媒体素材（story/assets/mixed-media/mapping.js 与 images/c[1-5]/*.png|.svg）
     --story-source project    故事书 js 改回工程里的民间版（默认 official）
     --library D:\\delete       工程里缺图时用素材库兜底
     --verify full             改名之前把包内每个成员重新哈希一遍（慢，最稳）
@@ -89,6 +90,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--no-cryptic", action="store_true",
         help="不带密语字形（story/assets/cryptic/glyphs/*.png）",
+    )
+    parser.add_argument(
+        "--no-mixed-media", action="store_true",
+        help="不带混合媒体素材（story/assets/mixed-media/mapping.js 与 images/c[1-5]/*.png|.svg）",
     )
     parser.add_argument("--no-story-files", action="store_true", help="不在包里额外落 story/data/*.js（默认落）")
     parser.add_argument("--skip-missing", action="store_true", help="找不到文件的面跳过而不是中断")
@@ -146,6 +151,7 @@ def main(argv: list[str] | None = None) -> int:
             include_bgm=not args.no_bgm,
             include_icons=not args.no_icons,
             include_cryptic=not args.no_cryptic,
+            include_mixed_media=not args.no_mixed_media,
             include_story_files=not args.no_story_files,
             # 官方版：官方正文数据必带（否则就不是官方版了），原书图默认一起打。
             official_story=True,

@@ -254,3 +254,35 @@ test("控制台、第二屏与放大图都接到了大卡表上", () => {
   assert.match(functionSource("openImageZoom"), /panelZoomState = null;/);
   assert.match(functionSource("closeImageZoom"), /panelZoomState = null;/);
 });
+
+/* 面板上的浮层控件（尼采/独眼巨人/奇美拉的状态框、暴击槽、换大卡按钮）和决战版图上的
+ * 地形板块都画在卡图或版图上，自带透明底与描边。editorial.css 那条全局「所有
+ * button/select/input 都换成纸面色」的规则比 .panel-state-marker / .battle-map-terrain
+ * 之类的单类选择器更具体，一旦不带 :not() 排除，标记框就会盖住面板上的连击 / 状态图案，
+ * 地形板块也会变成一块白底方块。 */
+test("主题的全局控件外观不再覆盖面板浮层与地形板块", () => {
+  const editorial = fs.readFileSync(path.join(root, "aibp", "editorial.css"), "utf8");
+  const globalRule = editorial.match(/^body :is\(button[^\n]*$/m);
+  assert.ok(globalRule, "找不到主题里的全局控件外观规则");
+  const hoverRule = editorial.match(/^body button:not\([^\n]*$/m);
+  assert.ok(hoverRule, "找不到主题里的按钮悬停规则");
+  for (const selector of [".panel-state-marker", ".critical-mass-slot", ".panel-card-switch", ".battle-map-terrain"]) {
+    assert.ok(globalRule[0].includes(`:not(${selector})`), `全局控件规则必须排除 ${selector}`);
+    assert.ok(hoverRule[0].includes(`:not(${selector})`), `悬停规则必须排除 ${selector}`);
+  }
+  // 浮层自己的外观仍在 index.html 里，且是透明底 + 描边。
+  assert.match(indexSource, /\.panel-state-marker \{[\s\S]*?background: rgba\(255, 88, 82, 0\.04\);/);
+  assert.match(indexSource, /\.panel-state-marker \{[\s\S]*?border: 3px solid rgba\(255, 88, 82, 0\.88\);/);
+  assert.match(indexSource, /\.critical-mass-slot \{[\s\S]*?background: rgba\(18, 80, 126, 0\.2\);/);
+  assert.match(indexSource, /\.critical-mass-slot \{[\s\S]*?border: 2px dashed rgba\(51, 150, 225, 0\.78\);/);
+  // 地形板块保持透明底（版图纹理要透出来），别被主题改成纸色。
+  const mapCss = fs.readFileSync(path.join(root, "aibp", "battle_map_control.css"), "utf8");
+  assert.match(mapCss, /\.battle-map-terrain \{[\s\S]*?background: transparent;/);
+  assert.match(mapCss, /\.battle-map-terrain \{[\s\S]*?border: 2px solid transparent;/);
+  // 三个浮层都挂在 #panelWrap 的面板框架里，别改到别处去。
+  assert.match(functionSource("renderPanelImage"), /className = "panel-state-marker"/);
+  assert.match(functionSource("renderPanelImage"), /className = "critical-mass-slot"/);
+  // 版图板块是 battle_map_control.js 里那个带 .battle-map-terrain 的按钮。
+  const mapJs = fs.readFileSync(path.join(root, "aibp", "battle_map_control.js"), "utf8");
+  assert.match(mapJs, /button\.className = `battle-map-terrain\$\{placement\.id === selectedId \? " selected" : ""\}`/);
+});

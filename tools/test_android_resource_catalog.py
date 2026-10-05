@@ -78,21 +78,57 @@ def check_catalog(catalog: dict) -> None:
     assert any(target.startswith("technology/images/titans/") for target in targets.values())
     assert any(target.startswith("technology/images/gear_cards/") for target in targets.values())
 
-    # C5 战斗版图（story/images/battles/c5/*.jpg）：六场战斗的原页扫描已删除，改用从
-    # 补充页裁出的版图块；它们随 .atopack 分发，APK 名单必须能对上这 8 张。
-    c5_boards = sorted(
-        target for target in targets.values() if target.startswith("story/images/battles/c5/")
-    )
-    assert len(c5_boards) == 8, f"APK 名单里的 C5 战斗版图不是 8 张：{len(c5_boards)}"
-    assert all(re.fullmatch(r"story/images/battles/c5/[a-z0-9-]+\.jpg", target) for target in c5_boards)
+    # story/images/battles/ 整批退场：C1/C3/C4 的 21 张战斗版图本轮随目录删除，C2 的 23 张
+    # 扫描件与 C5 的 8 张版图块更早退场，C5 的 153-173 补充页扫描也已在上一轮删除。有了同一
+    # 份 .atopack 里的混排映射表与裁图，正文走行内混排、底部版图会被去重，这批登记没有再存在
+    # 的理由。APK 名单是安卓导入的白名单，留着就会在资料包缺图时导出/导入失败。
+    retired = [target for target in targets.values() if target.startswith((
+        "story/images/battles/",
+        "story/images/c5/supplement-pages/",
+    ))]
+    assert not retired, f"APK 名单里仍留着已删除的故事书扫描件：{retired[:3]}"
 
-    # C5 补充页扫描：只剩 153-173（174-185 是已删除的战斗原页），且全部登记进名单。
-    c5_pages = sorted(
-        target for target in targets.values() if target.startswith("story/images/c5/supplement-pages/")
+    # 混合媒体素材（story/assets/mixed-media/）：mapping.js 一份 + images/c1..c5/ 下
+    # 434 张裁图（渲染器 pathOK 同时收 PNG 与 SVG）。它们是私有素材，只随 .atopack 的
+    # mixedMediaFiles 段分发，但安卓导入只认这份名单 —— 缺一项，资料包里对应的混排图
+    # 就会被静默跳过。目标形状与 app/mixed_media_resources.py 的 allowed_target 同源。
+    sys.path.insert(0, str(ROOT / "asset-studio"))
+    from app.mixed_media_resources import allowed_target as is_mixed_media_target
+
+    mixed_media = sorted(
+        target for target in targets.values() if target.startswith("story/assets/mixed-media/")
     )
-    assert len(c5_pages) == 21, f"APK 名单里的 C5 补充页不是 21 页：{len(c5_pages)}"
-    deprecated = [target for target in c5_pages if re.search(r"page-1[78][4-9]|page-18[0-5]", target)]
-    assert not deprecated, f"APK 名单里仍留着已删除的 C5 战斗原页（174-185）：{deprecated[:3]}"
+    assert len(mixed_media) == 435, f"APK 名单里的混合媒体素材不是 435 个：{len(mixed_media)}"
+    assert sum(1 for target in mixed_media if target.endswith("/mapping.js")) == 1
+    assert sum(1 for target in mixed_media if "/images/" in target) == 434
+    assert all(is_mixed_media_target(target) for target in mixed_media), (
+        "APK 名单里有 app.mixed_media_resources 不认的混合媒体目标"
+    )
+    assert all(re.fullmatch(
+        r"story/assets/mixed-media/(?:mapping\.js|images/c[1-5]/[A-Za-z0-9][A-Za-z0-9._-]*\.(?:png|svg))",
+        target,
+    ) for target in mixed_media), "混合媒体目标路径不合规"
+    # renderer.js / styles.css 是随源码发布的程序代码（打包规则把整个目录留给资料包通道，
+    # 但这两个文件走程序包），一个都不该出现在名单里。
+    assert not any(target.endswith(("/renderer.js", "/styles.css")) for target in mixed_media)
+
+    # 磁盘同步：干净检出里没有 story/assets/mixed-media/（.gitignore 忽略私有素材），
+    # 所以只在它存在时核对 —— 本地新加一张裁图却忘了补登记，这条会立刻报出来。
+    images_dir = ROOT / "story/assets/mixed-media/images"
+    if images_dir.is_dir():
+        on_disk = sorted(
+            target for target in (
+                f"story/assets/mixed-media/images/{cycle.name}/{path.name}"
+                for cycle in images_dir.iterdir() if cycle.is_dir()
+                for path in cycle.iterdir() if path.is_file()
+            ) if is_mixed_media_target(target)
+        )
+        registered = {target for target in mixed_media if "/images/" in target}
+        assert registered == set(on_disk), (
+            "混合媒体裁图名单与磁盘不一致："
+            f"漏登记 {sorted(set(on_disk) - registered)[:3]} / "
+            f"多登记 {sorted(registered - set(on_disk))[:3]}"
+        )
 
     # 密语字形（巴别语／塞壬语，story/assets/cryptic/glyphs/*.png）：字形本身不进版本库，
     # 只在本地由 .atopack 的 crypticFiles 段分发，但 APK 名单必须一直引用它们——名单缺项
@@ -116,7 +152,6 @@ def check_catalog(catalog: dict) -> None:
     declared = json.loads((ROOT / "aibp/ps/other/3b6e9d20/catalog.json").read_text(encoding="utf-8"))["targets"]
     assert declared, "Supplemental resource list is empty"
     # 模拟 GitHub 的干净检出：只有路径名单，没有任何 .bin 文件。
-    sys.path.insert(0, str(ROOT / "asset-studio"))
     from app.fixed_catalog import collect_supplemental_resources
     with tempfile.TemporaryDirectory(dir=ROOT) as directory:
         checkout = Path(directory)

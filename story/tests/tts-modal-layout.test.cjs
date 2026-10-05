@@ -21,19 +21,22 @@ function extract(startMarker, endMarker) {
 const STYLE_HOOK_CLASSES = new Set(["mimo-only"]);
 
 const REQUIRED_IDS = [
-  "ttsModalClose", "ttsCloudProvider", "ttsMimoFields", "ttsXfyunFields",
+  "ttsModalClose", "ttsCloudProvider", "ttsMimoFields", "ttsXfyunFields", "ttsDoubaoFields",
   "ttsCloudBase", "ttsCloudKey", "ttsCloudModel", "ttsCloudCloneModel",
   "ttsCloudVoice", "ttsCloudFormat", "ttsCloudTimeout", "ttsCloudPrompt",
   "ttsXfyunAppId", "ttsXfyunKey", "ttsXfyunSecret", "ttsXfyunVoice",
   "ttsXfyunRate", "ttsXfyunVolume", "ttsXfyunPitch", "ttsXfyunSampleRate",
   "ttsXfyunTimeout", "ttsXfyunVoiceList",
+  "ttsDoubaoAppId", "ttsDoubaoToken", "ttsDoubaoCluster", "ttsDoubaoVoice",
+  "ttsDoubaoVoiceList", "ttsDoubaoEncoding", "ttsDoubaoSampleRate", "ttsDoubaoSpeed",
+  "ttsDoubaoLoudness", "ttsDoubaoEndpoint", "ttsDoubaoTimeout",
   "ttsPreviewVoices", "ttsCloneImport", "ttsCloneClear", "ttsCloudTest",
   "ttsLocalBase", "ttsLocalKey", "ttsLocalModel", "ttsLocalVoice",
   "ttsLocalTimeout", "ttsLocalPrompt", "ttsLocalTest",
   "ttsImportConfig", "ttsExportConfig", "ttsSaveConfig",
 ];
 
-function renderModal(isXfyun) {
+function renderModal(provider = "mimo") {
   const helpers = extract("function modalField(", "function openTtsConfigModal(");
   const start = appSource.indexOf("ttsUi.overlay.innerHTML = `");
   const end = appSource.indexOf("`;", start);
@@ -41,12 +44,17 @@ function renderModal(isXfyun) {
   const templateBody = appSource.slice(appSource.indexOf("`", start) + 1, end);
 
   const context = vm.createContext({
-    cloudProvider: () => (isXfyun ? "xfyun" : "mimo"),
+    cloudProvider: () => provider,
     cloudProviders: [
       { id: "mimo", label: "MIMO / OpenAI 兼容" },
       { id: "xfyun", label: "讯飞在线语音合成" },
+      { id: "doubao", label: "豆包语音合成（火山引擎）" },
     ],
     xfyunPresetVoices: [{ vcn: "x4_lingbosong_bad_talk", label: "聆伯松-反派老人" }],
+    doubaoPresetVoices: [{ id: "zh_male_qingcang_mars_bigtts", label: "擎苍-有声阅读" }],
+    doubaoEncodings: [{ id: "mp3", label: "mp3" }, { id: "wav", label: "wav" }],
+    doubaoDefaultVoice: "zh_female_wanqudashu_moon_bigtts",
+    doubaoApiEndpoint: "https://openspeech.bytedance.com/api/v1/tts",
     escapeHtml: (value) => String(value ?? "")
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;").replace(/'/g, "&#039;"),
@@ -57,7 +65,7 @@ function renderModal(isXfyun) {
   vm.runInContext(helpers, context);
 
   context.cloud = {
-    provider: isXfyun ? "xfyun" : "mimo",
+    provider,
     baseUrl: "https://api.xiaomimimo.com/v1",
     apiKey: "k", builtInModel: "mimo-v2.5-tts", voiceCloneModel: "",
     voice: "白桦", userMessage: "", audioFormat: "mp3", timeout: 120000,
@@ -66,15 +74,23 @@ function renderModal(isXfyun) {
       vcn: "x4_lingbosong_bad_talk", sampleRate: 16000,
       speed: 50, volume: 50, pitch: 50, timeout: 60000,
     },
+    doubao: {
+      endpoint: "https://openspeech.bytedance.com/api/v1/tts",
+      appId: "app", accessToken: "token", cluster: "volcano_tts",
+      voiceType: "zh_male_qingcang_mars_bigtts", voiceLabel: "擎苍-有声阅读",
+      encoding: "mp3", sampleRate: 24000, speedRatio: 1, loudnessRatio: 1, timeout: 60000,
+    },
   };
   context.local = { baseUrl: "", apiKey: "", model: "", voice: "", userMessage: "", timeout: 60000 };
   context.xf = context.cloud.xfyun;
-  context.isXfyun = isXfyun;
+  context.db = context.cloud.doubao;
+  context.isXfyun = provider === "xfyun";
+  context.isDoubao = provider === "doubao";
   return vm.runInContext(`(${'`'}${templateBody}${'`'})`, context);
 }
 
 test("弹窗包含全部字段，且没有残留旧类名", () => {
-  const html = renderModal(false);
+  const html = renderModal();
   for (const id of REQUIRED_IDS) {
     assert.ok(html.includes(`id="${id}"`), `缺少元素 #${id}`);
   }
@@ -85,7 +101,7 @@ test("弹窗包含全部字段，且没有残留旧类名", () => {
 });
 
 test("弹窗标签配对", () => {
-  const html = renderModal(false);
+  const html = renderModal();
   const voids = new Set(["input", "br", "hr", "img", "meta", "link", "option"]);
   const stack = [];
   for (const match of html.matchAll(/<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b[^>]*?(\/?)>/g)) {
@@ -102,21 +118,28 @@ test("弹窗标签配对", () => {
 });
 
 test("切换服务商时隐藏状态正确", () => {
-  const mimoHtml = renderModal(false);
-  assert.match(mimoHtml, /id="ttsMimoFields" class="tts-group"/);
-  assert.match(mimoHtml, /id="ttsXfyunFields" class="tts-group" hidden/);
-  assert.doesNotMatch(mimoHtml, /id="ttsCloneImport"[^>]*hidden/);
-
-  const xfyunHtml = renderModal(true);
-  assert.match(xfyunHtml, /id="ttsMimoFields" class="tts-group" hidden/);
-  assert.match(xfyunHtml, /id="ttsXfyunFields" class="tts-group"/);
-  assert.match(xfyunHtml, /id="ttsCloneImport"[^>]*hidden/);
-  assert.match(xfyunHtml, /id="ttsCloneClear"[^>]*hidden/);
+  // 三个服务商各自的配置区互斥显示；克隆音色按钮只对 MIMO 有意义。
+  const expectations = {
+    mimo: { ttsMimoFields: false, ttsXfyunFields: true, ttsDoubaoFields: true, clone: false },
+    xfyun: { ttsMimoFields: true, ttsXfyunFields: false, ttsDoubaoFields: true, clone: true },
+    doubao: { ttsMimoFields: true, ttsXfyunFields: true, ttsDoubaoFields: false, clone: true },
+  };
+  for (const [provider, expected] of Object.entries(expectations)) {
+    const html = renderModal(provider);
+    for (const id of ["ttsMimoFields", "ttsXfyunFields", "ttsDoubaoFields"]) {
+      const pattern = new RegExp(`id="${id}" class="tts-group"${expected[id] ? " hidden" : ""}`);
+      assert.match(html, pattern, `${provider} 下 #${id} 的隐藏状态不对`);
+    }
+    for (const id of ["ttsCloneImport", "ttsCloneClear"]) {
+      const pattern = new RegExp(`id="${id}"[^>]*${expected.clone ? "hidden" : "(?<!hidden)>"}`);
+      assert.match(html, pattern, `${provider} 下 #${id} 的隐藏状态不对`);
+    }
+  }
 });
 
 test("弹窗用到的类名都有样式，关键规则未丢失", () => {
   const classes = new Set(
-    [...renderModal(false).matchAll(/class="([^"]+)"/g)]
+    [...renderModal().matchAll(/class="([^"]+)"/g)]
       .flatMap((match) => match[1].split(/\s+/))
       .filter(Boolean)
   );

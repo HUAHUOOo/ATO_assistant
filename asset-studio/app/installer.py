@@ -15,6 +15,8 @@ from .official_resources import LIBRARY, collect
 from .bgm_resources import collect_library as collect_bgm_library
 from .cryptic_resources import collect_library as collect_cryptic_library
 from .icon_resources import collect_library as collect_icon_library
+from .mixed_media_resources import allowed_target as is_mixed_media_target
+from .mixed_media_resources import collect_library as collect_mixed_media_library
 from .db import Database
 from .storage import sha256_file, write_compatible_image
 from .story_extras import (
@@ -47,6 +49,9 @@ INSTALL_CRYPTIC_PREFIX = "story/assets/cryptic/glyphs/"
 # 这个前缀下，且必须与 tools/build_fan_pack.py 的同名规则保持一致。
 INSTALL_DATA_SUFFIXES = frozenset({".bin"})
 INSTALL_DATA_PREFIX = "aibp/ps/other/"
+# 混合媒体（私有映射表 + 书籍裁图）：同样由使用者自备，随资料包的 mixedMediaFiles 段分发
+# （见 mixed_media_resources.py）。映射表是 .js，裁图是 images/c[1-5]/ 下的 PNG/SVG；
+# 没有单独的前缀常量，路径白名单直接复用收集器里的那条正则，别处不另写一套规则。
 # Windows 保留设备名：同名文件在 Windows 上无法按预期路径创建。
 WINDOWS_DEVICE_NAMES = frozenset(
     {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)), *(f"lpt{i}" for i in range(1, 10))}
@@ -96,6 +101,11 @@ def installable_relative(relative: str) -> str:
     relative = safe_relative(relative, "素材目标路径")
     pure = PurePosixPath(relative)
     suffix = pure.suffix.lower()
+    if is_mixed_media_target(relative):
+        # 混合媒体（mixedMediaFiles 段）：映射表是 story/assets/mixed-media/mapping.js，
+        # 裁图是 images/c[1-5]/ 下的 PNG/SVG；别的 .js 目标照旧一律拒绝。
+        # 这条规则必须排在界面图标之前：裁图里有 .svg，否则会被当成 assets/icons/ 的图标拒收。
+        return relative
     if suffix in INSTALL_AUDIO_SUFFIXES:
         if not relative.startswith(INSTALL_AUDIO_PREFIX):
             raise ValueError(f"音频素材只能安装到 {INSTALL_AUDIO_PREFIX}：{relative}")
@@ -106,7 +116,7 @@ def installable_relative(relative: str) -> str:
         return relative
     if suffix in INSTALL_CRYPTIC_SUFFIXES and relative.startswith(INSTALL_CRYPTIC_PREFIX):
         # 密语字形（crypticFiles 段）落回工程目录；story/ 下别的 PNG 目标仍按通用图片规则处理
-        # （内置清单里本来就有 story/images/OO/*.png 这类条目，这里不能收窄）。
+        # （内置清单里本来就有 story/assets/OO/*.png 这类条目，这里不能收窄）。
         return relative
     if suffix in INSTALL_DATA_SUFFIXES:
         if not relative.startswith(INSTALL_DATA_PREFIX):
@@ -332,6 +342,8 @@ def install_plan(db: Database, library: Path, root: Path, replace_books: set[str
     planned: dict[str, tuple[str, Callable[[], str], dict]] = {}
     cryptic_files = collect_cryptic_library(library)
     dedicated_cryptic_targets = {relative for relative, _ in cryptic_files}
+    mixed_media_files = collect_mixed_media_library(library)
+    dedicated_mixed_media_targets = {relative for relative, _ in mixed_media_files}
 
     def add_file(entry: dict, digest_of: Callable[[], str]) -> bool:
         key = _plan_key(entry["target"])
@@ -352,6 +364,9 @@ def install_plan(db: Database, library: Path, root: Path, replace_books: set[str
             continue
         # 旧包曾把同一字形同时写进 assets 与 crypticFiles；保留专用段的原始 PNG。
         if relative in dedicated_cryptic_targets:
+            continue
+        # 混合媒体素材同样只走专用段：包内重复登记时保留专用段那份原字节图。
+        if relative in dedicated_mixed_media_targets:
             continue
         # 只允许清单声明的素材树/类型，避免共享资料包往原项目写任意文件。
         relative = installable_relative(relative)
@@ -439,6 +454,15 @@ def install_plan(db: Database, library: Path, root: Path, replace_books: set[str
             raise ValueError(f"目标位置已存在同名文件夹，无法安装：{relative}")
         status = "add" if not destination.exists() else ("same" if sha256_file(destination) == sha256_file(source) else "replace")
         add_file({"item_id": "cryptic", "name": f"密语字形：{PurePosixPath(relative).name}", "face": "glyph",
+                  "source": source.relative_to(library).as_posix(), "target": relative,
+                  "status": status, "direct_copy": True},
+                 lambda source=source: sha256_file(source))
+    for relative, source in collect_mixed_media_library(library):
+        destination = safe_target(root, relative)
+        if destination.exists() and not destination.is_file():
+            raise ValueError(f"目标位置已存在同名文件夹，无法安装：{relative}")
+        status = "add" if not destination.exists() else ("same" if sha256_file(destination) == sha256_file(source) else "replace")
+        add_file({"item_id": "mixed-media", "name": f"混合媒体：{PurePosixPath(relative).name}", "face": "media",
                   "source": source.relative_to(library).as_posix(), "target": relative,
                   "status": status, "direct_copy": True},
                  lambda source=source: sha256_file(source))

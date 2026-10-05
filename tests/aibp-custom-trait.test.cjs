@@ -18,7 +18,7 @@ function harness() {
   const field = () => ({ value: '', validity: '', setCustomValidity(value) { this.validity = value; } });
   const name = field();
   const content = field();
-  const state = { traits: [], customTraits: [] };
+  const state = { traits: [], hiddenTraits: [], hiddenExtraCards: [], customTraits: [] };
   let inputs = [];
   let options = [];
   let saved;
@@ -50,8 +50,9 @@ function harness() {
     nietzscheName: 'THE_NIETZSCJEAN', cycleTraitDefinition() { return null; },
     traitSrc: (apostle, level, index, ext) => `ps/${apostle}/${apostle}_TR_${level}_${index}.${ext}`,
   });
-  loadFunctions(context, ['updateCustomTraitPreview', 'saveCustomTrait', 'saveTraitSelection',
-    'clearTraitSelection', 'traitCardLabel', 'traitCardSrc', 'isLargeTraitCard', 'publicTraitSnapshot']);
+  loadFunctions(context, ['traitKey', 'hiddenTraitKeySet', 'hiddenExtraCardKeySet',
+    'updateCustomTraitPreview', 'saveCustomTrait', 'saveTraitSelection', 'restoreDefaultTraits',
+    'traitCardLabel', 'traitCardSrc', 'isLargeTraitCard', 'publicTraitSnapshot']);
   return { context, name, content, state,
     submit() { context.saveCustomTrait({ preventDefault() {} }); },
     select(values) { inputs = values.map((dataset) => ({ dataset, checked: true })); },
@@ -151,13 +152,13 @@ test('editing preserves identity and unsaved checkbox choice and updates an acti
   assert.equal(h.options.length, 1);
 });
 
-test('clearing removes displayed selections while keeping reusable custom traits', () => {
+test('restoring defaults removes displayed selections while keeping reusable custom traits', () => {
   const h = harness();
   h.name.value = '敏捷'; h.content.value = '规则'; h.submit();
   h.select([{ customTraitId: h.state.customTraits[0].id }]);
   h.context.saveTraitSelection();
   assert.equal(h.state.traits.length, 1);
-  h.context.clearTraitSelection();
+  h.context.restoreDefaultTraits();
   h.context.saveTraitSelection();
   assert.equal(h.state.traits.length, 0);
   assert.equal(h.state.customTraits.length, 1);

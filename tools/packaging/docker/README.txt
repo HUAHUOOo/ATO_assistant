@@ -93,12 +93,25 @@ mounted from this folder:
                             pack into app/; these files are mounted read-only. The program
                             files next to them (glyph-catalog.js, word-data.js) come from the
                             image, so only this glyph folder is mounted.
-  app/story/images/         Storybook illustrations. The whole folder is mounted, so the
-                            battle board images land in app/story/images/battles/<cycle>/
-                            (C5 boards: app/story/images/battles/c5/*.jpg). Install the
-                            resource pack into app/ and they show up without extra setup.
-                            C5 supplement page scans (story/images/c5/supplement-pages/) come
-                            the same way; the six C5 battles use the cropped boards instead.
+  app/story/assets/mixed-media/images/  混排图裁图 (images/c1..c5/*.png|.svg). Install the
+                            resource pack into app/; this folder is mounted read-only.
+  app/story/assets/mixed-media/mapping.js  私有混排映射表 (single file, several MB of JSON).
+                            The package ships a 0-byte placeholder; replace it with the real
+                            table. renderer.js / styles.css next to it are program code and
+                            come from the image, so only this folder and that one file are
+                            mounted. Without the table and the crops, story pages render as
+                            plain text with no inline or block artwork.
+  app/story/images/         Storybook illustrations. All story battle boards are retired from
+                            this tree (C1-C5): their folders (story/images/battles/,
+                            story/images/c5/supplement-pages/) are gone from the project, and
+                            the boards arrive as mixed-media inline images through mapping.js
+                            (see above). Install the resource pack into app/ and they show up
+                            without extra setup. The story folder itself is still mounted but
+                            now normally stays empty.
+  app/story/assets/OO/      c1.5 / c2.5 的「导言」章节配图 (DY1P5.png, DY2P5.png). 这些是私有
+                            素材（公开镜像里没有），由资料包提供；本目录只读挂载，请保持文件名。
+                            它们 2026-10-05 从 story/images/OO/ 搬到这里，所以不再靠 app/story/images/
+                            覆盖。
   app/assets/cycle-symbols/ 五个循环的标记图标 (c1-brown.png, c2-red.png, c3-purple.png,
                             c4-yellow.png, c5-black-transparent.png). Keep those file names.
                             A missing file is simply not drawn, so nothing breaks.
@@ -122,7 +135,10 @@ The web .atopack import button is available on Android only. In Docker / NAS,
 unzip the pack on the host and copy its aibp/, assets/, story/, etc. directories
 into this package's app/ directory, then refresh the page. Read-only mounts are
 populated from the host. Glyph PNGs belong in app/story/assets/cryptic/glyphs/;
-without them the Babelian/Siren keyboard has no glyphs.
+without them the Babelian/Siren keyboard has no glyphs. Mixed-media crops belong in
+app/story/assets/mixed-media/images/ and the private map (a single file) in
+app/story/assets/mixed-media/mapping.js — the package ships a 0-byte placeholder
+there; without both, story pages show their text without the mixed-media artwork.
 
 No audio files and no official game artwork are included in the public image (copyright),
 so those folders are yours to fill.

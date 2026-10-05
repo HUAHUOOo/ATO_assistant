@@ -102,10 +102,16 @@ main() {
     app/assets/exploration-cards app/assets/story-doom-cards app/assets/cycle-symbols app/assets/icons \
     app/assets/bgm app/assets/bgm/audio app/hero/assets app/map/images app/map/tokens app/record/assets \
     app/ss/terrain app/ss/terrain-cards app/story/images app/story/data app/technology/images \
-    app/story/assets/cryptic/glyphs
+    app/story/assets/cryptic/glyphs app/story/assets/mixed-media/images app/story/assets/OO
   if [ ! -e app/ss/battle-board.jpg ]; then
     : > app/ss/battle-board.jpg
     echo "已创建 app/ss/battle-board.jpg 占位文件；请覆盖为决战版图底图。"
+  fi
+  # 混合媒体映射表是单文件挂载：先放一个空占位文件，否则 Docker 会建同名目录顶上去，
+  # 混排图（正文里的书籍裁图）会全部加载失败。
+  if [ ! -e app/story/assets/mixed-media/mapping.js ]; then
+    : > app/story/assets/mixed-media/mapping.js
+    echo "已创建 app/story/assets/mixed-media/mapping.js 占位文件；请用资料包里的映射表覆盖它。"
   fi
 
   policy=always

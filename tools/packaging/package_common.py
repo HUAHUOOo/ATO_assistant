@@ -82,6 +82,19 @@ CRYPTIC_MEDIA_SUFFIXES = (".png",)
 # 不进便携版 / Docker / APK；六个战斗的原页 174-185 已由裁好的版图取代并删除。
 C5_SUPPLEMENT_PAGES_DIR = "story/images/c5/supplement-pages"
 
+# Optional mixed-media mapping contains private source excerpts; PNGs are local
+# book crops. Ship the renderer and CSS as code, keep these materials local.
+MIXED_MEDIA_DIR = "story/assets/mixed-media"
+
+
+def is_mixed_media_material(relative: Path) -> bool:
+    parts = [part.lower() for part in relative.parts]
+    return (
+        len(parts) >= 4
+        and "/".join(parts[:3]) == MIXED_MEDIA_DIR
+        and parts[3] in {"mapping.js", "images"}
+    )
+
 LICENSE_FILENAME = "LICENSE"
 LICENSE_MARKERS = (
     "PolyForm Noncommercial License 1.0.0",
@@ -144,6 +157,8 @@ def excluded(relative: Path) -> bool:
     if is_cryptic_media(relative):
         return True
     if is_c5_supplement_page(relative):
+        return True
+    if is_mixed_media_material(relative):
         return True
     leaf = parts[-1]
     if leaf in BLOCKED_LEAVES:
@@ -243,6 +258,8 @@ def audit_export_tree(root: Path) -> None:
             raise RuntimeError(f"导出内容包含本地密语字形（应由 .atopack 分发）：{relative}")
         if is_c5_supplement_page(relative):
             raise RuntimeError(f"导出内容包含 C5 补充页扫描（应由 .atopack 分发）：{relative}")
+        if is_mixed_media_material(relative):
+            raise RuntimeError(f"导出内容包含本地故事混排素材：{relative}")
         if parts[-1] in LOCAL_SCRATCH_LEAVES:
             raise RuntimeError(f"导出内容包含本地临时文件：{relative}")
         if parts[-1].startswith('.ato-update-'):

@@ -188,6 +188,31 @@ function read_second_screens(string $file): array {
   return $store;
 }
 
+// 第二屏那台设备（手机/电视）跟主控台不是同一个浏览器，主题偏好（assets/theme.js 存在
+// localStorage 的 ato-theme-v1）传不过去，所以外观要跟着第二屏设置走服务端：主控台改主题时
+// 写进来，第二屏每次轮询 ?action=second-screen 时读回去自己应用。
+// 只认 theme.js 认得的这几种值，颜色一律夹到 0-255 的整数，坏值退回默认。
+function normalize_theme_setting($value): array {
+  $defaults = ['mode' => 'auto', 'rgb' => [127, 75, 38]];
+  if (!is_array($value)) return $defaults;
+  $mode = is_string($value['mode'] ?? null) ? $value['mode'] : '';
+  $modes = ['auto', 'c1', 'c2', 'c3', 'c4', 'c5', 'custom'];
+  $rgb = is_array($value['rgb'] ?? null) ? array_values($value['rgb']) : [];
+  if (count($rgb) !== 3) return ['mode' => in_array($mode, $modes, true) ? $mode : $defaults['mode'], 'rgb' => $defaults['rgb']];
+  $channels = [];
+  foreach ($rgb as $channel) {
+    if (!is_int($channel) && !is_float($channel) && !(is_string($channel) && is_numeric($channel))) {
+      return ['mode' => in_array($mode, $modes, true) ? $mode : $defaults['mode'], 'rgb' => $defaults['rgb']];
+    }
+    $channels[] = max(0, min(255, (int) round((float) $channel)));
+  }
+  return ['mode' => in_array($mode, $modes, true) ? $mode : $defaults['mode'], 'rgb' => $channels];
+}
+
+function second_screen_theme(array $entry): array {
+  return normalize_theme_setting($entry['theme'] ?? null);
+}
+
 function application_base_path(): string {
   $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? '/api/campaign-state.php'));
   $base = rtrim(str_replace('\\', '/', dirname(dirname($scriptName))), '/.');
@@ -316,6 +341,8 @@ function public_second_screen_payload(array $campaign, array $screenEntry = []):
     'aibp' => $aibpState,
     'story' => $storyState,
     'displayMode' => (string) ($screenEntry['displayMode'] ?? 'map'),
+    // 第二屏那台设备靠这个字段跟主控台的外观保持一致（见 normalize_theme_setting）。
+    'theme' => second_screen_theme($screenEntry),
     'mapRevision' => (int) ($campaign['sectionRevisions']['map'] ?? 0),
     'aibpRevision' => (int) ($campaign['sectionRevisions']['aibp'] ?? 0),
     'storyRevision' => (int) ($campaign['sectionRevisions']['story'] ?? 0),
@@ -753,6 +780,7 @@ if ($action === 'second-screen-status') {
   $battleSwapped = false;
   $battleBoardVisible = true;
   $displayMode = 'map';
+  $theme = normalize_theme_setting(null);
   foreach ($store['screens'] as $token => $entry) {
     if (($entry['userId'] ?? null) === $user['id']) {
       $userToken = (string) $token;
@@ -766,6 +794,7 @@ if ($action === 'second-screen-status') {
       if (!in_array($battleRotation, [0, 90, 180, 270], true)) $battleRotation = 0;
       $battleSwapped = !empty($entry['battleSwapped']);
       $battleBoardVisible = !array_key_exists('battleBoardVisible', $entry) || !empty($entry['battleBoardVisible']);
+      $theme = second_screen_theme($entry);
       $requestedMode = (string) ($entry['displayMode'] ?? 'map');
       $displayMode = in_array($requestedMode, ['aibp', 'story', 'blank'], true) ? $requestedMode : 'map';
       break;
@@ -799,6 +828,9 @@ if ($action === 'second-screen-status') {
     if (array_key_exists('battleBoardVisible', $payload)) {
       $battleBoardVisible = (bool) $payload['battleBoardVisible'];
     }
+    if (array_key_exists('theme', $payload)) {
+      $theme = normalize_theme_setting($payload['theme']);
+    }
     if ($enabled) {
       foreach ($store['screens'] as $token => $entry) {
         if (($entry['userId'] ?? null) !== $user['id']) unset($store['screens'][$token]);
@@ -819,12 +851,14 @@ if ($action === 'second-screen-status') {
         'battleRotation' => $battleRotation,
         'battleSwapped' => $battleSwapped,
         'battleBoardVisible' => $battleBoardVisible,
+        'theme' => $theme,
       ];
     } elseif ($enabled && $userToken !== '') {
       $store['screens'][$userToken]['displayScales'] = $displayScales;
       $store['screens'][$userToken]['battleRotation'] = $battleRotation;
       $store['screens'][$userToken]['battleSwapped'] = $battleSwapped;
       $store['screens'][$userToken]['battleBoardVisible'] = $battleBoardVisible;
+      $store['screens'][$userToken]['theme'] = $theme;
       unset($store['screens'][$userToken]['displayScale']);
     }
     write_json_file($secondScreensFile, $store);
@@ -836,6 +870,7 @@ if ($action === 'second-screen-status') {
     'battleRotation' => $battleRotation,
     'battleSwapped' => $battleSwapped,
     'battleBoardVisible' => $battleBoardVisible,
+    'theme' => $theme,
     'displayMode' => $displayMode,
     'urls' => $userToken !== '' ? second_screen_urls($userToken) : [],
   ]);

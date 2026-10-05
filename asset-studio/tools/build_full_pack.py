@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Developer utility: build a complete .atopack from an owned ATO APK."""
+"""Developer utility: build a complete .atopack from an owned ATO APK.
+
+混合媒体素材（``story/assets/mixed-media/``）：APK 不打包私有素材（``tools/packaging/
+package_common.py`` 按目录排除），所以这条通道优先从 ``--overlay-root``（本地工程
+目录）取 ``mapping.js`` 与 ``images/c1..c5/*.png|.svg``；工程里没有时，再看 APK 里是否
+留着历史副本（老包把它们放在 ``assets/web/story/assets/mixed-media/`` 下）。两边都没有
+就不写 ``mixedMediaFiles`` 段，并在 stdout 明确提示——**这是已知缺口，不会静默漏**：
+需要这条段的包请先用素材库导入一份带该段的 .atopack，再带 ``--overlay-root`` 重跑。
+"""
 from __future__ import annotations
 
 import argparse
@@ -20,6 +28,7 @@ sys.path.insert(0, str(PROJECT))
 from app.bgm_resources import allowed_target as is_bgm_target  # noqa: E402
 from app.cryptic_resources import allowed_target as is_cryptic_target  # noqa: E402
 from app.cryptic_resources import add_to_archive as add_cryptic_to_archive  # noqa: E402
+from app.mixed_media_resources import add_to_archive as add_mixed_media_to_archive  # noqa: E402
 from app.official_resources import add_to_archive
 from app.official_assets import resolve as resolve_official_asset  # noqa: E402
 from app.fixed_catalog import fixed_catalog_payload  # noqa: E402
@@ -78,6 +87,7 @@ def load_entity_index(
 def build(
     apk_path: Path, destination: Path, overlay_root: Path | None = None,
     include_official_scans: bool = False, include_cryptic: bool = True,
+    include_mixed_media: bool = True,
 ) -> dict:
     fixed = fixed_catalog_payload()
     items = [{**item, "faces": {face: target for face, target in item["faces"].items()
@@ -206,6 +216,20 @@ def build(
                 fallback_archive=source_zip, fallback_prefix="assets/web/",
             ) if include_cryptic else 0
             manifest["build"]["crypticIncluded"] = bool(cryptic_count)
+            # 混合媒体（私有映射表 + 书籍裁图）：与字形同一套来源顺序——先工程覆盖目录，
+            # 再 APK 里的历史副本（老包把私有素材放在 assets/web/ 下）。
+            mixed_media_count = add_mixed_media_to_archive(
+                output_zip, manifest, overlay_root,
+                fallback_archive=source_zip, fallback_prefix="assets/web/",
+            ) if include_mixed_media else 0
+            manifest["build"]["mixedMediaIncluded"] = bool(mixed_media_count)
+            if include_mixed_media and not mixed_media_count:
+                # 已知缺口：APK 一般不打包私有素材，工程覆盖目录也没有时这条段就是空的。
+                print(
+                    "提示：没有找到混合媒体素材（--overlay-root 与 APK 里都没有），"
+                    "本包不含 mixedMediaFiles 段；需要时先用素材库导入带该段的 .atopack 再重跑。",
+                    flush=True,
+                )
             output_zip.writestr(
                 "manifest.json",
                 json.dumps(manifest, ensure_ascii=False, separators=(",", ":")),
@@ -233,6 +257,7 @@ def build(
         "official_assets": sum(1 for value in overlay_flags.values() if value),
         "official_files": len(manifest.get("resourceFiles", [])),
         "cryptic_files": cryptic_count,
+        "mixed_media_files": mixed_media_count,
         "bytes": destination.stat().st_size,
     }
 
@@ -254,6 +279,10 @@ def main() -> None:
              "默认不打包截图，只带官方故事书正文数据。",
     )
     parser.add_argument("--no-cryptic", action="store_true", help="不带密语字形")
+    parser.add_argument(
+        "--no-mixed-media", action="store_true",
+        help="不带混合媒体素材（story/assets/mixed-media/ 下的映射表与裁图）",
+    )
     args = parser.parse_args()
     result = build(
         args.apk.expanduser().resolve(),
@@ -261,6 +290,7 @@ def main() -> None:
         args.overlay_root.expanduser().resolve() if args.overlay_root else None,
         args.include_official_scans,
         not args.no_cryptic,
+        not args.no_mixed_media,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2), flush=True)
 

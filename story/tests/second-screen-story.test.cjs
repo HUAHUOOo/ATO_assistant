@@ -57,7 +57,7 @@ function storyContext(overrides = {}) {
     URL,
     ...overrides,
   });
-  ['supportsOfficialVersion', 'getDisplayEntry', 'officialScanMissingLocally', 'pharosTitleAnswer', 'storyTitleText', 'buildSecondScreenStorySnapshot']
+  ['mixedMediaRuntime', 'mixedMediaContext', 'supportsOfficialVersion', 'getDisplayEntry', 'officialScanMissingLocally', 'pharosTitleAnswer', 'storyTitleText', 'buildSecondScreenStorySnapshot']
     .forEach(name => vm.runInContext(slice(STORY_SOURCE, name, '  '), context));
   return context;
 }
@@ -95,12 +95,14 @@ function ssContext() {
     activeMode: 'map',
     storyRenderKey: '',
     storyRendered: false,
+    mixedStoryGeneration: 0,
+    latestStoryScreen: null,
     document: { createElement: tag => ({ tag, src: '', alt: '' }) },
     window: { location: { href: 'http://localhost:8080/ss/index.html', origin: 'http://localhost:8080' } },
     URL,
     fitStoryTextToViewport() { context.fitCalls = (context.fitCalls || 0) + 1; },
   });
-  ['storyScanImages', 'hasStorySnapshot', 'openStory']
+  ['mixedMediaRuntime', 'renderMixedStoryBody', 'storyTablesHtml', 'escapeStoryText', 'storyScanImages', 'hasStorySnapshot', 'openStory']
     .forEach(name => vm.runInContext(slice(SS_SOURCE, name, ''), context));
   return context;
 }

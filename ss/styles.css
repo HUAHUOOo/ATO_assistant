@@ -102,10 +102,52 @@ body {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   scrollbar-color: var(--line) transparent;
-  column-count: 2;
+  /* 栏数由 app.js 按「字号能给到多大」挑（两栏 / 三栏），见 fitStoryTextToViewport。 */
+  column-count: var(--story-columns, 2);
   column-gap: clamp(24px, 4vw, 64px);
   column-rule: 1px solid var(--line);
   column-fill: balance;
+}
+
+/* 正文里的管道表格（原书排版遗留，见 story/assets/story-tables.js）。
+   结构与主屏一致：字符保真的 span，竖线和分隔行只隐藏不删除，混排才能按字符偏移插图。 */
+.story-table {
+  display: table;
+  width: 100%;
+  margin: 12px 0 16px;
+  border-collapse: collapse;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  font-size: 0.94em;
+  white-space: normal;
+  column-span: all;
+}
+
+.story-table-row { display: table-row; }
+
+.story-table-cell {
+  display: table-cell;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.story-table-head {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.story-table-row:not(.story-table-sep-row):nth-child(even) .story-table-cell {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.story-table-bar,
+.story-table-sep,
+.story-table-sep-row {
+  display: none;
 }
 
 .story-view.images-only { padding: 0; background: var(--panel); }
@@ -113,6 +155,46 @@ body {
 .images-only .story-card-head { display: none; }
 .images-only .story-body { padding: 0; white-space: normal; column-count: 1; column-rule: 0; }
 .images-only .story-body img { display: block; width: 100%; height: 100%; object-fit: contain; }
+
+/* 正文里有块状媒体（版图、铭文图……）时（app.js 给 .story-view 加上 .story-scroll）：
+   正文照旧双栏、图片留在原来的锚点位置，整屏改成纵向滚动。
+   为什么高度要交给内容：.story-body 只要还是「定高 + 多栏」容器，装不下的内容就会继续往右
+   分栏、被排到屏幕外（见 release-notes/c45-items4-5-report-20261005.md 的实测：1180px 视口
+   scrollWidth 7949px、约 7 栏）。高度 auto + 多栏只会把两栏拉高，多出来的高度交给外面这层
+   .story-view 纵向滚动，内容不会被挤到看不见的地方。
+   选择器带 .story-view.story-scroll 是为了压过 mixed-media/styles.css 里
+   .story-body.ato-mm-layout 的 column-count / column-width / overflow（那份样式表在本文件
+   之后加载，同权重时它会赢）。 */
+.story-view.story-scroll { overflow: auto; scrollbar-color: var(--line) transparent; }
+.story-view.story-scroll .story-card { height: auto; min-height: 100%; }
+/* 标题跟着滚也没关系，但别让它被正文盖住：贴顶 + 底色。 */
+.story-view.story-scroll .story-card-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg);
+}
+
+.story-view.story-scroll .story-body.ato-mm-layout {
+  flex: 0 0 auto;
+  height: auto;
+  overflow: visible;
+  column-count: var(--story-columns, 2);
+  column-width: auto;
+  column-rule: 1px solid var(--line);
+  column-fill: balance;
+  /* 正文里有大量分段空行（原书排版），行高这里收紧一点，好让整屏二分能找到更大的字号。 */
+  line-height: 1.6;
+}
+
+/* 块状媒体缩成正文里的小图：上限按 em 走，字号一缩图跟着缩（app.js 的整屏二分就靠这个单调性），
+   点图仍然可以放大看原图。小图（铭文、字形）本来就小于上限，保持原尺寸。 */
+.story-view.story-scroll .story-body .ato-mm-block img {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 13em;
+}
 
 .pair-view {
   position: fixed;
@@ -506,6 +588,30 @@ h1 {
   position: absolute;
   inset: 0;
   pointer-events: none;
+}
+
+/* 大迷宫轨道红圈（迷宫机牛 / 吞域兽）：坐标由控制台随快照一起送过来，和 boss 大卡上的
+   印出来的轨道格同一份百分比。宽度按面板宽度算，所以换屏幕尺寸也贴着格。 */
+.boss-labyrinth-track {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.boss-labyrinth-track span {
+  position: absolute;
+  left: var(--track-left, 50%);
+  top: var(--track-top, 50%);
+  transform: translate(-50%, -50%);
+  width: clamp(14px, var(--track-width, 5.6%), 140px);
+  aspect-ratio: 1 / 1;
+  border: 3px solid rgba(255, 88, 82, 0.88);
+  border-radius: 999px;
+  background: rgba(255, 88, 82, 0.04);
+  box-shadow:
+    0 0 0 1px rgba(20, 8, 6, 0.62),
+    0 0 10px rgba(255, 72, 66, 0.22),
+    inset 0 0 8px rgba(255, 72, 66, 0.12);
 }
 
 .boss-token {

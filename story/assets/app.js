@@ -1,4 +1,10 @@
 (function () {
+  // Optional renderer/materials never become a prerequisite for reading source.
+  function mixedMediaRuntime() {
+    const api = window.ATO_MIXED_MEDIA;
+    const required = ["renderHTML", "renderInto", "sectionRenderer", "enhanceHTML", "mount", "dispose", "close", "speechText"];
+    return api && api.schema === 1 && required.every(name => typeof api[name] === "function") ? api : null;
+  }
   const fanData = window.STORYBOOK_DATA;
   let data = fanData;
   const officialData = window.STORYBOOK_OFFICIAL_DATA || { books: [] };
@@ -131,9 +137,36 @@
     { vcn: "x4_wangqianqian", label: "嘉欣" },
     { vcn: "x4_lingxiaozhen_eclives", label: "聆小臻" },
   ];
+  // 豆包语音合成（火山引擎「语音合成大模型」同步 HTTP 接口 /api/v1/tts）。
+  // 鉴权是 app{appid,token,cluster} 加请求头 Authorization: Bearer;<Access Token>；
+  // 音色写 voice_type，下面的预设只是常用音色，开通了别的音色可直接改写输入框。
+  const doubaoApiEndpoint = "https://openspeech.bytedance.com/api/v1/tts";
+  const doubaoDefaultVoice = "zh_female_wanqudashu_moon_bigtts";
+  const doubaoPresetVoices = [
+    { id: "zh_male_qingcang_mars_bigtts", label: "擎苍-有声阅读" },
+    { id: "zh_male_wennuanahu_moon_bigtts", label: "温暖阿虎" },
+    { id: "zh_male_shenyeboke_moon_bigtts", label: "深夜播客" },
+    { id: "zh_male_beijingxiaoye_moon_bigtts", label: "北京小爷" },
+    { id: "zh_male_yangguangqingnian_moon_bigtts", label: "阳光青年" },
+    { id: "zh_male_jingqiangkanye_moon_bigtts", label: "京腔侃爷" },
+    { id: "zh_male_shaonianzixin_moon_bigtts", label: "少年梓辛" },
+    { id: "zh_female_wanqudashu_moon_bigtts", label: "湾曲大树" },
+    { id: "zh_female_shuangkuaisisi_moon_bigtts", label: "爽快思思" },
+    { id: "zh_female_kailangjiejie_moon_bigtts", label: "开朗姐姐" },
+    { id: "zh_female_gaolengyujie_moon_bigtts", label: "高冷御姐" },
+    { id: "zh_female_linjianvhai_moon_bigtts", label: "邻家女孩" },
+    { id: "zh_female_cancan_mars_bigtts", label: "灿灿" },
+    { id: "zh_female_tianmeitaozi_mars_bigtts", label: "甜美桃子" },
+  ];
+  const doubaoEncodings = [
+    { id: "mp3", label: "mp3" },
+    { id: "wav", label: "wav" },
+    { id: "ogg_opus", label: "ogg_opus" },
+  ];
   const cloudProviders = [
     { id: "mimo", label: "MIMO / OpenAI 兼容" },
     { id: "xfyun", label: "讯飞在线语音合成" },
+    { id: "doubao", label: "豆包语音合成（火山引擎）" },
   ];
   const offlineAudioPacks = [
     { id: "audio", label: "默认离线音色", dir: "audio-packs/audio" },
@@ -170,6 +203,20 @@
         speed: 50,
         volume: 50,
         pitch: 50,
+        timeout: 60000,
+      },
+      doubao: {
+        endpoint: doubaoApiEndpoint,
+        appId: "",
+        accessToken: "",
+        cluster: "volcano_tts",
+        voiceType: doubaoDefaultVoice,
+        voiceLabel: "湾曲大树",
+        encoding: "mp3",
+        sampleRate: 24000,
+        speedRatio: 1,
+        loudnessRatio: 1,
+        uid: "ato-assistant",
         timeout: 60000,
       },
     },
@@ -294,7 +341,7 @@
         pattern.lastIndex = 0;
         if (!parent || !node.nodeValue || !pattern.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
         pattern.lastIndex = 0;
-        if (parent.closest("button, a, script, style, textarea, select, [data-entity-id], [data-id], [data-page-viewer]")) {
+        if (parent.closest("button, a, script, style, textarea, select, [data-entity-id], [data-id], [data-page-viewer], [data-ato-mm-item]")) {
           return NodeFilter.FILTER_REJECT;
         }
         return NodeFilter.FILTER_ACCEPT;
@@ -957,6 +1004,7 @@
           ...defaultTtsConfig.cloud,
           ...(saved.cloud || {}),
           xfyun: { ...defaultTtsConfig.cloud.xfyun, ...((saved.cloud || {}).xfyun || {}) },
+          doubao: { ...defaultTtsConfig.cloud.doubao, ...((saved.cloud || {}).doubao || {}) },
         },
         local: { ...defaultTtsConfig.local, ...(saved.local || {}) },
       };
@@ -1058,6 +1106,11 @@
       const name = xf.voiceLabel || xf.vcn || "动态音色";
       if (!isXfyunConfigured(xf)) return "云端 API·讯飞 [未配置账号]";
       return `云端 API·讯飞 [${name}]`;
+    }
+    if (cloudProvider() === "doubao") {
+      const db = doubaoConfig();
+      if (!isDoubaoConfigured(db)) return "云端 API·豆包 [未配置账号]";
+      return `云端 API·豆包 [${doubaoVoiceLabel(db)}]`;
     }
     if (ttsConfig.cloud.voiceCloneDataUrl) return "云端 API [已导入克隆音色]";
     return `云端 API [${ttsConfig.cloud.voice || "动态音色"}]`;
@@ -1315,88 +1368,13 @@
     updateSpeechControls();
   }
 
-  const localBattleImages = [
-    {
-      test: /midascore-battle/i,
-      images: [
-        "./images/battles/c4/midascore-battle-level-1.jpg",
-        "./images/battles/c4/midascore-battle-level-2-plus.jpg",
-      ],
-    },
-    {
-      test: /demidjinn-battle/i,
-      images: ["./images/battles/c4/demidjinn-battle.jpg"],
-    },
-    {
-      test: /pandora-horizon-battle/i,
-      images: ["./images/battles/c4/pandora-horizon-battle.jpg"],
-    },
-    {
-      test: /the-crash-battle/i,
-      images: ["./images/battles/c4/the-crash-battle.jpg"],
-    },
-    {
-      test: /reap-the-whirlwind-battle/i,
-      images: ["./images/battles/c4/reap-the-whirlwind-battle.jpg"],
-    },
-    {
-      test: /the-winnowing-battle/i,
-      images: ["./images/battles/c4/the-winnowing-battle.jpg"],
-    },
-    {
-      test: /hypertime-oracle-battle/i,
-      images: ["./images/battles/c3/超时光先知战斗1.jpg", "./images/battles/c3/超时光先知战斗2.jpg"],
-    },
-    {
-      test: /icarian-harpy-battle/i,
-      images: ["./images/battles/c3/伊卡洛斯哈尔皮战斗.jpg"],
-    },
-    {
-      test: /endure-the-sun-battle/i,
-      images: ["./images/battles/c3/忍受烈日战斗.jpg"],
-    },
-    {
-      test: /race-the-sun-battle/i,
-      images: ["./images/battles/c3/与日竞赛战斗.jpg"],
-    },
-    {
-      test: /burden-hardest-to-bear-battle/i,
-      images: ["./images/battles/c3/最难承受的重担战斗.jpg"],
-    },
-    // C5 战斗版图：从 story/images/c5/supplement-pages/ 的扫描页裁出的版图块。
-    // 魔鬼本人按等级分两张（LEVEL 1-4 / LEVEL 5-7 与 8+），深海惧龙两个等级布局不同也分两张；
-    // 其余几场各等级共用同一块版图，共用同一张。
-    {
-      test: /dragon-of-phobos-battle/i,
-      images: [
-        "./images/battles/c5/dragon-of-phobos-battle-level-1-2.jpg",
-        "./images/battles/c5/dragon-of-phobos-battle-level-3-plus.jpg",
-      ],
-    },
-    {
-      test: /meduketos-battle/i,
-      images: ["./images/battles/c5/meduketos-battle.jpg"],
-    },
-    {
-      test: /the-devil-himself-battle/i,
-      images: [
-        "./images/battles/c5/the-devil-himself-battle-level-1-4.jpg",
-        "./images/battles/c5/the-devil-himself-battle-level-5-plus.jpg",
-      ],
-    },
-    {
-      test: /thicker-than-water-battle/i,
-      images: ["./images/battles/c5/thicker-than-water-battle.jpg"],
-    },
-    {
-      test: /harsh-truth-battle/i,
-      images: ["./images/battles/c5/harsh-truth-battle.jpg"],
-    },
-    {
-      test: /white-lie-battle/i,
-      images: ["./images/battles/c5/white-lie-battle.jpg"],
-    },
-  ];
+  // 本机战斗版图名单：C1–C5 的战斗版图现在都由混合媒体的行内混排图提供
+  // （story/assets/mixed-media/ 的 mapping.js + 裁图，两者随同一个 .atopack 下发），
+  // story/images/battles/ 下的文件与素材库登记已于 2026-10-05 全部退场
+  // （备份 tmp/image-audit/removed-20261005/）。
+  // 这里保留空名单与下面的匹配逻辑：以后若又有本机版图，按 id/key 写进来即可挂出；
+  // 一旦映射已经在正文里挂出同一张版图，renderBattleImages 会按 mixedMediaBoardCount 去重。
+  const localBattleImages = [];
 
   function localBattleImageList(entry) {
     const haystack = `${entry.id || ""} ${entry.key || ""}`.toLowerCase();
@@ -1452,10 +1430,30 @@
       .trim();
   }
 
+  // 行内混排会不会给这个条目挂出战斗版图/地形图（terrain-diagram、battle-map）。
+  // 判断用混排渲染器自己的计划结果，而不是另抄一套规则：版本、章节范围、正文指纹都由它决定，
+  // 正文漂移等情况下它不会挂图，这里也就不会删掉底部版图。独立测试上下文里没有这些函数，
+  // 直接返回 0，底部版图保持原样。
+  const mixedMediaBoardKinds = new Set(["terrain-diagram", "battle-map"]);
+  function mixedMediaBoardCount(entry) {
+    if (typeof mixedMediaRuntime !== "function" || typeof mixedMediaContext !== "function") return 0;
+    const runtime = mixedMediaRuntime();
+    const mediaContext = runtime && entry ? mixedMediaContext(entry) : null;
+    if (!runtime || !mediaContext) return 0;
+    const display = typeof getDisplayEntry === "function" ? getDisplayEntry(entry) : entry;
+    const text = String(display?.text || entry?.text || "");
+    if (!text) return 0;
+    const planned = runtime.renderHTML(mediaContext, text, value => value);
+    return (planned?.tokens || []).filter((token) => token.type === "image"
+      && mixedMediaBoardKinds.has(token.row?.kind)).length;
+  }
+
   function renderBattleImages(entry, options = {}) {
     const aibpLink = options.includeAibpLink === false ? "" : battleAibpLink(entry);
     const { images: imageList, zoomablePages } = battleImageList(entry);
     if (imageList.length) {
+      // 行内混排已经把同一张战斗版图挂在正文里时，底部版图区不再重复同一张图，只保留 AIBP 入口。
+      if (mixedMediaBoardCount(entry)) return aibpLink;
       // 整页扫描页可点开放大；本机裁好的版图块不挂放大查看器（它们是版图，不是原书页）。
       const images = imageList.map((src, index) => {
         const viewerAttributes = zoomablePages
@@ -1691,10 +1689,10 @@
     };
   }
 
-  function renderBattleTable(table) {
-    const head = table.headers.map((cell) => `<th>${linkify(cell, currentBook())}</th>`).join("");
-    const body = table.rows.map((row) => {
-      return `<tr><td>${linkify(row[0], currentBook())}</td><td>${linkify(row[1], currentBook())}</td></tr>`;
+  function renderBattleTable(table, renderCell = (cell) => linkify(cell, currentBook())) {
+    const head = table.headers.map((cell, index) => `<th>${renderCell(cell, index)}</th>`).join("");
+    const body = table.rows.map((row, index) => {
+      return `<tr><td>${renderCell(row[0], 2 + index * 2)}</td><td>${renderCell(row[1], 3 + index * 2)}</td></tr>`;
     }).join("");
 
     return `<div class="battle-table-wrap"><table class="battle-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
@@ -1708,20 +1706,48 @@
     return value.length <= 48 && /[：:]$/.test(value);
   }
 
+
+  // 正文里的「管道表格」渲染（实现与约束见 assets/story-tables.js）：把原书排版遗留的
+  // `a | b` + `--- | ---` 块显示成表格，其余文字仍走 linkify。模块缺失时退回原来的 linkify。
+  function storyTablesRender(text) {
+    const tables = window.ATO_STORY_TABLES;
+    if (!tables || typeof tables.renderText !== "function") return linkify(text, currentBook());
+    return tables.renderText(text, value => linkify(value, currentBook()), escapeHtml);
+  }
+
+  function prepareSectionedMedia(entry) {
+    const source = String(entry.text || "");
+    const media = mixedMediaRuntime()?.sectionRenderer?.(mixedMediaContext(entry), source);
+    if (media) mixedMediaRender = media.result;
+    const blocks = media ? media.blocks : source.split(/\n{2,}/).map(block => block.trim()).filter(Boolean);
+    return {
+      blocks,
+      render(index, mode = "body") {
+        // 正文块里如果有原书排版留下的管道表格，先渲染成表格，其余文字仍走 linkify。
+        // story-tables 会保留源文的全部非空白字符，混排按字符偏移插图不受影响。
+        const format = value => mode === "heading"
+          ? escapeHtml(value)
+          : storyTablesRender(mode === "table" ? value.replace(/\s+/g, " ") : value);
+        return media ? media.renderBlock(index, format) : format(blocks[index] || "");
+      }
+    };
+  }
+
   function renderSectionedStory(entry, imagesHtml) {
-    const blocks = entry.text.split(/\n{2,}/).map((block) => block.trim()).filter(Boolean);
+    const media = prepareSectionedMedia(entry);
+    const blocks = media.blocks;
     const rendered = [];
     let imagesInserted = false;
     let galleryPending = false;
 
-    blocks.forEach((block) => {
+    blocks.forEach((block, index) => {
       if (block === entry.title) return;
       if (isSectionSubheading(block, entry)) {
-        const heading = `<h3 class="battle-subheading">${escapeHtml(block)}</h3>`;
+        const heading = `<h3 class="battle-subheading">${media.render(index, "heading")}</h3>`;
         if (rendered[rendered.length - 1] !== heading) rendered.push(heading);
         galleryPending = /^介绍[：:]?$/.test(block);
       } else {
-        rendered.push(`<div class="battle-block">${linkify(block, currentBook())}</div>`);
+        rendered.push(`<div class="battle-block">${media.render(index)}</div>`);
         if (!imagesInserted && imagesHtml && galleryPending) {
           rendered.push(`<div class="battle-gallery">${imagesHtml}</div>`);
           imagesInserted = true;
@@ -1737,7 +1763,8 @@
   }
 
   function renderBattleSectionedStory(entry, imagesHtml) {
-    const blocks = entry.text.split(/\n{2,}/).map((block) => block.trim()).filter(Boolean);
+    const media = prepareSectionedMedia(entry);
+    const blocks = media.blocks;
     const rendered = [];
     let imagesInserted = false;
     let galleryPending = false;
@@ -1746,14 +1773,14 @@
       const block = blocks[index];
       if (block === entry.title) continue;
       if (isSectionSubheading(block, entry)) {
-        const heading = `<h3 class="battle-subheading">${escapeHtml(block)}</h3>`;
+        const heading = `<h3 class="battle-subheading">${media.render(index, "heading")}</h3>`;
         if (rendered[rendered.length - 1] !== heading) rendered.push(heading);
         galleryPending = /^介绍[：:]?$/.test(block);
         continue;
       }
       const table = parseBattleTable(blocks, index);
       if (table) {
-        rendered.push(renderBattleTable(table));
+        rendered.push(renderBattleTable(table, (_cell, offset) => media.render(index + offset, "table")));
         index = table.nextIndex - 1;
         if (!imagesInserted && imagesHtml && galleryPending) {
           rendered.push(`<div class="battle-gallery">${imagesHtml}</div>`);
@@ -1762,7 +1789,7 @@
         }
         continue;
       }
-      rendered.push(`<div class="battle-block">${linkify(block, currentBook())}</div>`);
+      rendered.push(`<div class="battle-block">${media.render(index)}</div>`);
       if (!imagesInserted && imagesHtml && galleryPending) {
         rendered.push(`<div class="battle-gallery">${imagesHtml}</div>`);
         imagesInserted = true;
@@ -2400,6 +2427,142 @@
       }));
   }
 
+  // ---------- 豆包语音合成（火山引擎「语音合成大模型」同步 HTTP 接口） ----------
+  // POST /api/v1/tts：app{appid,token,cluster} 三段式 body，请求头用 Authorization: Bearer;<token>
+  // （分号是火山引擎的老写法，不是笔误），返回体 data 字段是 base64 音频。
+
+  function doubaoConfig(conf = ttsConfig.cloud) {
+    return { ...defaultTtsConfig.cloud.doubao, ...((conf && conf.doubao) || {}) };
+  }
+
+  function isDoubaoConfigured(db) {
+    return Boolean(db && db.appId && db.accessToken);
+  }
+
+  function doubaoEndpoint(db) {
+    return String((db && db.endpoint) || "").trim() || doubaoApiEndpoint;
+  }
+
+  function doubaoMimeType(encoding) {
+    const name = String(encoding || "mp3").toLowerCase();
+    if (name === "wav") return "audio/wav";
+    if (name === "ogg_opus" || name === "ogg") return "audio/ogg";
+    return "audio/mpeg";
+  }
+
+  function doubaoVoiceLabel(db) {
+    const voice = (db && db.voiceType) || doubaoDefaultVoice;
+    return (db && db.voiceLabel) || doubaoPresetVoices.find((item) => item.id === voice)?.label || voice;
+  }
+
+  // 只给已知错误码补一句人话提示，原始 code 与 message 始终照原样带出去。
+  function doubaoErrorHint(code, message) {
+    const text = String(message || "");
+    if (code === 3001) return "（请求无效：检查文本是否为空或含接口不认的字符）";
+    if (code === 3003) return "（并发/QPS 超限：稍后重试，或到控制台提额）";
+    if (code === 3005) return "（服务内部错误：稍后重试）";
+    if (code === 3010) return "（文本超过接口上限：请用更短的分段朗读）";
+    if (code === 4003) return "（音色未授权：先在控制台开通这个 voice_type）";
+    if (code === 4001 || code === 401) return "（鉴权失败：检查 App ID 与 Access Token）";
+    if (/token|auth|鉴权|permission|forbidden/i.test(text)) return "（鉴权失败：检查 App ID 与 Access Token）";
+    return "";
+  }
+
+  // crypto.randomUUID 只在安全上下文里有；本应用跑在 http://<局域网IP> 上，
+  // 所以这里自己拼一个 v4 UUID（讯飞那段也有同样的坑，见 hmacSha256Base64）。
+  function doubaoRequestId() {
+    const bytes = new Uint8Array(16);
+    if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+    if (window.crypto?.getRandomValues) window.crypto.getRandomValues(bytes);
+    else for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"));
+    return [hex.slice(0, 4), hex.slice(4, 6), hex.slice(6, 8), hex.slice(8, 10), hex.slice(10, 16)]
+      .map((group) => group.join(""))
+      .join("-");
+  }
+
+  async function synthesizeDoubaoOnline(text, conf) {
+    const db = doubaoConfig(conf);
+    if (!isDoubaoConfigured(db)) {
+      throw new Error("豆包未配置 App ID / Access Token");
+    }
+    const endpoint = doubaoEndpoint(db);
+    const encoding = String(db.encoding || "mp3");
+    const payload = {
+      app: { appid: db.appId, token: db.accessToken, cluster: db.cluster || "volcano_tts" },
+      user: { uid: db.uid || "ato-assistant" },
+      audio: {
+        voice_type: db.voiceType || doubaoDefaultVoice,
+        encoding,
+        rate: Number(db.sampleRate) || 24000,
+        speed_ratio: Number(db.speedRatio ?? 1),
+        loudness_ratio: Number(db.loudnessRatio ?? 1),
+      },
+      request: { reqid: doubaoRequestId(), text, operation: "query" },
+    };
+
+    let response;
+    try {
+      response = await requestWithTimeout(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer;${db.accessToken}`,
+        },
+        body: JSON.stringify(payload),
+      }, Number(db.timeout || 60000));
+    } catch (error) {
+      if (error.name === "AbortError") throw new Error("豆包合成超时");
+      // 被跨域拦下时 fetch 只抛 TypeError，拿不到状态码，单独点一句。
+      throw new Error(`豆包请求失败：${String(error.message || error)}（若为跨域失败，请检查网络，或改用本地部署 / 浏览器原生引擎）`);
+    }
+
+    const bodyText = await response.text();
+    let data = null;
+    try {
+      data = JSON.parse(bodyText);
+    } catch {
+      data = null;
+    }
+
+    if (!response.ok || !data) {
+      const detail = data?.message || data?.Message || bodyText.slice(0, 180) || `HTTP ${response.status}`;
+      throw new Error(`豆包 HTTP ${response.status}：${detail}${doubaoErrorHint(Number(data?.code), detail)}`);
+    }
+    if (Number(data.code) !== 3000) {
+      const detail = data.message || data.Message || "未知错误";
+      throw new Error(`豆包错误 ${data.code}：${detail}${doubaoErrorHint(Number(data.code), detail)}`);
+    }
+
+    const encodedAudio = data.data || data.audio;
+    if (typeof encodedAudio !== "string" || !encodedAudio.length) {
+      throw new Error("豆包响应中没有音频数据");
+    }
+    return new Blob([decodeBase64Audio(encodedAudio)], { type: doubaoMimeType(encoding) });
+  }
+
+  async function speakWithDoubao(text, token, conf, options = {}) {
+    const db = doubaoConfig(conf);
+    const label = doubaoVoiceLabel(db);
+    try {
+      pushTtsStatus(`[云端·豆包] 请求中：${label}`, "pending");
+      const blob = await synthesizeDoubaoOnline(text, conf);
+      if (token !== activeSpeechToken) return true;
+      pushTtsStatus(`[云端·豆包] 连接成功：${label}`, "success");
+      await playAudioBlob(blob, token, options.keepActive);
+      return true;
+    } catch (error) {
+      clearActiveAudio();
+      if (token === activeSpeechToken) currentUtterance = null;
+      const message = String(error?.message || error);
+      console.error("[Story TTS] doubao request failed", error);
+      pushTtsStatus(`云端·豆包请求失败：${message.slice(0, 140)}`, /鉴权|未授权|401|403|token/i.test(message) ? "error" : "warn");
+      return false;
+    }
+  }
+
   async function speakWithXfyun(text, token, conf, options = {}) {
     const xf = conf.xfyun || {};
     const label = `${xf.voiceLabel || xf.vcn || "讯飞音色"}`;
@@ -2425,6 +2588,9 @@
     const conf = overrides || (isCloud ? ttsConfig.cloud : ttsConfig.local);
     if (isCloud && cloudProvider(conf) === "xfyun") {
       return speakWithXfyun(text, token, conf, options);
+    }
+    if (isCloud && cloudProvider(conf) === "doubao") {
+      return speakWithDoubao(text, token, conf, options);
     }
     const baseUrl = normalizeBaseUrl(conf.baseUrl);
     if (!baseUrl) {
@@ -2529,6 +2695,11 @@
       if (token !== null && token !== activeSpeechToken) throw new Error("朗读已停止");
       return blob;
     }
+    if (isCloud && cloudProvider(conf) === "doubao") {
+      const blob = await synthesizeDoubaoOnline(text, conf);
+      if (token !== null && token !== activeSpeechToken) throw new Error("朗读已停止");
+      return blob;
+    }
     const baseUrl = normalizeBaseUrl(conf.baseUrl);
     if (!baseUrl) throw new Error(`${isCloud ? "云端" : "本地"}引擎未配置 Base URL`);
 
@@ -2583,6 +2754,22 @@
         xf.speed ?? "",
         xf.volume ?? "",
         xf.pitch ?? "",
+        text,
+      ].join("\u001f");
+    }
+    if (isCloud && cloudProvider(conf) === "doubao") {
+      const db = doubaoConfig(conf);
+      return [
+        "cloud",
+        "doubao",
+        doubaoEndpoint(db),
+        db.appId || "",
+        db.cluster || "",
+        db.voiceType || "",
+        db.encoding || "",
+        db.sampleRate ?? "",
+        db.speedRatio ?? "",
+        db.loudnessRatio ?? "",
         text,
       ].join("\u001f");
     }
@@ -2686,10 +2873,16 @@
     beginSpeech();
 
     const isXfyun = cloudProvider() === "xfyun";
+    const isDoubao = cloudProvider() === "doubao";
     const originalVoice = ttsConfig.cloud.voice;
     const originalXfyunVcn = ttsConfig.cloud.xfyun?.vcn;
+    const originalDoubaoVoice = ttsConfig.cloud.doubao?.voiceType;
     const sampleText = "这是故事书语音试听。愿你的航程顺利，选择清晰。";
-    const voiceList = isXfyun ? xfyunPresetVoices.map((voice) => voice.vcn) : cloudPresetVoices;
+    const voiceList = isXfyun
+      ? xfyunPresetVoices.map((voice) => voice.vcn)
+      : isDoubao
+        ? doubaoPresetVoices.map((voice) => voice.id)
+        : cloudPresetVoices;
 
     try {
       for (const voice of voiceList) {
@@ -2697,6 +2890,10 @@
         if (isXfyun) {
           ttsConfig.cloud.xfyun.vcn = voice;
           pushTtsStatus(`试听音色：${voice}`, "info");
+        } else if (isDoubao) {
+          ttsConfig.cloud.doubao.voiceType = voice;
+          ttsConfig.cloud.doubao.voiceLabel = doubaoPresetVoices.find((item) => item.id === voice)?.label || "";
+          pushTtsStatus(`试听音色：${doubaoPresetVoices.find((item) => item.id === voice)?.label || voice}`, "info");
         } else {
           ttsConfig.cloud.voice = voice;
           pushTtsStatus(`试听音色：${voice}`, "info");
@@ -2713,6 +2910,7 @@
     } finally {
       ttsConfig.cloud.voice = originalVoice;
       if (isXfyun && ttsConfig.cloud.xfyun) ttsConfig.cloud.xfyun.vcn = originalXfyunVcn;
+      if (isDoubao && ttsConfig.cloud.doubao) ttsConfig.cloud.doubao.voiceType = originalDoubaoVoice;
       if (token === activeSpeechToken) finishSpeech(token);
     }
   }
@@ -2865,13 +3063,46 @@
     }
   }
 
+  // Source text, search and save schemas remain unchanged; verified icon names feed TTS.
+  // Only explicitly mapped text ranges are rendered as local images.
+  let mixedMediaRender = null;
+  function mixedMediaContext(entry) {
+    const bookId = currentBook()?.id || "";
+    const variant = storyVersion === "官方版" && supportsOfficialVersion() ? "official" : "fan";
+    // Mappings are audited per source variant: C1-C3 on the official text, C4-C5 on
+    // the fan text. C1-C3 also carries fan-variant rows (re-anchored 2026-10-05), so
+    // both variants are allowed here; an entry without rows simply stays plain text.
+    if (!/^c[1-5]$/.test(bookId)) return null;
+    if (/^(?:story-card|doom-card|rules?)$/.test(entry.chapterKey || "")) return null;
+    return { schema: 1, bookId, entryKey: entry.key, variant };
+  }
+  // C5 战斗标题（R3 审计过的显示层加粗）：只改可见标题的字重，正文、锚点与存档字节不动。
+  // 测试会单独抽取本函数求值，所以标题钩子写在函数内部，不依赖外层辅助函数。
+  function renderMixedStoryText(entry) {
+    const headings = window.ATO_C5_BATTLE_HEADINGS;
+    const withBattleHeadings = (html) => headings?.schema === 1 && typeof headings.formatHTML === "function"
+      ? headings.formatHTML(mixedMediaContext(entry), entry.text || "", html) : html;
+    if (!mixedMediaRuntime()) return withBattleHeadings(storyTablesRender(entry.text || ""));
+    mixedMediaRender = mixedMediaRuntime().renderHTML(
+      mixedMediaContext(entry), entry.text || "", text => storyTablesRender(text)
+    );
+    return withBattleHeadings(mixedMediaRender.html);
+  }
+
   function renderStory(entry) {
+    mixedMediaRuntime()?.dispose?.(storyText);
+    mixedMediaRender = null;
     const displayEntry = getDisplayEntry(entry);
     const isTranslatedSupplement = Boolean(displayEntry.originalText);
-    const imagesHtml = renderBattleImages(displayEntry, {
-      includeAibpLink: !isTranslatedSupplement,
-    });
-    const html = isTranslatedSupplement
+    // C5 的 AI 翻译条目按普通条目排版：没有「AI 翻译」标题、提醒、英文原文，也不挂原书图片；
+    // 战斗条目的 AIBP 入口照旧保留。其它册若以后出现翻译条目，仍走 renderAiTranslatedSupplement。
+    const plainLayoutSupplement = isTranslatedSupplement && translatedSupplementUsesPlainLayout(displayEntry);
+    const imagesHtml = plainLayoutSupplement
+      ? ""
+      : renderBattleImages(displayEntry, {
+        includeAibpLink: !isTranslatedSupplement,
+      });
+    const html = isTranslatedSupplement && !plainLayoutSupplement
       ? renderAiTranslatedSupplement(displayEntry, imagesHtml)
       : displayEntry.html
       ? renderHtmlStory(displayEntry, imagesHtml)
@@ -2879,9 +3110,18 @@
       ? renderBattleSectionedStory(displayEntry, imagesHtml)
       : displayEntry.chapterKey === "special-aftermath"
         ? renderSectionedStory(displayEntry, imagesHtml)
-        : `${linkify(displayEntry.text, currentBook())}${imagesHtml ? `<div class="battle-gallery">${imagesHtml}</div>` : ""}`;
+        : `${renderMixedStoryText(displayEntry)}${imagesHtml ? `<div class="battle-gallery">${imagesHtml}</div>` : ""}`;
     const envelopeLink = isTranslatedSupplement ? "" : envelopeAibpLink(displayEntry, entryBookId(displayEntry));
-    storyText.innerHTML = html + envelopeLink + renderOfficialScan(entry);
+    const supplementAibpLink = plainLayoutSupplement && displayEntry.chapterKey === "battle"
+      ? battleAibpLink(displayEntry)
+      : "";
+    storyText.innerHTML = html + envelopeLink + supplementAibpLink + renderOfficialScan(entry);
+    if (displayEntry.html && !isTranslatedSupplement && mixedMediaRuntime()?.enhanceHTML) {
+      mixedMediaRender = mixedMediaRuntime().enhanceHTML(
+        storyText.querySelector(".story-html"), mixedMediaContext(displayEntry), displayEntry.text || ""
+      );
+    }
+    mixedMediaRuntime()?.mount?.(storyText, mixedMediaRender);
     annotateEntityTextNodes(storyText);
     refreshSecondScreenStoryContentToggle(Boolean(secondScreenStoryModeToggle?.checked));
   }
@@ -3021,6 +3261,8 @@
     }
     const text = imagesOnly ? "" : displayEntry.text || storyText.textContent || "";
     return {
+      // Optional rendering identity only; old clients ignore it. No paths or HTML.
+      mixedMedia: mixedMediaContext(activeEntry),
       imagesOnly,
       images: scanPath ? [scanPath] : [],
       // 「只看扫描图」时 text 故意留空（第二屏整屏看图），正文另存一份：扫描图仍然取不到
@@ -3201,7 +3443,16 @@
     await refreshSecondScreenStoryModeToggle();
   }
 
+  // C5 的 AI 翻译条目按普通条目排版（见 renderStory）：用同一套分段/正文渲染，不再有
+  // 「AI 翻译」标题、提醒、英文原文，也不挂原书图片。目前所有翻译条目都在 C5；其它册若以后
+  // 出现翻译条目，仍走 renderAiTranslatedSupplement 的旧版式（提醒 + 英文原文 + 扫描页）。
+  function translatedSupplementUsesPlainLayout(entry) {
+    return entry.bookId === "c5" || /^c5-/.test(String(entry.key || ""));
+  }
+
   function renderAiTranslatedSupplement(entry, imagesHtml) {
+    // C5 的翻译条目不走这里（见 translatedSupplementUsesPlainLayout / renderStory）：它们按普通
+    // 条目排版。这个函数只留给其它册以后可能出现的翻译条目：提醒 + 中文译文 + 英文原文 + 扫描页。
     const notice = entry.translationNotice
       || "AI 翻译（非官方），可能存在术语或 OCR 误差；请以英文原文和扫描页图为准。";
     // 六场 C5 战斗的原页（174-185）已删除、改用裁好的版图块，但条目数据是本地生成物、
@@ -3214,10 +3465,12 @@
       ? `故事书第 ${entry.sourcePages.join("、")} 页`
       : "故事书补充页";
     const aibpLink = entry.chapterKey === "battle" ? battleAibpLink(entry) : "";
-    const translation = linkify(entry.text || "", currentBook());
+    const translation = renderMixedStoryText(entry);
     const original = escapeHtml(entry.originalText || "");
+    // 只有整页扫描才提示「可放大」（裁好的版图块没有放大查看器）。
+    const pageScans = /zoomable-page/.test(String(imagesHtml || ""));
     const gallery = imagesHtml
-      ? `<div class="supplement-gallery-hint">点击扫描页可放大查看</div><div class="battle-gallery supplement-gallery">${imagesHtml}</div>`
+      ? `${pageScans ? `<div class="supplement-gallery-hint">点击扫描页可放大查看</div>` : ""}<div class="battle-gallery supplement-gallery">${imagesHtml}</div>`
       : "";
 
     // 正文容器保留换行，结构标签之间不要插入模板缩进形成的空行。
@@ -3561,14 +3814,16 @@
     const cloud = ttsConfig.cloud;
     const local = ttsConfig.local;
     const xf = cloud.xfyun || defaultTtsConfig.cloud.xfyun;
+    const db = doubaoConfig(cloud);
     const isXfyun = cloudProvider(cloud) === "xfyun";
+    const isDoubao = cloudProvider(cloud) === "doubao";
     ttsUi.overlay.hidden = false;
     ttsUi.overlay.innerHTML = `
       <div class="tts-modal" role="dialog" aria-modal="true" aria-label="配置朗读引擎">
         <header class="tts-modal-head">
           <div>
             <h3>配置朗读引擎</h3>
-            <p>云端 API 支持 MIMO 与讯飞在线语音合成；本地部署走 OpenAI audio/speech 风格接口。</p>
+            <p>云端 API 支持 MIMO、讯飞在线语音合成与豆包语音合成（火山引擎）；本地部署走 OpenAI audio/speech 风格接口。</p>
           </div>
           <button id="ttsModalClose" type="button" class="tts-btn-close" aria-label="关闭">✕</button>
         </header>
@@ -3582,7 +3837,7 @@
             <div class="tts-card-body">
               ${modalGrid(2, modalSelect("ttsCloudProvider", "服务商", cloudProviders, cloudProvider(cloud)))}
 
-              <div id="ttsMimoFields" class="tts-group"${isXfyun ? " hidden" : ""}>
+              <div id="ttsMimoFields" class="tts-group"${isXfyun || isDoubao ? " hidden" : ""}>
                 ${modalGroupTitle("连接")}
                 ${modalGrid(2, [
                   modalField("ttsCloudBase", "Base URL", cloud.baseUrl, "text", "https://example.com/v1"),
@@ -3631,11 +3886,42 @@
                 ${modalGrid(2, modalField("ttsXfyunTimeout", "超时 ms", xf.timeout || 60000, "number", "60000"))}
                 <p class="tts-note">浏览器只能走 WebSocket 版。发音人需先在讯飞控制台开通，未开通会返回 11200。</p>
               </div>
+
+              <div id="ttsDoubaoFields" class="tts-group"${isDoubao ? "" : " hidden"}>
+                ${modalGroupTitle("账号")}
+                ${modalGrid(3, [
+                  modalField("ttsDoubaoAppId", "App ID", db.appId, "text", "控制台 App ID"),
+                  modalField("ttsDoubaoToken", "Access Token", db.accessToken, "text", "控制台访问令牌"),
+                  modalField("ttsDoubaoCluster", "Cluster", db.cluster || "volcano_tts", "text", "volcano_tts"),
+                ].join(""))}
+
+                ${modalGroupTitle("音色与语调")}
+                ${modalGrid(2, [
+                  `<label class="tts-modal-field">
+                     <span>音色 voice_type</span>
+                     <input id="ttsDoubaoVoice" type="text" list="ttsDoubaoVoiceList" value="${escapeAttribute(db.voiceType || "")}" placeholder="${escapeAttribute(doubaoDefaultVoice)}">
+                     <datalist id="ttsDoubaoVoiceList">
+                       ${doubaoPresetVoices.map((voice) => `<option value="${escapeAttribute(voice.id)}">${escapeHtml(voice.label)}</option>`).join("")}
+                     </datalist>
+                   </label>`,
+                  modalSelect("ttsDoubaoEncoding", "音频格式", doubaoEncodings, db.encoding || "mp3"),
+                ].join(""))}
+                ${modalGrid(3, [
+                  modalField("ttsDoubaoSampleRate", "采样率", db.sampleRate || 24000, "number", "24000"),
+                  modalField("ttsDoubaoSpeed", "语速倍率", db.speedRatio ?? 1, "number", "1"),
+                  modalField("ttsDoubaoLoudness", "音量倍率", db.loudnessRatio ?? 1, "number", "1"),
+                ].join(""))}
+                ${modalGrid(2, [
+                  modalField("ttsDoubaoEndpoint", "接口地址", db.endpoint || doubaoApiEndpoint, "text", doubaoApiEndpoint),
+                  modalField("ttsDoubaoTimeout", "超时 ms", db.timeout || 60000, "number", "60000"),
+                ].join(""))}
+                <p class="tts-note">浏览器直连火山引擎 openspeech 接口，鉴权用控制台「语音合成大模型」的 App ID 与 Access Token。音色要先在控制台开通；跨域被拦或鉴权失败会在下方状态栏报出来。</p>
+              </div>
             </div>
             <div class="tts-card-actions">
               <button id="ttsPreviewVoices" type="button">试听所有音色</button>
-              <button id="ttsCloneImport" type="button" class="mimo-only"${isXfyun ? " hidden" : ""}>导入克隆音色</button>
-              <button id="ttsCloneClear" type="button" class="mimo-only"${isXfyun ? " hidden" : ""}>清除克隆音色</button>
+              <button id="ttsCloneImport" type="button" class="mimo-only"${isXfyun || isDoubao ? " hidden" : ""}>导入克隆音色</button>
+              <button id="ttsCloneClear" type="button" class="mimo-only"${isXfyun || isDoubao ? " hidden" : ""}>清除克隆音色</button>
               <span class="tts-spacer"></span>
               <button id="ttsCloudTest" type="button" class="tts-btn-primary">测试连接并试听</button>
             </div>
@@ -3707,6 +3993,20 @@
           pitch: Number(document.querySelector("#ttsXfyunPitch").value || 50),
           timeout: Number(document.querySelector("#ttsXfyunTimeout").value || 60000),
         },
+        doubao: {
+          endpoint: document.querySelector("#ttsDoubaoEndpoint").value.trim() || doubaoApiEndpoint,
+          appId: document.querySelector("#ttsDoubaoAppId").value.trim(),
+          accessToken: document.querySelector("#ttsDoubaoToken").value.trim(),
+          cluster: document.querySelector("#ttsDoubaoCluster").value.trim() || "volcano_tts",
+          voiceType: document.querySelector("#ttsDoubaoVoice").value.trim() || doubaoDefaultVoice,
+          voiceLabel: doubaoPresetVoices.find((voice) => voice.id === document.querySelector("#ttsDoubaoVoice").value.trim())?.label || "",
+          encoding: document.querySelector("#ttsDoubaoEncoding").value || "mp3",
+          sampleRate: Number(document.querySelector("#ttsDoubaoSampleRate").value || 24000),
+          speedRatio: Number(document.querySelector("#ttsDoubaoSpeed").value || 1),
+          loudnessRatio: Number(document.querySelector("#ttsDoubaoLoudness").value || 1),
+          uid: ttsConfig.cloud.doubao?.uid || "ato-assistant",
+          timeout: Number(document.querySelector("#ttsDoubaoTimeout").value || 60000),
+        },
       },
       local: {
         baseUrl: document.querySelector("#ttsLocalBase").value.trim(),
@@ -3720,11 +4020,14 @@
 
     // 切换服务商时显示对应的配置区；克隆音色按钮只对 MIMO 有意义。
     document.querySelector("#ttsCloudProvider").addEventListener("change", (event) => {
-      const xfyun = event.target.value === "xfyun";
-      document.querySelector("#ttsMimoFields").hidden = xfyun;
+      const provider = event.target.value;
+      const xfyun = provider === "xfyun";
+      const doubao = provider === "doubao";
+      document.querySelector("#ttsMimoFields").hidden = xfyun || doubao;
       document.querySelector("#ttsXfyunFields").hidden = !xfyun;
+      document.querySelector("#ttsDoubaoFields").hidden = !doubao;
       document.querySelectorAll(".mimo-only").forEach((element) => {
-        element.hidden = xfyun;
+        element.hidden = xfyun || doubao;
       });
     });
 
@@ -3822,6 +4125,26 @@
         }
         return;
       }
+      if (cloudProvider() === "doubao") {
+        const db = doubaoConfig();
+        const current = db.voiceType || "";
+        doubaoPresetVoices.forEach((voice) => {
+          const option = document.createElement("option");
+          option.value = voice.id;
+          option.textContent = `${voice.label}（${voice.id}）`;
+          if (voice.id === current) option.selected = true;
+          ttsVoice.appendChild(option);
+        });
+        // 控制台里开通了别的音色时也能直接填。
+        if (current && !doubaoPresetVoices.some((voice) => voice.id === current)) {
+          const option = document.createElement("option");
+          option.value = current;
+          option.textContent = current;
+          option.selected = true;
+          ttsVoice.appendChild(option);
+        }
+        return;
+      }
       cloudPresetVoices.forEach((v) => {
         const option = document.createElement("option");
         option.value = v;
@@ -3866,7 +4189,9 @@
   }
 
   async function speakEntry(entry) {
-    const text = prepareSpeechText(getSpeechEntryText(entry));
+    const sourceText = getSpeechEntryText(entry);
+    const spokenSource = mixedMediaRuntime()?.speechText?.(mixedMediaContext(entry), sourceText, storyText) || sourceText;
+    const text = prepareSpeechText(spokenSource);
     if (!text) {
       pushTtsStatus("当前版本暂无可朗读正文。", "warn");
       return;
@@ -4024,6 +4349,7 @@
       entryTitle.textContent = "当前版本没有此条目";
       if (pharosTitleDecodeButton) pharosTitleDecodeButton.hidden = true;
       entryBadge.textContent = "----";
+      mixedMediaRuntime()?.dispose?.(storyText);
       storyText.textContent = "该条目为官方版独有，请切换至官方版后打开。";
       linkPanel.innerHTML = "";
     }
@@ -4124,6 +4450,14 @@
       const val = ttsVoice.value;
       if (cloudProvider() === "xfyun") {
         if (val) ttsConfig.cloud.xfyun.vcn = val;
+      } else if (cloudProvider() === "doubao") {
+        if (val) {
+          ttsConfig.cloud.doubao = {
+            ...doubaoConfig(),
+            voiceType: val,
+            voiceLabel: doubaoPresetVoices.find((voice) => voice.id === val)?.label || "",
+          };
+        }
       } else if (val && val !== "__clone__") {
         ttsConfig.cloud.voice = val;
         ttsConfig.cloud.voiceCloneDataUrl = "";
@@ -4194,6 +4528,13 @@
     const message = event.data || {};
     if (message.type !== "ato-story-jump") return;
     navigateToStoryTarget(message.target || {});
+  });
+
+  window.addEventListener("ato-mixed-media-map-ready", () => {
+    if (!activeEntry) return;
+    const top = storyText.scrollTop, left = storyText.scrollLeft;
+    renderStory(activeEntry);
+    storyText.scrollTop = top; storyText.scrollLeft = left;
   });
 
   init();
