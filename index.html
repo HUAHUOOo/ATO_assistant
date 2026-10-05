@@ -4263,6 +4263,10 @@
       elements.secondScreenSwapButton.dataset.swapped = String(battleSwapped);
       elements.secondScreenSwapButton.title = battleSwapped ? "当前已交换，点击恢复左右位置" : "交换 Boss/AIBP 与决战版图的位置";
       elements.secondScreenSwapButton.setAttribute("aria-label", battleSwapped ? "恢复第二屏幕左右区域位置" : "交换第二屏幕左右区域位置");
+      // 服务端那份主题就是第二屏现在用的外观：记下来，本地没改就不用再写一遍。
+      pushedSecondScreenTheme = payload.theme?.mode
+        ? JSON.stringify({ mode: payload.theme.mode, rgb: payload.theme.rgb })
+        : "";
       elements.secondScreenUrl.value = preferred;
       elements.secondScreenUrl.placeholder = enabled && !preferred ? "未检测到局域网 IPv4 地址" : "";
       elements.copySecondScreenButton.hidden = enabled && !preferred;
@@ -4306,10 +4310,47 @@
         const payload = await response.json().catch(() => null);
         if (!response.ok || !payload?.ok) throw new Error(payload?.error || `HTTP ${response.status}`);
         renderSecondScreenStatus(payload);
+        pushSecondScreenTheme();
       } catch (error) {
         elements.secondScreenHint.textContent = `无法读取第二屏幕状态：${String(error.message || error)}`;
       }
     }
+
+    // 第二屏通常在另一台设备上（手机/电视），那边读不到本站 localStorage 里的主题偏好，
+    // 所以本机的外观改了就写进第二屏设置，第二屏每次轮询自己应用（ss/app.js 的
+    // applySecondScreenTheme）。取色器会连着触发多次 input，这里攒 400ms 再发一次。
+    let pushedSecondScreenTheme = "";
+    let secondScreenThemeTimer = null;
+    function currentThemeSetting() {
+      const theme = window.ATO_THEME?.get?.();
+      return theme && typeof theme.mode === "string"
+        ? { mode: theme.mode, rgb: Array.isArray(theme.rgb) ? theme.rgb : [127, 75, 38] }
+        : null;
+    }
+    function pushSecondScreenTheme(delay = 400) {
+      if (!secondScreenEnabled) return;
+      const theme = currentThemeSetting();
+      if (!theme) return;
+      const key = JSON.stringify(theme);
+      if (key === pushedSecondScreenTheme) return;
+      pushedSecondScreenTheme = key;
+      window.clearTimeout(secondScreenThemeTimer);
+      secondScreenThemeTimer = window.setTimeout(async () => {
+        try {
+          const response = await fetch(`${authUrl}?action=second-screen-status`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ enabled: true, theme }),
+          });
+          const payload = await response.json().catch(() => null);
+          if (!response.ok || !payload?.ok) throw new Error(payload?.error || `HTTP ${response.status}`);
+        } catch (error) {
+          pushedSecondScreenTheme = "";
+          elements.secondScreenHint.textContent = `主题同步到第二屏幕失败：${String(error.message || error)}`;
+        }
+      }, delay);
+    }
+    window.addEventListener("ato-theme-changed", () => pushSecondScreenTheme());
 
     async function setSecondScreenEnabled(enabled) {
       if (secondScreenBusy) return;
@@ -4317,10 +4358,12 @@
       elements.secondScreenToggle.disabled = true;
       elements.secondScreenHint.textContent = enabled ? "正在生成局域网访问网址…" : "正在关闭第二屏幕…";
       try {
+        // 开启时把当前主题一起写进去：第二屏是另一台设备，开局就得是这台机器的外观。
+        const theme = enabled ? currentThemeSetting() : null;
         const response = await fetch(`${authUrl}?action=second-screen-status`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ enabled }),
+          body: JSON.stringify(theme ? { enabled, theme } : { enabled }),
         });
         const payload = await response.json().catch(() => null);
         if (!response.ok || !payload?.ok) throw new Error(payload?.error || `HTTP ${response.status}`);

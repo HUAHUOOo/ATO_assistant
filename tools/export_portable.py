@@ -106,7 +106,8 @@ def build_docker(version: str) -> Path:
         "assets/cycle-symbols", "assets/icons", "assets/bgm", "assets/bgm/audio",
         "hero/assets", "map/images", "map/tokens", "record/assets", "ss/terrain",
         "ss/terrain-cards", "story/images", "story/data",
-        "story/assets/cryptic/glyphs", "technology/images",
+        "story/assets/cryptic/glyphs", "story/assets/mixed-media/images",
+        "story/assets/OO", "technology/images",
     ):
         (app / relative).mkdir(parents=True, exist_ok=True)
     # 外层分发包和镜像内的应用都保留许可证；两层分别接受产物审计。
@@ -119,6 +120,12 @@ def build_docker(version: str) -> Path:
     battle_board.parent.mkdir(parents=True, exist_ok=True)
     if not battle_board.exists():
         battle_board.touch()
+    # 混排映射表同样按单文件挂载进容器（公开镜像里没有私有映射）；缺失时 Docker 会建同名
+    # 目录顶掉挂载点，正文里的书籍裁图会全部加载失败，所以这里也先放一个空占位文件。
+    mixed_mapping = app / "story" / "assets" / "mixed-media" / "mapping.js"
+    mixed_mapping.parent.mkdir(parents=True, exist_ok=True)
+    if not mixed_mapping.exists():
+        mixed_mapping.touch()
     docker_source = TOOLS_ROOT / "packaging/docker"
     shutil.copy2(docker_source / "Dockerfile", stage / "Dockerfile")
     shutil.copy2(docker_source / "docker-entrypoint.sh", stage / "docker-entrypoint.sh")

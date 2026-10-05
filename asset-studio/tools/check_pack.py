@@ -100,6 +100,7 @@ def check(path: Path, crc: bool, hash_check: bool) -> bool:
         bgm = manifest.get("bgmFiles") or []
         icons = manifest.get("iconFiles") or []
         cryptic = manifest.get("crypticFiles") or []
+        mixed_media = manifest.get("mixedMediaFiles") or []
         print(f"  条目/图片 : {len(manifest.get('items') or [])} / {len(assets)}")
         print(f"  故事      : {len(books)} 本 / {sum(book.get('entryCount', 0) for book in books)} 段")
         story_files = manifest.get("storyFiles") or []
@@ -108,6 +109,9 @@ def check(path: Path, crc: bool, hash_check: bool) -> bool:
         print(f"  背景音乐  : {len(bgm)} 首")
         print(f"  界面图标  : {len(icons)} 个字形")
         print(f"  密语字形  : {len(cryptic)} 张（巴别语／塞壬语）")
+        if mixed_media:
+            crops = sum(1 for item in mixed_media if str(item.get("target", "")).startswith("story/assets/mixed-media/images/"))
+            print(f"  混合媒体  : {len(mixed_media)} 个文件（私有映射表 + {crops} 张书籍裁图）")
         build = manifest.get("build") or {}
         edition = build.get("edition") or ("官方版（含官方资料）" if resource_files else "民间版")
         print(f"  版本口径  : {edition}")
@@ -136,6 +140,28 @@ def check(path: Path, crc: bool, hash_check: bool) -> bool:
                 print(f"  ✗ 哈希不符的成员：{len(bad)} 个，例如 {bad[:3]}")
             else:
                 print(f"  ✓ {len(assets)} 张图的 SHA-256 全部与清单一致")
+            # 附加素材段（密语字形／混合媒体等）同样带 sha256，一并核对：只在清单声明了才查。
+            for label, entries in (("密语字形", cryptic), ("混合媒体", mixed_media)):
+                declared = [item for item in entries if item.get("member") and item.get("sha256")]
+                if not declared:
+                    continue
+                segment_bad = []
+                for item in declared:
+                    member = str(item["member"])
+                    if member not in name_set:
+                        segment_bad.append(member)
+                        continue
+                    digest = hashlib.sha256()
+                    with archive.open(member) as source:
+                        while chunk := source.read(CHUNK):
+                            digest.update(chunk)
+                    if digest.hexdigest() != str(item.get("sha256")):
+                        segment_bad.append(member)
+                if segment_bad:
+                    ok = False
+                    print(f"  ✗ {label} 段哈希/成员不符：{len(segment_bad)} 个，例如 {segment_bad[:3]}")
+                else:
+                    print(f"  ✓ {label} 段 {len(declared)} 个成员的 SHA-256 全部与清单一致")
 
         if crc:
             bad_member = archive.testzip()

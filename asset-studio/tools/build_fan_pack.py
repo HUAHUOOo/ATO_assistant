@@ -49,6 +49,7 @@
     --no-bgm                      不带主控台背景音乐
     --no-icons                    不带主控台界面图标（assets/icons/*.svg）
     --no-cryptic                  不带密语字形（story/assets/cryptic/glyphs/*.png）
+    --no-mixed-media              不带混合媒体素材（mapping.js 与 images/c[1-5]/*.png|.svg）
     --cycle c2 / --module AIBP    只打某些循环 / 模块
     --complete-only               只打正反面都齐了的条目
     --verify full                 改名之前把包内每个成员重新哈希一遍（慢，最稳）
@@ -85,6 +86,9 @@ from app.icon_resources import mime_for as icon_mime  # noqa: E402
 from app.cryptic_resources import collect as collect_cryptic_files  # noqa: E402
 from app.cryptic_resources import allowed_target as is_cryptic_target  # noqa: E402
 from app.cryptic_resources import mime_for as cryptic_mime  # noqa: E402
+from app.mixed_media_resources import collect as collect_mixed_media_files  # noqa: E402
+from app.mixed_media_resources import allowed_target as is_mixed_media_target  # noqa: E402
+from app.mixed_media_resources import mime_for as mixed_media_mime  # noqa: E402
 from app.fixed_catalog import collect_supplemental_resources  # noqa: E402
 from app.fixed_catalog import fixed_catalog_payload  # noqa: E402
 from app.official_assets import clear_cache as clear_official_cache  # noqa: E402
@@ -274,6 +278,11 @@ def installable_target(relative: str) -> str:
     relative = safe_relative(relative, "素材目标路径")
     pure = PurePosixPath(relative)
     suffix = pure.suffix.lower()
+    if is_mixed_media_target(relative):
+        # 混合媒体（mixedMediaFiles 段）：映射表是 story/assets/mixed-media/mapping.js，
+        # 裁图是 images/c[1-5]/ 下的 PNG/SVG；别的 .js 目标照旧一律拒绝。
+        # 这条规则必须排在界面图标之前：裁图里有 .svg，否则会被当成 assets/icons/ 的图标拒收。
+        return relative
     if suffix in INSTALL_AUDIO_SUFFIXES:
         if not relative.startswith(INSTALL_AUDIO_PREFIX):
             raise PackError(f"音频素材只能放在 {INSTALL_AUDIO_PREFIX}：{relative}")
@@ -284,7 +293,7 @@ def installable_target(relative: str) -> str:
         return relative
     if suffix in INSTALL_CRYPTIC_SUFFIXES and relative.startswith(INSTALL_CRYPTIC_PREFIX):
         # 密语字形（crypticFiles 段）；story/ 下别的 PNG 目标仍按通用图片规则处理
-        # （内置清单里本来就有 story/images/OO/*.png 这类条目，这里不能收窄）。
+        # （内置清单里本来就有 story/assets/OO/*.png 这类条目，这里不能收窄）。
         return relative
     if suffix in INSTALL_DATA_SUFFIXES:
         # 二进制素材只允许落在约定的那棵子树里，别处一律拒绝。
@@ -500,8 +509,9 @@ def plan_assets(
         clear_official_cache()
     for item in items:
         for face, target in item.faces.items():
-            if is_bgm_target(target) or is_cryptic_target(target):
-                # 附加资源只走各自的段；字形必须保留原字节，不能再经图片重编码。
+            if is_bgm_target(target) or is_cryptic_target(target) or is_mixed_media_target(target):
+                # 附加资源只走各自的段；字形与混合媒体裁图必须保留原字节，
+                # 不能再经图片重编码。
                 continue
             try:
                 member = installable_target(target)
@@ -726,6 +736,7 @@ class WriteOutcome:
     bgm_count: int
     icon_count: int
     cryptic_count: int
+    mixed_media_count: int
     extra_members: list[str]
     resources_written: int
     hash_mismatch_count: int
@@ -750,6 +761,7 @@ def build_manifest(
     bgm_files: list[dict],
     icon_files: list[dict],
     cryptic_files: list[dict],
+    mixed_media_files: list[dict],
     ato_root: Path,
     official_scans: bool,
 ) -> dict:
@@ -804,6 +816,7 @@ def build_manifest(
             "audioIncluded": bool(bgm_files),
             "iconsIncluded": bool(icon_files),
             "crypticIncluded": bool(cryptic_files),
+            "mixedMediaIncluded": bool(mixed_media_files),
         },
     }
     if bgm_files:
@@ -812,6 +825,8 @@ def build_manifest(
         manifest["iconFiles"] = icon_files
     if cryptic_files:
         manifest["crypticFiles"] = cryptic_files
+    if mixed_media_files:
+        manifest["mixedMediaFiles"] = mixed_media_files
     return manifest
 
 
@@ -868,7 +883,7 @@ def load_incremental_index(previous: Path, reporter: Reporter) -> tuple[dict[str
         digest = str(asset.get("sha256") or "")
         if member and SHA256_RE.fullmatch(digest):
             remember(member, digest, int(asset.get("bytes") or 0), asset)
-    for section in ("resourceFiles", "bgmFiles", "iconFiles", "crypticFiles"):
+    for section in ("resourceFiles", "bgmFiles", "iconFiles", "crypticFiles", "mixedMediaFiles"):
         for entry in manifest.get(section, []) or []:
             member = str(entry.get("member") or entry.get("target") or "")
             digest = str(entry.get("sha256") or "")
@@ -907,6 +922,7 @@ def write_pack(
     bgm_files: list[tuple[str, Path]],
     icon_files: list[tuple[str, Path]],
     cryptic_files: list[tuple[str, Path]],
+    mixed_media_files: list[tuple[str, Path]],
     compression: int,
     reporter: Reporter,
     edition: str = "fan",
@@ -1175,6 +1191,33 @@ def write_pack(
                     "mimeType": cryptic_mime(target),
                 }
             )
+        # 混合媒体：本地私有的映射表与书籍裁图，随 mixedMediaFiles 段分发到
+        # story/assets/mixed-media/（见 app/mixed_media_resources.py）。
+        mixed_media_entries: list[dict] = []
+        for target, path in mixed_media_files:
+            cached = reuse_plain_file(target, path)
+            if cached is not None:
+                mixed_media_entries.append(
+                    {
+                        "target": target,
+                        "member": target,
+                        "sha256": cached,
+                        "bytes": int((old_edges.get(target) or {}).get("bytes") or 0),
+                        "mimeType": mixed_media_mime(target),
+                    }
+                )
+                continue
+            raw = path.read_bytes()
+            archive.writestr(target, raw)
+            mixed_media_entries.append(
+                {
+                    "target": target,
+                    "member": target,
+                    "sha256": hashlib.sha256(raw).hexdigest(),
+                    "bytes": len(raw),
+                    "mimeType": mixed_media_mime(target),
+                }
+            )
         manifest = build_manifest(
             catalog_source=catalog_source,
             items=items,
@@ -1186,6 +1229,7 @@ def write_pack(
             bgm_files=bgm_entries,
             icon_files=icon_entries,
             cryptic_files=cryptic_entries,
+            mixed_media_files=mixed_media_entries,
             ato_root=ato_root,
             official_scans=official_scans,
         )
@@ -1206,6 +1250,7 @@ def write_pack(
         bgm_count=len(bgm_entries),
         icon_count=len(icon_entries),
         cryptic_count=len(cryptic_entries),
+        mixed_media_count=len(mixed_media_entries),
         extra_members=extra_members,
         resources_written=len(resource_files),
         hash_mismatch_count=mismatch_count,
@@ -1271,15 +1316,16 @@ def verify_partial(
         for member in declared_lookup:
             if member not in name_set:
                 raise PackError(f"清单声明的成员不在包里：{member}")
-        # 各附加段（官方资料 / 背景音乐 / 界面图标 / 密语字形）的成员都必须在包里，且哈希与
-        # 清单一致。这四段都会在增量打包时从底包原样复用旧字节（见 reuse_plain_file），所以
-        # 这里不能只查「成员在不在」——复用错了哈希、或源文件变了却搬了旧字节，只有核哈希
+        # 各附加段（官方资料 / 背景音乐 / 界面图标 / 密语字形 / 混合媒体）的成员都必须在包里，
+        # 且哈希与清单一致。这五段都会在增量打包时从底包原样复用旧字节（见 reuse_plain_file），
+        # 所以这里不能只查「成员在不在」——复用错了哈希、或源文件变了却搬了旧字节，只有核哈希
         # 才拦得住。
         for section, label in (
             ("resourceFiles", "官方资料"),
             ("bgmFiles", "背景音乐"),
             ("iconFiles", "界面图标"),
             ("crypticFiles", "密语字形"),
+            ("mixedMediaFiles", "混合媒体"),
         ):
             for item in manifest.get(section, []) or []:
                 target = str(item.get("target") or "")
@@ -1373,6 +1419,7 @@ class BuildResult:
     bgm_files: int = 0
     icon_files: int = 0
     cryptic_files: int = 0
+    mixed_media_files: int = 0
     edition: str = "fan"
     unsafe_targets: int = 0
     broken_items: int = 0
@@ -1397,6 +1444,7 @@ def build(
     include_bgm: bool,
     include_icons: bool,
     include_cryptic: bool = True,
+    include_mixed_media: bool = True,
     include_story_files: bool,
     official_story: bool,
     official_scans: bool,
@@ -1487,13 +1535,15 @@ def build(
             f"故事正文要配人物小传索引，但工程目录里没有 {ENTITY_INDEX_JSON_TARGET}（或 .js）"
         )
 
-    # 官方资料、BGM 与界面图标都复用提交里的收集器：它们的校验失败（截图缺失、文件过大、
-    # 数据文件格式不对）在这里换成统一的打包错误，命令行只打一行说明，不吐栈。
+    # 官方资料、BGM、界面图标、密语字形与混合媒体都复用提交里的收集器：它们的校验失败
+    # （截图缺失、文件过大、数据文件格式不对）在这里换成统一的打包错误，命令行只打一行说明，
+    # 不吐栈。
     try:
         official_files = collect_official(ato_root, include_scans=official_scans) if official_story else []
         bgm = collect_bgm_files(ato_root) if include_bgm else []
         icons = collect_icon_files(ato_root) if include_icons else []
         cryptic = collect_cryptic_files(ato_root) if include_cryptic else []
+        mixed_media = collect_mixed_media_files(ato_root) if include_mixed_media else []
     except ValueError as error:
         raise PackError(str(error)) from error
 
@@ -1506,10 +1556,11 @@ def build(
         + sum(path.stat().st_size for _, path in bgm)
         + sum(path.stat().st_size for _, path in icons)
         + sum(path.stat().st_size for _, path in cryptic)
+        + sum(path.stat().st_size for _, path in mixed_media)
     )
     story_member_count = 0 if entity_index is None else (4 if include_story_files else 1)
     member_count = (
-        len(planned) + len(official_files) + len(bgm) + len(icons) + len(cryptic)
+        len(planned) + len(official_files) + len(bgm) + len(icons) + len(cryptic) + len(mixed_media)
         + story_member_count + 1
     )
 
@@ -1548,6 +1599,7 @@ def build(
     reporter.say(f"背景音乐  : {len(bgm)} 首")
     reporter.say(f"界面图标  : {len(icons)} 个字形")
     reporter.say(f"密语字形  : {len(cryptic)} 张（巴别语／塞壬语）")
+    reporter.say(f"混合媒体  : {len(mixed_media)} 个文件（私有映射表 + 书籍裁图）")
     reporter.say(f"成员/体积 : {member_count} / {human_bytes(total_bytes)}")
     if image_quality:
         reporter.say(f"图片重编码: 开（JPEG 质量 {image_quality}，不缩放；实际体积以写盘后为准）")
@@ -1582,6 +1634,7 @@ def build(
             bgm_files=len(bgm),
             icon_files=len(icons),
             cryptic_files=len(cryptic),
+            mixed_media_files=len(mixed_media),
             edition=edition,
             unsafe_targets=stats.unsafe_targets,
             broken_items=stats.broken_items,
@@ -1625,6 +1678,7 @@ def build(
             bgm_files=bgm,
             icon_files=icons,
             cryptic_files=cryptic,
+            mixed_media_files=mixed_media,
             compression=compression,
             reporter=reporter,
             edition=edition,
@@ -1681,6 +1735,7 @@ def build(
         bgm_files=outcome.bgm_count,
         icon_files=outcome.icon_count,
         cryptic_files=outcome.cryptic_count,
+        mixed_media_files=outcome.mixed_media_count,
         edition=edition,
         unsafe_targets=stats.unsafe_targets,
         broken_items=stats.broken_items,
@@ -1729,6 +1784,7 @@ def report(result: BuildResult, reporter: Reporter) -> None:
     reporter.say(f"  背景音乐  : {result.bgm_files} 首")
     reporter.say(f"  界面图标  : {result.icon_files} 个字形")
     reporter.say(f"  密语字形  : {result.cryptic_files} 张（巴别语／塞壬语）")
+    reporter.say(f"  混合媒体  : {result.mixed_media_files} 个文件（私有映射表 + 书籍裁图）")
     if result.reused_members:
         reporter.say(
             f"  增量复用  : {result.reused_members} 个成员直接取自底包（跳过读盘与重编码）"
@@ -1760,7 +1816,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--ato-root", type=Path, required=True, help="ATO_assistant 根目录（素材、故事、BGM 的真源）")
     parser.add_argument("--output", type=Path, required=True, help="输出的 .atopack 路径")
-    parser.add_argument("--library", type=Path, help="可选兜底：工程目录里缺图（含 BGM／界面图标／密语字形）时用素材库的副本")
+    parser.add_argument("--library", type=Path, help="可选兜底：工程目录里缺图（含 BGM／界面图标／密语字形／混合媒体）时用素材库的副本")
     parser.add_argument("--cycle", action="append", default=[], help="只打这些循环，可重复或逗号分隔")
     parser.add_argument("--module", action="append", default=[], help="只打这些模块，可重复或逗号分隔")
     parser.add_argument("--complete-only", action="store_true", help="只打正反面都齐了的条目")
@@ -1770,6 +1826,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--no-cryptic", action="store_true",
         help="不带密语字形（story/assets/cryptic/glyphs/*.png）",
+    )
+    parser.add_argument(
+        "--no-mixed-media", action="store_true",
+        help="不带混合媒体素材（story/assets/mixed-media/mapping.js 与 images/c[1-5]/*.png|.svg）",
     )
     parser.add_argument("--no-story-files", action="store_true", help="不在包里额外落 story/data/*.js（默认落）")
     parser.add_argument("--no-official-story", action="store_true", help="不带官方故事书正文数据（格式版本回到 2）")
@@ -1845,6 +1905,7 @@ def main(argv: list[str] | None = None) -> int:
             include_bgm=not args.no_bgm,
             include_icons=not args.no_icons,
             include_cryptic=not args.no_cryptic,
+            include_mixed_media=not args.no_mixed_media,
             include_story_files=not args.no_story_files,
             official_story=not args.no_official_story,
             official_scans=args.include_official_scans,

@@ -137,6 +137,26 @@ public final class CampaignImportHarness {
     check((statuses[0] == 200 && statuses[1] == 409) || (statuses[0] == 409 && statuses[1] == 200),
         "Concurrent imports must serialize validation and commit");
     check(campaign().getJSONObject("sectionRevisions").getInt("map") == revision + 1, "Race incremented revision twice");
+    // 第二屏外观跟着设置走服务端（和 api/campaign-state.php、ss/app.js 同一套契约）：
+    // 安卓侧没有 PHP，HTTP 接口是这里实现的，主题字段必须一并走通。
+    api.attachSecondScreenServer(new LocalSecondScreenServer());
+    JSONObject status = request("?action=second-screen-status", "POST",
+        "{\"enabled\":true,\"theme\":{\"mode\":\"custom\",\"rgb\":[200,30,30]}}", 200);
+    check(status.getJSONObject("theme").getString("mode").equals("custom"), "Theme mode must round-trip");
+    JSONObject screen = request("?action=second-screen", "GET", "", 200).getJSONObject("screen");
+    check(screen.getJSONObject("theme").getJSONArray("rgb").getInt(0) == 200
+        && screen.getJSONObject("theme").getJSONArray("rgb").getInt(2) == 30, "Second screen must see the theme");
+    check("c5".equals(screen.getString("cycleId")), "Second screen must see the active cycle");
+    JSONObject badTheme = request("?action=second-screen-status", "POST",
+        "{\"enabled\":true,\"theme\":{\"mode\":\"nope\",\"rgb\":[999,-5,12.6]}}", 200);
+    check("auto".equals(badTheme.getJSONObject("theme").getString("mode")), "Unknown theme mode must fall back to auto");
+    check(badTheme.getJSONObject("theme").getJSONArray("rgb").getInt(0) == 255
+        && badTheme.getJSONObject("theme").getJSONArray("rgb").getInt(1) == 0
+        && badTheme.getJSONObject("theme").getJSONArray("rgb").getInt(2) == 13, "Theme channels must clamp");
+    JSONObject kept = request("?action=second-screen-status", "POST", "{\"enabled\":true,\"battleRotation\":90}", 200);
+    check("auto".equals(kept.getJSONObject("theme").getString("mode"))
+        && kept.getJSONObject("theme").getJSONArray("rgb").getInt(0) == 255,
+        "A settings update without theme must keep the stored one");
     System.out.println("Android campaign import passed: " + checks + " checks");
   }
 

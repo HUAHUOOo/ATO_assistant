@@ -236,6 +236,9 @@ class ExportPayload(BaseModel):
     include_icons: bool = True
     # 密语字形（story/assets/cryptic/glyphs/*.png，巴别语／塞壬语）：同样本地私有，默认随包分发。
     include_cryptic: bool = True
+    # 混合媒体素材（story/assets/mixed-media/：mapping.js 私有映射表 + images/c1..c5 下的裁图）：
+    # 同样本地私有、不进版本库，默认随包分发（CLI 侧的对应开关是 --no-mixed-media）。
+    include_mixed_media: bool = True
     # 官方版故事书截图默认不导出（民间版资源包不带原书扫描图）。
     official_scans: bool = False
     # 官方故事书正文数据（storybook-official-data.js）默认也不导出：民间版不带任何官方内容。

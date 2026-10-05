@@ -349,7 +349,6 @@
     /* 空闲时不占位，标题栏布局和以前完全一致。 */
     .title-actions .second-screen-sync-status:empty { display: none; }
 
-    .title-actions .second-screen-sync-status[data-state="synced"] { color: #8fd6a3; }
     .title-actions .second-screen-sync-status[data-state="failed"] { color: #ff9d9d; }
 
     .title-actions .return-main-link {
@@ -370,15 +369,6 @@
       margin: 0;
       font-size: 26px;
       line-height: 1.1;
-    }
-
-    .path {
-      flex: 0 0 auto;
-      min-width: 0;
-      color: var(--muted);
-      font-size: 13px;
-      overflow-wrap: normal;
-      white-space: nowrap;
     }
 
     .viewer {
@@ -625,6 +615,16 @@
         0 0 0 1px rgba(20, 8, 6, 0.62),
         0 0 12px rgba(255, 72, 66, 0.2),
         inset 0 0 8px rgba(255, 72, 66, 0.1);
+    }
+
+    /* 大迷宫轨道（迷宫机牛 / 吞域兽）：红圈套住指示物当前所在的那一格。宽度按面板宽度的
+       百分比给（和印出来的轨道格同宽），高度由 aspect-ratio 顶出来，所以换显示尺寸也贴得住。 */
+    .panel-state-marker.labyrinth-track-marker {
+      width: clamp(14px, var(--marker-width, 5.6%), 140px);
+      height: auto;
+      aspect-ratio: 1 / 1;
+      border-width: 3px;
+      border-radius: 999px;
     }
 
     .nietzsche-break-lock {
@@ -2343,7 +2343,6 @@
           </label>
           <span class="second-screen-sync-status" id="secondScreenSyncStatus" role="status" aria-live="polite"></span>
           <a class="return-main-link" href="../index.html">返回主控制台</a>
-          <div class="path" id="folderPath"></div>
           <button type="button" id="traitButton">Trait</button>
           <button type="button" id="tokenButton">Token</button>
           <button type="button" id="newCampaignButton">开启新战役</button>
@@ -2547,7 +2546,7 @@
       <div class="trait-dialog-grid" id="traitDialogGrid"></div>
       <div class="trait-dialog-actions">
         <button type="button" id="traitCustomButton">自定义特性</button>
-        <button type="button" id="traitClearButton">清空</button>
+        <button type="button" id="traitRestoreButton" title="清掉显式选择，特性区回到默认显示">恢复默认</button>
         <button type="button" id="traitSaveButton">保存</button>
       </div>
     </form>
@@ -3030,6 +3029,72 @@
       { label: "Chain", short: "C", left: "81.7%", top: "21.6%" },
       { label: "Body", short: "B", left: "90.6%", top: "22.0%" }
     ];
+    // 大迷宫轨道（迷宫机牛 / 吞域兽卡片上那一圈 4 格）：指示物开局放在最上方一格，每次结算
+    // 大迷宫X 后顺时针移一格。坐标照面板美术逐格量出：位置是 --marker-left/--marker-top 的
+    // 百分比，宽度是面板宽度的百分比，所以控制台与第二屏、任何显示尺寸都贴着印出来的格子。
+    // 顺时针顺序（从最上方那格起）：O（2×2）→ L → Z → I（4×1）。
+    const labyrinthTrackApostles = new Set([labyrinthaurosName, "ALPHA_TEMENOS"]);
+    const labyrinthTrackStoragePrefix = "aibp-labyrinth-track-v1-";
+    const labyrinthTrackTracks = {
+      [labyrinthaurosName]: {
+        width: "5.6%",
+        cells: [
+          { type: "Labyrinth O", label: "大迷宫 O", short: "O", left: "92.4%", top: "6.1%" },
+          { type: "Labyrinth L", label: "大迷宫 L", short: "L", left: "96.2%", top: "10.9%" },
+          { type: "Labyrinth Z", label: "大迷宫 Z", short: "Z", left: "92.6%", top: "16.3%" },
+          { type: "Labyrinth I", label: "大迷宫 I", short: "I", left: "88.1%", top: "10.9%" }
+        ]
+      },
+      ALPHA_TEMENOS: {
+        width: "5.0%",
+        cells: [
+          { type: "Labyrinth O", label: "大迷宫 O", short: "O", left: "85.8%", top: "80.9%" },
+          { type: "Labyrinth L", label: "大迷宫 L", short: "L", left: "90.7%", top: "86.9%" },
+          { type: "Labyrinth Z", label: "大迷宫 Z", short: "Z", left: "86.0%", top: "94.2%" },
+          { type: "Labyrinth I", label: "大迷宫 I", short: "I", left: "80.3%", top: "87.5%" }
+        ]
+      }
+    };
+
+    function labyrinthTrackFor(name = currentApostle) {
+      return labyrinthTrackTracks[name] || null;
+    }
+
+    function isLabyrinthTrackApostle(name = currentApostle) {
+      return Boolean(labyrinthTrackFor(name));
+    }
+
+    function labyrinthTrackStorageKey(name = currentApostle) {
+      return `${labyrinthTrackStoragePrefix}${name}`;
+    }
+
+    function loadLabyrinthTrackIndex(name = currentApostle) {
+      const track = labyrinthTrackFor(name);
+      if (!track) return 0;
+      const stored = Number(localStorage.getItem(labyrinthTrackStorageKey(name)));
+      return Number.isInteger(stored) && stored >= 0 && stored < track.cells.length ? stored : 0;
+    }
+
+    function labyrinthTrackState(name = currentApostle) {
+      const track = labyrinthTrackFor(name);
+      if (!track) return null;
+      const index = labyrinthTrackIndexes[name] ?? loadLabyrinthTrackIndex(name);
+      labyrinthTrackIndexes[name] = index;
+      const cell = track.cells[index] || track.cells[0];
+      return {
+        ...cell,
+        width: track.width,
+        index,
+        count: track.cells.length,
+        buttonLabel: `大迷宫指示物：${cell.short}（${index + 1}/${track.cells.length}）`,
+        hint: `${cell.type}（${cell.label}）：大迷宫轨道第 ${index + 1}/${track.cells.length} 格，点击顺时针移到下一格`
+      };
+    }
+
+    const labyrinthTrackIndexes = {};
+    labyrinthTrackApostles.forEach((name) => {
+      labyrinthTrackIndexes[name] = loadLabyrinthTrackIndex(name);
+    });
     const chimeraBpViews = ["当前", "弃牌", "常规损伤堆", "第二损伤堆", "移除", "II", "III"];
     const cardCount = 6;
     const cardCountOverrides = {
@@ -3058,7 +3123,6 @@
       apostleLevelSelect.appendChild(option);
     }
 
-    const folderPath = document.getElementById("folderPath");
     const nietzscheStateButton = document.getElementById("nietzscheStateButton");
     const panelWrap = document.getElementById("panelWrap");
     const routineWrap = document.getElementById("routineWrap");
@@ -3086,7 +3150,7 @@
     const traitDialogTitle = document.getElementById("traitDialogTitle");
     const traitDialogGrid = document.getElementById("traitDialogGrid");
     const traitCloseButton = document.getElementById("traitCloseButton");
-    const traitClearButton = document.getElementById("traitClearButton");
+    const traitRestoreButton = document.getElementById("traitRestoreButton");
     const traitSaveButton = document.getElementById("traitSaveButton");
     const traitCustomButton = document.getElementById("traitCustomButton");
     const customTraitDialog = document.getElementById("customTraitDialog");
@@ -3469,6 +3533,8 @@
         ),
         // 视线/射程/距离标注：只传参数，第二屏用同一个引擎重算，两屏逐格一致。
         los: battleMapControl?.getLosSnapshot() || { active: false },
+        // 大迷宫轨道红圈：第二屏照同一份百分比坐标画在 boss 大卡上。
+        labyrinthTrack: isLabyrinthTrackApostle() ? labyrinthTrackState() : null,
         updatedAt: new Date().toISOString(),
       };
     }
@@ -3525,21 +3591,17 @@
     }
 
     async function sendSecondScreenSnapshot() {
-      // 状态提示、时钟和重试参数都放在函数体里，单独提取这个函数时也能照常运行。
+      // 状态提示和重试参数都放在函数体里，单独提取这个函数时也能照常运行。
       const syncStatus = typeof document === "undefined" ? null : document.getElementById("secondScreenSyncStatus");
       const reportSyncStatus = (state, detail = "") => {
         if (!syncStatus) return;
         syncStatus.dataset.state = state;
+        // 同步成功不显示时间戳：空闲时整块不占位（CSS 的 :empty），只保留同步中 / 同步失败。
         syncStatus.textContent = state === "syncing"
           ? "同步中"
-          : state === "synced"
-            ? `已同步（${detail}）`
-            : `同步失败（${detail}）`;
-      };
-      const syncClock = () => {
-        const now = new Date();
-        const pad = (value) => String(value).padStart(2, "0");
-        return `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+          : state === "failed"
+            ? `同步失败（${detail}）`
+            : "";
       };
       const maxAttempts = 3;
       const retryDelays = [1000, 3000];
@@ -3563,7 +3625,7 @@
             await postSecondScreenSnapshot(buildSecondScreenSnapshot());
             // 一次成功就是整条链的终点：重试只在本次调用里排队，成功了就不会再有更旧的重试
             // 覆盖这份最新快照（同一时刻只有一个在途请求，其它调用只会置 queued）。
-            reportSyncStatus("synced", syncClock());
+            reportSyncStatus("synced");
             return;
           } catch (error) {
             const status = Number(error?.status || 0);
@@ -3869,6 +3931,11 @@
         feint: initialTitanFeintPile(),
         chimeraPhase: "",
         traits: [],
+        // 特性区默认显示的卡不写进 traits：取消勾选后把它们的 key 记在这里，
+        // 自动探测与 setup 补卡都不再显示（见 hiddenTraitKeySet / isDefaultShownTrait）。
+        hiddenTraits: [],
+        // 特性区里一并显示的额外卡（AI/BP 的 O/X、泰坦X 组特性、黑喙固定卡）按 src 记录。
+        hiddenExtraCards: [],
         customTraits: [],
         tokens: [],
         battleMap: null,
@@ -4021,6 +4088,16 @@
             savePiles();
           }
         }
+        if (!Array.isArray(piles[name].hiddenTraits)) {
+          piles[name].hiddenTraits = [];
+        }
+        piles[name].hiddenTraits = Array.from(new Set(piles[name].hiddenTraits
+          .filter((key) => typeof key === "string" && key)));
+        if (!Array.isArray(piles[name].hiddenExtraCards)) {
+          piles[name].hiddenExtraCards = [];
+        }
+        piles[name].hiddenExtraCards = Array.from(new Set(piles[name].hiddenExtraCards
+          .filter((key) => typeof key === "string" && key)));
         if (!Array.isArray(piles[name].tokens)) {
           piles[name].tokens = [];
         }
@@ -6248,6 +6325,9 @@
       const hasCard = state.traits.some((card) => card?.type === "TR" && !card.scope
         && card.level === "O" && Number(card.index) === 2);
       if (setupId !== "what-are-you" || hasCard) return false;
+      // 玩家已经在 Trait 选择里取消过这张默认特性：不要再自动补回来。
+      if (Array.isArray(state.hiddenTraits)
+        && state.hiddenTraits.includes(traitKey("O", 2, "jpg", ""))) return false;
       state.traits.push({ type: "TR", level: "O", index: 2, ext: "jpg", scope: "" });
       return true;
     }
@@ -6357,10 +6437,61 @@
       return new Set(piles[currentApostle].traits.map((card) => traitKey(card.level, card.index, card.ext, card.scope)));
     }
 
+    // 被玩家取消、不再显示的特性区默认卡。
+    function hiddenTraitKeySet() {
+      ensurePiles(currentApostle);
+      return new Set((piles[currentApostle].hiddenTraits || []).map((key) => String(key)));
+    }
+
+    // 被玩家取消、不再显示的特性区额外卡（按卡图 src 记录）。
+    function hiddenExtraCardKeySet() {
+      ensurePiles(currentApostle);
+      return new Set((piles[currentApostle].hiddenExtraCards || []).map((key) => String(key)));
+    }
+
+    // 特性区里不属于特性、却会一并显示的额外卡：AI/BP 的 O/X 卡图、泰坦X 组特性、黑喙固定卡。
+    // HELIOS 的额外卡由模式配置给出且没有 Trait 按钮，不在这里处理。
+    function traitAreaExtraCards(name = currentApostle) {
+      if (name === "HELIOS") return [];
+      if (name === "BLACKBEAK") {
+        return (window.BlackbeakCardList?.extraCards || []).map((card) => ({
+          src: card.src,
+          label: card.label || "黑喙特性卡"
+        }));
+      }
+      const cards = [];
+      const titanXGroupTrait = name === "TITAN_X" && piles.TITAN_X?.special?.titanX?.group
+        ? window.TitanXGroupConfig?.trait
+        : null;
+      if (titanXGroupTrait?.src) {
+        cards.push({ src: titanXGroupTrait.src, label: titanXGroupTrait.label || "泰坦X 组特性" });
+      }
+      ["AI", "BP"].forEach((type) => {
+        ["O", "X"].forEach((level) => {
+          for (let index = 1; index <= traitProbeMaxIndex; index++) {
+            cards.push({
+              src: `ps/${name}/${numberedName(name, type, level, index)}`,
+              label: `${type} ${level} ${index}`
+            });
+          }
+        });
+      });
+      return cards;
+    }
+
+    // 「默认显示」的卡：不写进 traits，由特性区自动探测（或 setup 补卡）显示。
+    // Trait 选择里它们默认勾选，取消勾选并保存后要记进 hiddenTraits 才能真的消失。
+    function isDefaultShownTrait(card) {
+      if (card?.scope) return false;
+      if (currentApostle === nietzscheName && card.level === "O" && Number(card.index) === 2) return true;
+      return automaticTraitLevels().includes(card.level);
+    }
+
     function renderTraitCandidates() {
       ensurePiles(currentApostle);
       const name = currentApostle;
       const selected = selectedTraitKeySet();
+      const hidden = hiddenTraitKeySet();
       const token = ++traitLoadToken;
       let loaded = 0;
 
@@ -6402,6 +6533,35 @@
         img.src = cycleTraitSrc(card);
       });
 
+      // 特性区的额外卡（AI/BP 的 O/X 等）同样由自动探测显示，这里给同样的勾选框。
+      const hiddenExtraCards = hiddenExtraCardKeySet();
+      traitAreaExtraCards(name).forEach((card) => {
+        const option = document.createElement("label");
+        option.className = "trait-option extra-card-option";
+        option.title = "特性区自动显示的额外卡；取消勾选并保存后不再显示";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.dataset.extraCardSrc = card.src;
+        checkbox.checked = !hiddenExtraCards.has(card.src);
+
+        const img = new Image();
+        img.alt = card.label;
+        img.onload = () => {
+          if (token !== traitLoadToken) return;
+          if (loading.isConnected) loading.remove();
+          loaded += 1;
+        };
+        img.onerror = () => option.remove();
+
+        const caption = document.createElement("span");
+        caption.textContent = card.label;
+
+        option.append(checkbox, img, caption);
+        traitDialogGrid.appendChild(option);
+        img.src = window.HeliosAssets.resolve(card.src);
+      });
+
       traitLevels.forEach((level) => {
         for (let index = 1; index <= traitProbeMaxIndex; index++) {
           if (isNietzscheAllForOneLegacyTrait(name, level, index)) continue;
@@ -6422,7 +6582,13 @@
               checkbox.dataset.index = String(index);
               checkbox.dataset.ext = ext;
               checkbox.dataset.scope = "";
-              checkbox.checked = selected.has(traitKey(level, index, ext, ""));
+              // 默认显示的卡按「已勾选」呈现，取消勾选并保存就会把它从特性区移除。
+              const cardKey = traitKey(level, index, ext, "");
+              const defaultShown = isDefaultShownTrait({ level, index, ext });
+              const explicitlySelected = selected.has(cardKey);
+              checkbox.checked = explicitlySelected || (defaultShown && !hidden.has(cardKey));
+              if (defaultShown) checkbox.dataset.defaultShown = "1";
+              if (explicitlySelected) checkbox.dataset.traitSelected = "1";
 
               img.alt = traitCardLabel({ level, index, ext });
 
@@ -6430,6 +6596,7 @@
               caption.textContent = img.alt;
 
               option.append(checkbox, img, caption);
+              if (defaultShown) option.title = "默认显示；取消勾选并保存后从特性区移除";
               traitDialogGrid.appendChild(option);
             };
             img.onerror = () => {};
@@ -6492,16 +6659,42 @@
 
     function saveTraitSelection() {
       ensurePiles(currentApostle);
-      piles[currentApostle].traits = Array.from(traitDialogGrid.querySelectorAll("input[type='checkbox']:checked"))
-        .map((input) => input.dataset.customTraitId
-          ? piles[currentApostle].customTraits.find((card) => card.id === input.dataset.customTraitId)
-          : ({
+      const hidden = hiddenTraitKeySet();
+      const hiddenExtra = hiddenExtraCardKeySet();
+      const traits = [];
+      traitDialogGrid.querySelectorAll("input[type='checkbox']").forEach((input) => {
+        const extraCardSrc = input.dataset.extraCardSrc;
+        if (extraCardSrc) {
+          if (input.checked) hiddenExtra.delete(extraCardSrc);
+          else hiddenExtra.add(extraCardSrc);
+          return;
+        }
+        const customTraitId = input.dataset.customTraitId;
+        if (customTraitId) {
+          if (input.checked) {
+            const card = piles[currentApostle].customTraits.find((item) => item.id === customTraitId);
+            if (card) traits.push(card);
+          }
+          return;
+        }
+        const key = traitKey(input.dataset.level, input.dataset.index, input.dataset.ext, input.dataset.scope);
+        if (!input.checked) {
+          // 取消默认显示的卡要记下来，否则下次渲染会被自动探测重新加回特性区。
+          if (input.dataset.defaultShown) hidden.add(key);
+          return;
+        }
+        hidden.delete(key);
+        // 默认就显示的卡本来就在特性区里，不需要写进存档；显式选过或玩家新勾选的才需要。
+        if (input.dataset.defaultShown && !input.dataset.traitSelected) return;
+        traits.push({
           type: "TR",
           level: input.dataset.level,
           index: Number(input.dataset.index),
           ext: input.dataset.ext || "jpg",
           scope: input.dataset.scope || ""
-        }))
+        });
+      });
+      piles[currentApostle].traits = traits
         .filter(Boolean)
         .map((card) => ({ ...card }))
         .sort((a, b) => {
@@ -6510,14 +6703,19 @@
           if (a.scope === "custom") return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
           return traitLevels.indexOf(a.level) - traitLevels.indexOf(b.level) || a.index - b.index || String(a.ext).localeCompare(String(b.ext));
         });
+      piles[currentApostle].hiddenTraits = Array.from(hidden).sort();
+      piles[currentApostle].hiddenExtraCards = Array.from(hiddenExtra).sort();
       savePiles();
       renderExtraCards();
       traitDialog.close();
     }
 
-    function clearTraitSelection() {
+    // 「恢复默认」：清掉显式选择，默认显示的卡与额外卡恢复勾选（即解除隐藏）。
+    function restoreDefaultTraits() {
       traitDialogGrid.querySelectorAll("input[type='checkbox']").forEach((input) => {
-        input.checked = false;
+        input.checked = Boolean(input.dataset.defaultShown || input.dataset.extraCardSrc);
+        // 默认卡本来就由特性区自动显示，恢复后不必在存档里留下显式条目。
+        if (input.dataset.defaultShown) delete input.dataset.traitSelected;
       });
     }
 
@@ -6664,6 +6862,7 @@
     function renderExtraCards() {
       if (!hiddenBossImagesReady()) return;
       ensurePiles(currentApostle);
+      const hiddenExtraCardSrcs = hiddenExtraCardKeySet();
       if (currentApostle === "HELIOS") {
         extraGrid.replaceChildren();
         window.HeliosConfig.extras(heliosMode()).forEach((card) => {
@@ -6680,6 +6879,7 @@
       if (currentApostle === "BLACKBEAK") {
         extraGrid.replaceChildren();
         (window.BlackbeakCardList?.extraCards || []).forEach((card) => {
+          if (hiddenExtraCardSrcs.has(card.src)) return;
           const img = imageOrMessage(card.src, card.label);
           img.dataset.frontSrc = window.HeliosAssets.resolve(card.src);
           img.dataset.backSrc = card.backSrc ? window.HeliosAssets.resolve(card.backSrc) : "";
@@ -6706,7 +6906,8 @@
 
       extraGrid.replaceChildren();
 
-      if (currentApostle === "TITAN_X" && piles.TITAN_X?.special?.titanX?.group) {
+      if (currentApostle === "TITAN_X" && piles.TITAN_X?.special?.titanX?.group
+        && !hiddenExtraCardSrcs.has(window.TitanXGroupConfig.trait.src)) {
         const card = window.TitanXGroupConfig.trait;
         const img = imageOrMessage(card.src, card.label);
         img.dataset.frontSrc = window.HeliosAssets.resolve(card.src);
@@ -6718,6 +6919,7 @@
       }
 
       const selectedTraitKeys = selectedTraitKeySet();
+      const hiddenTraitKeys = hiddenTraitKeySet();
 
       piles[currentApostle].traits.forEach((card) => {
         const imageClass = isLargeTraitCard(currentApostle, card) ? "panel-image" : "";
@@ -6738,6 +6940,8 @@
           if (isNietzscheAllForOneLegacyTrait(currentApostle, level, index)) continue;
           traitProbeExtensions.forEach((ext) => {
             if (selectedTraitKeys.has(traitKey(level, index, ext, ""))) return;
+            // 玩家取消过的默认特性不再自动显示。
+            if (hiddenTraitKeys.has(traitKey(level, index, ext, ""))) return;
             const card = { level, index, ext };
             candidates.push({
               src: traitSrc(currentApostle, level, index, ext),
@@ -6751,10 +6955,10 @@
       ["AI", "BP"].forEach((type) => {
         ["O", "X"].forEach((level) => {
           for (let i = 1; i <= 12; i++) {
-            candidates.push({
-              src: `${base}/${numberedName(currentApostle, type, level, i)}`,
-              alt: numberedName(currentApostle, type, level, i)
-            });
+            const src = `${base}/${numberedName(currentApostle, type, level, i)}`;
+            // 玩家在 Trait 选择里取消过的额外卡不再自动显示。
+            if (hiddenExtraCardSrcs.has(src)) continue;
+            candidates.push({ src, alt: numberedName(currentApostle, type, level, i) });
           }
         });
       });
@@ -6862,10 +7066,13 @@
     }
 
     function hasManualPanelState() {
-      return isNietzsche() || isCyclonus();
+      return isNietzsche() || isCyclonus() || isLabyrinthTrackApostle();
     }
 
     function currentPanelState() {
+      if (isLabyrinthTrackApostle()) {
+        return labyrinthTrackState();
+      }
       if (isChimera()) {
         return chimeraPhaseStates[piles[currentApostle]?.chimeraPhase] || null;
       }
@@ -6882,11 +7089,12 @@
       const state = currentPanelState();
       nietzscheStateButton.classList.toggle("hidden", !hasManualPanelState());
       if (state) {
-        nietzscheStateButton.textContent = `切换状态：${state.label}`;
+        nietzscheStateButton.textContent = state.buttonLabel || `切换状态：${state.label}`;
       }
 
       if (marker) {
         marker.classList.toggle("chimera-state-marker", isChimera());
+        marker.classList.toggle("labyrinth-track-marker", isLabyrinthTrackApostle());
         if (!state) {
           marker.classList.remove("show");
           return;
@@ -6897,7 +7105,7 @@
         marker.style.setProperty("--marker-height", state.height || "64px");
         marker.textContent = "";
         marker.dataset.label = state.label;
-        marker.title = `${state.label}，点击切换到下个状态`;
+        marker.title = state.hint || `${state.label}，点击切换到下个状态`;
         marker.classList.toggle("show", hasPanelState());
       }
     }
@@ -7701,7 +7909,8 @@
       const tokenLayer = document.createElement("div");
       tokenLayer.className = "panel-token-layer";
 
-      if (name === nietzscheName || name === cyclonusName || name === chimeraName) {
+      if (name === nietzscheName || name === cyclonusName || name === chimeraName
+        || isLabyrinthTrackApostle(name)) {
         const marker = document.createElement("button");
         marker.type = "button";
         marker.className = "panel-state-marker";
@@ -7770,6 +7979,16 @@
 
     function cycleNietzscheState() {
       if (!hasManualPanelState()) return;
+      if (isLabyrinthTrackApostle()) {
+        // 大迷宫指示物：顺时针 = 数组顺序 +1，走到头回到最上方那格。
+        const track = labyrinthTrackFor();
+        const index = ((labyrinthTrackIndexes[currentApostle] || 0) + 1) % track.cells.length;
+        labyrinthTrackIndexes[currentApostle] = index;
+        localStorage.setItem(labyrinthTrackStorageKey(), String(index));
+        updateNietzscheStateUi(panelWrap.querySelector(".panel-state-marker"));
+        scheduleSecondScreenSnapshot();
+        return;
+      }
       if (isCyclonus()) {
         cyclonusStateIndex = (cyclonusStateIndex + cyclonusStates.length - 1) % cyclonusStates.length;
         localStorage.setItem(cyclonusStateKey, String(cyclonusStateIndex));
@@ -7855,7 +8074,6 @@
       const base = `ps/${name}`;
       renderApostleTitle();
       traitButton.hidden = name === "HELIOS";
-      folderPath.textContent = base;
       if (window.location.hash !== `#${name}`) {
         history.replaceState(null, "", `#${name}`);
       }
@@ -8433,7 +8651,7 @@
     customTokenCloseButton.addEventListener("click", () => customTokenDialog.close());
     customTokenText.addEventListener("input", () => customTokenText.setCustomValidity(""));
     traitCloseButton.addEventListener("click", () => traitDialog.close());
-    traitClearButton.addEventListener("click", clearTraitSelection);
+    traitRestoreButton.addEventListener("click", restoreDefaultTraits);
     traitSaveButton.addEventListener("click", saveTraitSelection);
     traitCustomButton.addEventListener("click", () => openCustomTraitDialog());
     customTraitForm.addEventListener("submit", saveCustomTrait);

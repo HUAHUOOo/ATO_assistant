@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Rebuild a complete .atopack from a prior full pack and project overlays."""
+"""Rebuild a complete .atopack from a prior full pack and project overlays.
+
+混合媒体素材（``story/assets/mixed-media/``）：按「工程覆盖目录 → 素材库副本 → 底包成员」
+的顺序取 ``mapping.js`` 与 ``images/c1..c5/*.png|.svg``。这三处都没有就不写
+``mixedMediaFiles`` 段，并在 stdout 明确提示——**这是已知缺口，不会静默漏**：需要这条段
+的包请先用素材库导入一份带该段的 .atopack（``--bgm-library`` 指向该素材库）再重跑。
+"""
 from __future__ import annotations
 
 import argparse
@@ -22,6 +28,7 @@ from app.bgm_resources import allowed_target as is_bgm_target  # noqa: E402
 from app.icon_resources import add_to_archive as add_icon_to_archive  # noqa: E402
 from app.cryptic_resources import add_to_archive as add_cryptic_to_archive  # noqa: E402
 from app.cryptic_resources import allowed_target as is_cryptic_target  # noqa: E402
+from app.mixed_media_resources import add_to_archive as add_mixed_media_to_archive  # noqa: E402
 from app.official_resources import add_to_archive
 from app.official_assets import resolve as resolve_official_asset  # noqa: E402
 from app.fixed_catalog import fixed_catalog_payload  # noqa: E402
@@ -41,7 +48,7 @@ def copy_stream(source, destination, digest) -> None:
 def update_full_pack(
     base_pack: Path, destination: Path, overlay_root: Path,
     bgm_library: Path | None = None, include_official_scans: bool = False,
-    include_cryptic: bool = True,
+    include_cryptic: bool = True, include_mixed_media: bool = True,
 ) -> dict:
     if base_pack == destination:
         raise ValueError("输出资料包不能覆盖输入资料包")
@@ -70,6 +77,7 @@ def update_full_pack(
     bgm_count = 0
     icon_count = 0
     cryptic_count = 0
+    mixed_media_count = 0
     try:
         with zipfile.ZipFile(base_pack) as source_zip:
             source_manifest = json.loads(source_zip.read("manifest.json").decode("utf-8"))
@@ -195,9 +203,24 @@ def update_full_pack(
                     cryptic_count = add_cryptic_to_archive(
                         output_zip, manifest, overlay_root, fallback_library=bgm_library
                     )
+                # 混合媒体（私有映射表 + 书籍裁图）：先工程覆盖目录，再素材库副本，
+                # 最后看底包里有没有（底包可能是带 mixedMediaFiles 段的资料包）。
+                if include_mixed_media:
+                    mixed_media_count = add_mixed_media_to_archive(
+                        output_zip, manifest, overlay_root, fallback_library=bgm_library,
+                        fallback_archive=source_zip,
+                    )
+                    if not mixed_media_count:
+                        # 已知缺口：三处来源都没有这条段，明确说出来而不是静默漏掉。
+                        print(
+                            "提示：工程覆盖目录、素材库与底包里都没有混合媒体素材，"
+                            "本包不含 mixedMediaFiles 段；需要时先用素材库导入带该段的 .atopack 再重跑。",
+                            flush=True,
+                        )
                 manifest.setdefault("build", {})["audioIncluded"] = bool(bgm_count)
                 manifest["build"]["iconsIncluded"] = bool(icon_count)
                 manifest["build"]["crypticIncluded"] = bool(cryptic_count)
+                manifest["build"]["mixedMediaIncluded"] = bool(mixed_media_count)
                 output_zip.writestr(
                     "manifest.json",
                     json.dumps(manifest, ensure_ascii=False, separators=(",", ":")),
@@ -231,6 +254,7 @@ def update_full_pack(
         "bgm_files": bgm_count,
         "icon_files": icon_count,
         "cryptic_files": cryptic_count,
+        "mixed_media_files": mixed_media_count,
         "bytes": destination.stat().st_size,
     }
 
@@ -246,7 +270,7 @@ def main() -> None:
     parser.add_argument(
         "--bgm-library",
         type=Path,
-        help="工程目录里没有音频 / 界面图标 / 密语字形时，从这里（素材库目录）读取已导入的副本",
+        help="工程目录里没有音频 / 界面图标 / 密语字形 / 混合媒体素材时，从这里（素材库目录）读取已导入的副本",
     )
     parser.add_argument(
         "--include-official-scans",
@@ -256,6 +280,10 @@ def main() -> None:
              "默认不打包截图，只带官方故事书正文数据。",
     )
     parser.add_argument("--no-cryptic", action="store_true", help="不带密语字形")
+    parser.add_argument(
+        "--no-mixed-media", action="store_true",
+        help="不带混合媒体素材（story/assets/mixed-media/ 下的映射表与裁图）",
+    )
     args = parser.parse_args()
     result = update_full_pack(
         args.base_pack.expanduser().resolve(),
@@ -264,6 +292,7 @@ def main() -> None:
         args.bgm_library.expanduser().resolve() if args.bgm_library else None,
         args.include_official_scans,
         not args.no_cryptic,
+        not args.no_mixed_media,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2), flush=True)
 

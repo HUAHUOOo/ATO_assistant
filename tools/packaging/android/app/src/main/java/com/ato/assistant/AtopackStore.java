@@ -45,6 +45,18 @@ final class AtopackStore {
   private static final int MAX_ICON_FILES = 256;
   private static final long MAX_CRYPTIC_BYTES = 128L * 1024;
   private static final int MAX_CRYPTIC_FILES = 256;
+  // 混合媒体（私有映射表 + 书籍裁图）：上限与 asset-studio/app/mixed_media_resources.py 一致——
+  // mapping.js 单份 ≤ 32MB，单张裁图 ≤ 8MB，成员总数 ≤ 2048 + 1（映射表一份）。
+  // 两个字节上限分开写：合成一个 32MB 会把裁图的上限放宽 4 倍，合成一个 8MB 又会拒掉
+  // 实测约 12MB 的映射表，都不安全。
+  private static final long MAX_MIXED_MEDIA_MAPPING_BYTES = 32L * 1024 * 1024;
+  private static final long MAX_MIXED_MEDIA_IMAGE_BYTES = 8L * 1024 * 1024;
+  private static final int MAX_MIXED_MEDIA_FILES = 2048 + 1;
+  // 与渲染器 story/assets/mixed-media/renderer.js 的 pathOK 逐字一致（小写名、不含点、
+  // 后缀小写）；mapping.js 是这条通道里唯一允许的非图片目标。
+  private static final String MIXED_MEDIA_MAPPING = "story/assets/mixed-media/mapping.js";
+  private static final String MIXED_MEDIA_IMAGE_PATTERN =
+      "story/assets/mixed-media/images/c[1-5]/[a-z0-9][a-z0-9_-]*\\.(?:png|svg)";
   private static final int MAX_ASSETS = 20_000;
   // Match Asset Studio's archive limits, including members outside known sections.
   private static final long MAX_MEMBER_BYTES = 128L * 1024 * 1024;
@@ -315,6 +327,42 @@ final class AtopackStore {
           }
           try { installBlob(archive, entry, sha256, resource, MAX_CRYPTIC_BYTES, transaction); }
           catch (InvalidPackEntry invalid) { stats.skipCryptic(target, invalid.getMessage()); continue; }
+          next.put(target, new ResourceEntry(sha256, safeMime(resource.optString("mimeType"), target)));
+        }
+      }
+      // 混合媒体：APK 不带私有映射表与书籍裁图（它们是 .gitignore 里的本机素材），随资料包的
+      // mixedMediaFiles 段解包到 web 根目录的 story/assets/mixed-media/，故事书按相对路径
+      // ./assets/mixed-media/images/c1/<名称>.png 取用；mapping.js 也在同一棵子树里。
+      JSONArray mixedMediaFiles = manifest.optJSONArray("mixedMediaFiles");
+      if (mixedMediaFiles != null) {
+        if (mixedMediaFiles.length() > MAX_MIXED_MEDIA_FILES) throw new IOException("混合媒体文件数量超过限制");
+        for (int index = 0; index < mixedMediaFiles.length(); index++) {
+          JSONObject resource = mixedMediaFiles.optJSONObject(index);
+          if (resource == null) { stats.skipMixedMedia("", "混合媒体条目不是对象"); continue; }
+          String target;
+          String sha256;
+          try {
+            target = safePath(resource.optString("target"), "混合媒体路径");
+            sha256 = validSha256(resource.optString("sha256"));
+          } catch (IOException invalid) { stats.skipMixedMedia(resource.optString("target"), invalid.getMessage()); continue; }
+          boolean mapping = MIXED_MEDIA_MAPPING.equals(target);
+          if (!mapping && !target.matches(MIXED_MEDIA_IMAGE_PATTERN)) {
+            stats.skipMixedMedia(target, "混合媒体目标路径不受支持");
+            continue;
+          }
+          if (!target.equals(resource.optString("member"))) { stats.skipMixedMedia(target, "成员路径与混合媒体目标不一致"); continue; }
+          long maximum = mapping ? MAX_MIXED_MEDIA_MAPPING_BYTES : MAX_MIXED_MEDIA_IMAGE_BYTES;
+          ZipArchiveEntry entry = findEntry(archive, target, resource);
+          if (entry == null || entry.isDirectory() || entry.getSize() < 0 || entry.getSize() > maximum) {
+            stats.skipMixedMedia(target, "混合媒体成员缺失、无效或超过大小限制");
+            continue;
+          }
+          if (resource.has("bytes") && resource.optLong("bytes", -1) != entry.getSize()) {
+            stats.skipMixedMedia(target, "混合媒体声明大小与成员不一致");
+            continue;
+          }
+          try { installBlob(archive, entry, sha256, resource, maximum, transaction); }
+          catch (InvalidPackEntry invalid) { stats.skipMixedMedia(target, invalid.getMessage()); continue; }
           next.put(target, new ResourceEntry(sha256, safeMime(resource.optString("mimeType"), target)));
         }
       }
@@ -803,10 +851,16 @@ final class AtopackStore {
   private static final class ImportStats {
     int skipped;
     final JSONArray crypticSkipped = new JSONArray();
+    final JSONArray mixedMediaSkipped = new JSONArray();
 
     void skipCryptic(String target, String reason) throws JSONException {
       skipped++;
       crypticSkipped.put(new JSONObject().put("target", target).put("reason", reason));
+    }
+
+    void skipMixedMedia(String target, String reason) throws JSONException {
+      skipped++;
+      mixedMediaSkipped.put(new JSONObject().put("target", target).put("reason", reason));
     }
   }
 
@@ -821,6 +875,7 @@ final class AtopackStore {
     final int totalResources;
     final int skipped;
     final JSONArray crypticSkipped;
+    final JSONArray mixedMediaSkipped;
 
     ImportResult(int assets, int books, boolean entityIndex, int totalResources, ImportStats stats) {
       this.assets = assets;
@@ -829,12 +884,14 @@ final class AtopackStore {
       this.totalResources = totalResources;
       this.skipped = stats.skipped;
       this.crypticSkipped = stats.crypticSkipped;
+      this.mixedMediaSkipped = stats.mixedMediaSkipped;
     }
 
     JSONObject toJson() throws JSONException {
       return new JSONObject().put("ok", true).put("assets", assets).put("books", books)
         .put("entityIndex", entityIndex).put("totalResources", totalResources).put("skipped", skipped)
-        .put("cryptic_skipped", crypticSkipped.length()).put("cryptic_warnings", crypticSkipped);
+        .put("cryptic_skipped", crypticSkipped.length()).put("cryptic_warnings", crypticSkipped)
+        .put("mixed_media_skipped", mixedMediaSkipped.length()).put("mixed_media_warnings", mixedMediaSkipped);
     }
   }
 

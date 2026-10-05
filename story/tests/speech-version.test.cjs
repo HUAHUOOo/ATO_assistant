@@ -8,6 +8,7 @@ const source = fs.readFileSync(path.join(__dirname, "../assets/app.js"), "utf8")
 function setup(overrides = {}) {
   const context = vm.createContext({
     storyVersion: "民间版", activeSpeechToken: 0,
+    window: {}, storyText: {},
     currentBook: () => ({ id: "c1" }),
     officialEntries: new Map([["c1:entry", { officialText: "官方正文" }]]),
     storyAudioManifest: { entries: { entry: { chunks: [{ path: "fan.mp3" }] } } },
@@ -19,7 +20,7 @@ function setup(overrides = {}) {
     pushTtsStatus: text => { context.status = text; },
     ...overrides,
   });
-  for (const name of ["supportsOfficialVersion", "getSpeechEntryText", "cachedAudioForEntry", "speakEntry"]) {
+  for (const name of ["mixedMediaRuntime", "mixedMediaContext", "supportsOfficialVersion", "getSpeechEntryText", "cachedAudioForEntry", "speakEntry"]) {
     const start = source.search(new RegExp(`  (?:async )?function ${name}\\(`));
     assert.ok(start >= 0);
     const end = source.indexOf("\n  }", start) + 4;

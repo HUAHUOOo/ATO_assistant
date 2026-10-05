@@ -124,6 +124,11 @@ PARITY_PATHS = [
     'map/tokens/token.png',
     'record/assets/hero.png',
     'story/data/storybook-data.js',
+    'story/assets/mixed-media/mapping.js',
+    'story/assets/mixed-media/images/c4/local.png',
+    'Story/Assets/Mixed-Media/Images/C5/Nested/local.png',
+    'story/assets/mixed-media/renderer.js',
+    'story/assets/mixed-media/styles.css',
     'story/audio-packs/audio/manifest.js',
     'supplements/x.bin',
     'keep.bak',
@@ -208,6 +213,34 @@ class ExclusionParityTest(unittest.TestCase):
             self.assertTrue(loopback[address], address)
         for address in ('192.168.1.7', '10.0.0.5', '::ffff:192.168.1.7', '', 'localhost'):
             self.assertFalse(loopback[address], address)
+
+
+class MixedMediaExportTest(unittest.TestCase):
+    def test_materials_are_private_but_runtime_is_shippable(self):
+        for path in ('story/assets/mixed-media/mapping.js',
+                     'story/assets/mixed-media/images/c4/local.png',
+                     'STORY/ASSETS/MIXED-MEDIA/IMAGES/C5/local.png'):
+            self.assertTrue(package_common.excluded(Path(path)), path)
+        for path in ('story/assets/mixed-media/renderer.js',
+                     'story/assets/mixed-media/styles.css'):
+            self.assertFalse(package_common.excluded(Path(path)), path)
+
+    def test_export_audit_rejects_materials_even_if_copy_filter_is_bypassed(self):
+        stage = (ROOT / 'tmp' / ('mixed-media-audit-' + uuid.uuid4().hex)).resolve()
+        self.assertEqual(stage.parent, (ROOT / 'tmp').resolve())
+        stage.mkdir(parents=True)
+        self.addCleanup(lambda: shutil.rmtree(stage))
+        shutil.copyfile(ROOT / 'LICENSE', stage / 'LICENSE')
+        runtime = stage / 'story/assets/mixed-media'
+        runtime.mkdir(parents=True)
+        (runtime / 'renderer.js').write_text('// test runtime', encoding='utf-8')
+        package_common.audit_export_tree(stage)
+        for path in (runtime / 'mapping.js', runtime / 'images/c4/local.png'):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b'private test material')
+            with self.assertRaisesRegex(RuntimeError, '本地故事混排素材'):
+                package_common.audit_export_tree(stage)
+            path.unlink()
 
 
 class AppUpdateTest(unittest.TestCase):

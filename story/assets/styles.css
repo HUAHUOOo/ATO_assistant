@@ -931,6 +931,49 @@ h2 {
   background: rgba(255, 255, 255, 0.35);
 }
 
+/* 正文里的管道表格（原书排版遗留，见 assets/story-tables.js）。
+   结构必须是字符保真的 span：竖线与分隔行只是隐藏，不能删除，否则混排按字符偏移插图会失败。 */
+.story-table {
+  display: table;
+  width: 100%;
+  margin: 12px 0 16px;
+  border-collapse: collapse;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.6);
+  font-size: 16px;
+  white-space: normal;
+}
+
+
+.story-table-row {
+  display: table-row;
+}
+
+.story-table-cell {
+  display: table-cell;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.story-table-head {
+  background: rgba(42, 84, 123, 0.12);
+  color: var(--accent-strong);
+  font-weight: 800;
+}
+
+.story-table-row:not(.story-table-sep-row):nth-child(even) .story-table-cell {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.story-table-bar,
+.story-table-sep,
+.story-table-sep-row {
+  display: none;
+}
+
 .battle-subheading {
   margin: 32px 0 14px;
   padding-bottom: 8px;

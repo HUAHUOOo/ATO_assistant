@@ -24,6 +24,10 @@ from .cryptic_resources import import_resources as import_cryptic_resources
 from .cryptic_resources import allowed_target as is_cryptic_target
 from .cryptic_resources import MAX_FILES as MAX_CRYPTIC_FILES
 from .cryptic_resources import MAX_FILE_BYTES as MAX_CRYPTIC_BYTES
+from .mixed_media_resources import add_to_archive as add_mixed_media_to_archive
+from .mixed_media_resources import checked_bytes as mixed_media_checked_bytes
+from .mixed_media_resources import import_resources as import_mixed_media_resources
+from .mixed_media_resources import MAX_FILES as MAX_MIXED_MEDIA_FILES
 from .official_assets import resolve as resolve_official_asset
 from .official_resources import LIBRARY, collect, add_to_archive, checked_bytes, import_resources
 from .db import Database
@@ -222,6 +226,8 @@ def export_package(
         if filters.get("include_cryptic", True):
             add_cryptic_to_archive(archive, manifest, ato_root, fallback_library=library,
                                   fallback_files=lambda present: _legacy_cryptic_files(legacy_cryptic_rows, library, present))
+        if filters.get("include_mixed_media", True):
+            add_mixed_media_to_archive(archive, manifest, ato_root, fallback_library=library)
         archive.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
     return {
         "path": str(destination),
@@ -231,6 +237,7 @@ def export_package(
         "bgm_files": len(manifest.get("bgmFiles", [])),
         "icon_files": len(manifest.get("iconFiles", [])),
         "cryptic_files": len(manifest.get("crypticFiles", [])),
+        "mixed_media_files": len(manifest.get("mixedMediaFiles", [])),
         "bytes": destination.stat().st_size,
     }
 
@@ -353,6 +360,20 @@ def inspect_package(
                                          "reason": str(error)})
                 continue
             cryptic_files.append(resource)
+        mixed_media_files = []
+        mixed_media_warnings = []
+        for index, resource in enumerate(manifest.get("mixedMediaFiles", []) or []):
+            try:
+                if index >= MAX_MIXED_MEDIA_FILES:
+                    raise ValueError(f"混合媒体文件数量超过 {MAX_MIXED_MEDIA_FILES} 个上限")
+                if not isinstance(resource, dict):
+                    raise ValueError("混合媒体清单条目格式无效")
+                mixed_media_checked_bytes(archive, resource)
+            except (ValueError, KeyError, TypeError, OSError, zipfile.BadZipFile, zlib.error, EOFError) as error:
+                mixed_media_warnings.append({"target": str(resource.get("target") or "") if isinstance(resource, dict) else "",
+                                             "reason": str(error)})
+                continue
+            mixed_media_files.append(resource)
         entity_summary = _inspect_story_files(archive, manifest, names, verify_hashes, library)
         if int(manifest.get("version", 0)) >= 2 and incoming_books and not entity_summary["included"]:
             raise ValueError("新版资料包含有故事，但没有人物小传索引")
@@ -368,6 +389,10 @@ def inspect_package(
         "cryptic_skipped": len(cryptic_warnings),
         "cryptic_warnings": cryptic_warnings,
         "valid_cryptic_files": cryptic_files,
+        "mixed_media_files": len(mixed_media_files),
+        "mixed_media_skipped": len(mixed_media_warnings),
+        "mixed_media_warnings": mixed_media_warnings,
+        "valid_mixed_media_files": mixed_media_files,
         "manifest": manifest,
     }
 
@@ -486,6 +511,7 @@ def import_package(
     bgm_imported = 0
     icon_imported = 0
     cryptic_imported = 0
+    mixed_media_imported = 0
     try:
         with zipfile.ZipFile(package) as archive:
             for index, asset in enumerate(pending, 1):
@@ -537,6 +563,9 @@ def import_package(
                 cryptic_imported = import_cryptic_resources(
                     archive, {"crypticFiles": inspection["valid_cryptic_files"]}, library, replace
                 )
+                mixed_media_imported = import_mixed_media_resources(
+                    archive, {"mixedMediaFiles": inspection["valid_mixed_media_files"]}, library, replace
+                )
                 for story_file in manifest.get("storyFiles", []):
                     if story_file.get("kind") != ENTITY_INDEX_KIND:
                         continue
@@ -583,6 +612,9 @@ def import_package(
         "cryptic_imported": cryptic_imported,
         "cryptic_skipped": inspection["cryptic_skipped"],
         "cryptic_warnings": inspection["cryptic_warnings"],
+        "mixed_media_imported": mixed_media_imported,
+        "mixed_media_skipped": inspection["mixed_media_skipped"],
+        "mixed_media_warnings": inspection["mixed_media_warnings"],
     }
 
 
@@ -771,6 +803,13 @@ def export_compat(
             cryptic_written = add_cryptic_to_archive(archive, cryptic_manifest, ato_root, fallback_library=library,
                                                   fallback_files=lambda present: _legacy_cryptic_files(legacy_cryptic_rows, library, present))
             written += cryptic_written
+        mixed_media_written = 0
+        if filters.get("include_mixed_media", True):
+            mixed_media_manifest: dict = {}
+            mixed_media_written = add_mixed_media_to_archive(
+                archive, mixed_media_manifest, ato_root, fallback_library=library
+            )
+            written += mixed_media_written
     return {
         "path": str(destination),
         "files": written + (3 if include_stories else 0),
@@ -779,5 +818,6 @@ def export_compat(
         "bgm_files": bgm_written,
         "icon_files": icon_written,
         "cryptic_files": cryptic_written,
+        "mixed_media_files": mixed_media_written,
         "bytes": destination.stat().st_size,
     }

@@ -121,6 +121,7 @@ final class LocalCampaignApi {
       }
       if (payload.has("battleSwapped")) settings.put("battleSwapped", payload.optBoolean("battleSwapped"));
       if (payload.has("battleBoardVisible")) settings.put("battleBoardVisible", payload.optBoolean("battleBoardVisible", true));
+      if (payload.has("theme")) settings.put("theme", normalizeTheme(payload.optJSONObject("theme")));
     }
 
     boolean enabled = settings.optBoolean("enabled");
@@ -140,6 +141,7 @@ final class LocalCampaignApi {
     put(response, "battleRotation", settings.optInt("battleRotation", 0));
     put(response, "battleSwapped", settings.optBoolean("battleSwapped"));
     put(response, "battleBoardVisible", settings.optBoolean("battleBoardVisible", true));
+    put(response, "theme", normalizeTheme(settings.optJSONObject("theme")));
     put(response, "displayMode", settings.optString("displayMode", "map"));
     put(response, "urls", new JSONArray(urls));
     // 安卓的局域网入口和这台手机共用同一个登录态（能读也能写，登录/退出只在本机做）：
@@ -219,10 +221,38 @@ final class LocalCampaignApi {
     screen.put("battleRotation", settings.optInt("battleRotation", 0));
     screen.put("battleSwapped", settings.optBoolean("battleSwapped"));
     screen.put("battleBoardVisible", settings.optBoolean("battleBoardVisible", true));
+    screen.put("theme", normalizeTheme(settings.optJSONObject("theme")));
 
     JSONObject response = ok();
     response.put("screen", screen);
     return response;
+  }
+
+  // 第二屏在另一台设备上，读不到主控台浏览器 localStorage 里的主题偏好（assets/theme.js 的
+  // ato-theme-v1），所以外观跟着第二屏设置走服务端：主控台改主题时写进来，第二屏轮询读回去。
+  // 只认 theme.js 认得的模式，颜色夹到 0-255 的整数，坏值退回默认（与 api/campaign-state.php
+  // 的 normalize_theme_setting 保持同一套规则）。
+  private static JSONObject normalizeTheme(JSONObject value) throws Exception {
+    String mode = value == null ? "" : value.optString("mode", "");
+    List<String> modes = java.util.Arrays.asList("auto", "c1", "c2", "c3", "c4", "c5", "custom");
+    JSONObject theme = new JSONObject();
+    theme.put("mode", modes.contains(mode) ? mode : "auto");
+    JSONArray rgb = value == null ? null : value.optJSONArray("rgb");
+    JSONArray channels = new JSONArray();
+    boolean valid = rgb != null && rgb.length() == 3;
+    for (int index = 0; valid && index < 3; index += 1) {
+      Object raw = rgb.opt(index);
+      if (!(raw instanceof Number)) { valid = false; break; }
+      channels.put(Math.max(0, Math.min(255, (int) Math.round(((Number) raw).doubleValue()))));
+    }
+    if (!valid) {
+      channels = new JSONArray();
+      channels.put(127);
+      channels.put(75);
+      channels.put(38);
+    }
+    theme.put("rgb", channels);
+    return theme;
   }
 
   private JSONObject userSectionState(Object section, String userId) {

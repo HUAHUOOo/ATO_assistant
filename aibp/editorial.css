@@ -5,20 +5,22 @@ aside { background: var(--bg); background: color-mix(in srgb, var(--bg) 95%, #00
 h1, h2, h3, .card-column-title { font-family: "Songti SC", "Noto Serif CJK SC", SimSun, Georgia, serif; color: var(--accent-strong); font-weight: 600; }
 #aibpTitle { display: flex; align-items: center; gap: 10px; font-size: 26px; margin-bottom: 24px; }
 #aibpTitle .cycle-symbol { width: 32px; height: 36px; object-fit: contain; }
-.title-row { flex-wrap: wrap; overflow: visible; padding-bottom: 18px; border-bottom: 1px solid var(--line); gap: 16px; }
+.title-row { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; padding-bottom: 18px; border-bottom: 1px solid var(--line); gap: 16px; }
 .title-row h2 { margin: 0; font-size: 30px; }
-.title-actions { flex: 1 1 auto; flex-wrap: wrap; gap: 8px; }
+.title-actions { flex: 0 0 auto; flex-wrap: nowrap; gap: 8px; margin-left: auto; }
 .title-actions .return-main-link { order: 10; margin-left: auto; background: var(--accent-strong); border: 1px solid var(--accent-strong); color: #fff; }
-body :is(button, select, input:not([type="checkbox"]), textarea) { border-radius: 0; border-color: var(--line); background: var(--panel); color: var(--ink); box-shadow: none; }
+/* 面板上的浮层控件（状态框 / 暴击槽 / 换大卡）与决战版图上的地形板块都自带配色、
+ * 直接画在卡图或版图上，不能套用这套按钮外观。 */
+body :is(button, select, input:not([type="checkbox"]), textarea):not(.panel-state-marker):not(.critical-mass-slot):not(.panel-card-switch):not(.battle-map-terrain) { border-radius: 0; border-color: var(--line); background: var(--panel); color: var(--ink); box-shadow: none; }
 body input[type="checkbox"] { accent-color: var(--accent); }
 body :is(button, a, select, input, textarea):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-body button:not(:disabled):not(.panel-state-marker):hover { background: var(--accent-soft); border-color: var(--accent); transform: none; }
+body button:not(:disabled):not(.panel-state-marker):not(.critical-mass-slot):not(.panel-card-switch):not(.battle-map-terrain):hover { background: var(--accent-soft); border-color: var(--accent); transform: none; }
 .sidebar-toggle { background: var(--panel); color: var(--accent-strong); border-color: var(--line); }
 body:not(.sidebar-collapsed) .sidebar-toggle { left: 212px; top: 24px; }
 .title-actions .return-main-link { border-radius: 0; }
 .title-actions .return-main-link:hover { background: var(--accent); color: #fff; }
-.apostle-title, .map-faction-status { flex-wrap: wrap; white-space: normal; }
-.apostle-title { flex: 1 1 auto; }
+.apostle-title, .map-faction-status { flex-wrap: nowrap; white-space: nowrap; }
+.apostle-title { flex: 0 0 auto; }
 .map-faction-chip { white-space: normal; }
 .nav { gap: 0; }
 .nav button { border: 0; border-bottom: 1px solid var(--line); padding: 12px 10px; }
@@ -103,7 +105,8 @@ body .trait-dialog { max-height: min(760px, calc(100dvh - 32px)); overflow: hidd
 }
 @media (max-width: 760px) {
   body:not(.sidebar-collapsed) .sidebar-toggle { left: auto; right: 16px; }
-  .title-actions { flex-basis: 100%; }
+  .title-row { flex-wrap: wrap; overflow: visible; }
+  .title-actions { flex-basis: 100%; flex-wrap: wrap; margin-left: 0; }
   .card-column { padding: 12px; }
   .title-row h2 { font-size: 25px; }
 }

@@ -100,6 +100,9 @@ function ato_update_path_excluded(string $relative): bool
     if (in_array($parts[0], ATO_UPDATE_BLOCKED_TOP, true)) return true;
     if (ato_update_is_bgm_media($parts)) return true;
     if (ato_update_is_icon_media($parts)) return true;
+    // Optional source excerpts and original book crops stay local on updates.
+    if (count($parts) >= 4 && implode('/', array_slice($parts, 0, 3)) === 'story/assets/mixed-media'
+        && in_array($parts[3], ['mapping.js', 'images'], true)) return true;
 
     $leaf = $parts[count($parts) - 1];
     if (in_array($leaf, ATO_UPDATE_BLOCKED_LEAVES, true)) return true;

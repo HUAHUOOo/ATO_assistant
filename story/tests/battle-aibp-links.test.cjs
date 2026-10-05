@@ -191,19 +191,51 @@ test("existing C1-C3 mappings remain available", () => {
   }
 });
 
-test("C5 translated battle links stay outside the collapsed source section", () => {
+test("C5 translated entries use the ordinary layout: no AI title, notice, English text or book images", () => {
+  // 1) 判定函数：C5 走普通排版，其它册不走。
+  const predicateStart = appSource.indexOf("  function translatedSupplementUsesPlainLayout(entry) {");
+  const predicateEnd = appSource.indexOf("\n  }", predicateStart) + 4;
+  assert.notEqual(predicateStart, -1, "translatedSupplementUsesPlainLayout is missing");
+  const usesPlainLayout = vm.runInNewContext(
+    `${appSource.slice(predicateStart, predicateEnd)}; usesPlainLayout = translatedSupplementUsesPlainLayout;`,
+    {}
+  );
+  assert.equal(usesPlainLayout({ bookId: "c5", key: "c5-supplement-86" }), true, "C5 翻译条目走普通排版");
+  assert.equal(usesPlainLayout({ key: "c5-supplement-86" }), true, "只有 key 时也能判出 C5");
+  assert.equal(usesPlainLayout({ bookId: "c6", key: "c6-supplement-1" }), false, "其它册仍用旧版式");
+  assert.equal(usesPlainLayout({ key: "c4-0-1" }), false, "C4 不受影响");
+
+  // 2) renderStory 的分支：C5 翻译条目不再进 renderAiTranslatedSupplement，也不挂图库；
+  //    战斗条目单独补 AIBP 入口。
+  const renderStoryStart = appSource.indexOf("  function renderStory(entry) {");
+  const renderStoryEnd = appSource.indexOf("  function activeOfficialScan(", renderStoryStart);
+  assert.notEqual(renderStoryStart, -1, "renderStory is missing");
+  const renderStorySource = appSource.slice(renderStoryStart, renderStoryEnd);
+  assert.match(renderStorySource, /const plainLayoutSupplement = isTranslatedSupplement && translatedSupplementUsesPlainLayout\(displayEntry\)/,
+    "renderStory 应当识别「C5 走普通排版」");
+  assert.match(renderStorySource, /const imagesHtml = plainLayoutSupplement\s*\?\s*""/, "C5 翻译条目不再挂原书图片");
+  assert.match(renderStorySource, /isTranslatedSupplement && !plainLayoutSupplement\s*\?\s*renderAiTranslatedSupplement/,
+    "只有非 C5 的翻译条目才走旧版式渲染器");
+  assert.match(renderStorySource, /plainLayoutSupplement && displayEntry\.chapterKey === "battle"\s*\?\s*battleAibpLink\(displayEntry\)/,
+    "C5 战斗翻译条目仍保留 AIBP 入口");
+
+  // 3) 旧版式渲染器（留给其它册）保持原样：提醒 + 英文原文 + 扫描页。
   const renderStart = appSource.indexOf("  function renderAiTranslatedSupplement(entry, imagesHtml) {");
   const renderEnd = appSource.indexOf("  function entryBookId(entry) {", renderStart);
   assert.notEqual(renderStart, -1, "translated supplement renderer is missing");
-  assert.notEqual(renderEnd, -1, "translated supplement renderer boundary is missing");
-
   const renderAiTranslatedSupplement = vm.runInNewContext(`
     (() => {
+      ${['mixedMediaRuntime', 'renderMixedStoryText', 'storyTablesRender'].map(name => {
+        const start = appSource.indexOf(`  function ${name}(`);
+        const end = appSource.indexOf('\n  }', start) + 4;
+        return appSource.slice(start, end);
+      }).join('\n')}
       ${appSource.slice(renderStart, renderEnd)}
       return renderAiTranslatedSupplement;
     })()
   `, {
     battleAibpLink,
+    window: {},
     currentBook: () => ({ id: "c5", entries: [] }),
     escapeHtml: (value) => String(value),
     linkify: (value) => String(value),
@@ -215,15 +247,10 @@ test("C5 translated battle links stay outside the collapsed source section", () 
   const entry = c5Book.entries.find(
     (candidate) => candidate.id === "dragon-of-phobos-battle"
   );
-  const html = renderAiTranslatedSupplement(entry, '<img src="page-174.jpg">');
-  const linkIndex = html.indexOf("../aibp/index.html#DRAGON_OF_PHOBOS");
-  const detailsIndex = html.indexOf('<details class="source-original">');
-
-  assert.ok(linkIndex >= 0, "C5 AIBP link should be rendered");
-  assert.ok(linkIndex < detailsIndex, "C5 AIBP link should be visible before the collapsed source section");
-  assert.doesNotMatch(
-    html.slice(detailsIndex),
-    /battle-aibp-button/,
-    "collapsed source section should not contain the AIBP button"
-  );
+  const otherBook = { ...entry, bookId: "c6", key: `c6-${entry.key}` };
+  const untouched = renderAiTranslatedSupplement(otherBook, '<img src="page-174.jpg">');
+  assert.match(untouched, /ai-translation-notice/, "非 C5 仍保留 AI 翻译提醒");
+  assert.match(untouched, /source-original-text/, "非 C5 仍保留英文原文");
+  assert.match(untouched, /page-174\.jpg/, "非 C5 仍保留扫描页");
+  assert.ok(untouched.includes("../aibp/index.html#DRAGON_OF_PHOBOS"), "非 C5 仍保留 AIBP 入口");
 });

@@ -6,7 +6,7 @@ const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, '../aibp/index.html'), 'utf8').replace(/\r\n/g, '\n');
 const context = vm.createContext({ nietzscheName: 'THE_NIETZSCJEAN' });
-for (const name of ['traitFileName', 'traitSrc', 'syncNietzscheAllForOneTrait', 'isNietzscheAllForOneLegacyTrait']) {
+for (const name of ['traitFileName', 'traitSrc', 'traitKey', 'syncNietzscheAllForOneTrait', 'isNietzscheAllForOneLegacyTrait']) {
   const match = source.match(new RegExp(`^    function ${name}\\([^]*?^    }`, 'm'));
   assert.ok(match, `${name} exists`);
   vm.runInContext(match[0], context);
@@ -29,5 +29,16 @@ test('What Are You? adds Trait O once, regardless of apostle level', () => {
   assert.equal(state.traits[0].level, 'O');
   assert.equal(state.traits[0].index, 2);
   assert.equal(context.syncNietzscheAllForOneTrait(state, 'what-are-you'), false);
+  assert.equal(state.traits.length, 1);
+});
+
+test('a cancelled default trait is not added back by the setup sync', () => {
+  const key = context.traitKey('O', 2, 'jpg', '');
+  const state = { traits: [], hiddenTraits: [key] };
+  assert.equal(context.syncNietzscheAllForOneTrait(state, 'what-are-you'), false);
+  assert.equal(state.traits.length, 0);
+  // 重新勾选后（hiddenTraits 里去掉这条）setup 同步恢复原来的行为。
+  state.hiddenTraits = [];
+  assert.equal(context.syncNietzscheAllForOneTrait(state, 'what-are-you'), true);
   assert.equal(state.traits.length, 1);
 });

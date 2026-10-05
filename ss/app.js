@@ -1,3 +1,10 @@
+// Runtime and optional material packs have independent versions.
+function mixedMediaRuntime() {
+  const api = window.ATO_MIXED_MEDIA;
+  const required = ["renderHTML", "renderInto", "sectionRenderer", "enhanceHTML", "mount", "dispose", "close", "speechText"];
+    return api && api.schema === 1 && required.every(name => typeof api[name] === "function") ? api : null;
+}
+
 // 第二屏的网址由 api/campaign-state.php 的 second_screen_urls() 生成，里面带着开启
 // 第二屏时生成的随机 token（?token=…）。服务端只认这个 token：匿名直接请求接口不再
 // 返回存档内容。这里从自己的网址里把它取出来，之后每次请求都附上（#hash 也接受一份，
@@ -43,6 +50,7 @@ const elements = {
   battleTerrainCardCount: document.querySelector("#battleTerrainCardCount"),
   bossPanel: document.querySelector("#bossPanel"),
   bossTokens: document.querySelector("#bossTokens"),
+  bossLabyrinthTrack: document.querySelector("#bossLabyrinthTrack"),
   bossRoutine: document.querySelector("#bossRoutine"),
   bossSignature: document.querySelector("#bossSignature"),
   supportCards: document.querySelector(".support-cards"),
@@ -63,6 +71,7 @@ let retryTimer = null;
 let battleRenderKey = "";
 let storyRenderKey = "";
 let storyRendered = false;
+let latestStoryScreen = null;
 let activeMode = "map";
 let latestBattleScale = 1;
 let latestBattleRotation = 0;
@@ -299,6 +308,7 @@ function applyBattleLayout(
 }
 
 function showUnavailable(message = "") {
+  mixedMediaRuntime()?.close?.();
   activeMode = "unavailable";
   elements.unavailableView.hidden = false;
   elements.unavailableMessage.textContent = message;
@@ -309,6 +319,7 @@ function showUnavailable(message = "") {
 }
 
 function openBlank() {
+  mixedMediaRuntime()?.close?.();
   activeMode = "blank";
   elements.unavailableView.hidden = true;
   elements.mapStage.hidden = true;
@@ -318,6 +329,7 @@ function openBlank() {
 }
 
 function openMap() {
+  mixedMediaRuntime()?.close?.();
   activeMode = "map";
   elements.unavailableView.hidden = true;
   elements.storyView.hidden = true;
@@ -358,7 +370,54 @@ function hasStorySnapshot(story) {
   return Boolean(story.id || story.title || story.text || story.imagesOnly);
 }
 
+// 正文里的管道表格（原书排版遗留，见 story/assets/story-tables.js）。
+// 有表格时自己先建 HTML（字符保真：源文全部非空白字符一个不少），再让混排渲染器按字符
+// 偏移插图——这正是主屏处理原生 HTML 条目的同一套路径（enhanceHTML + mount）。没有表格时
+// 保持原来的 renderInto / textContent 路径不动。
+function escapeStoryText(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function storyTablesHtml(text) {
+  const tables = window.ATO_STORY_TABLES;
+  if (!tables || typeof tables.renderText !== "function" || typeof tables.hasTable !== "function") return null;
+  if (!tables.hasTable(text)) return null;
+  return tables.renderText(text, escapeStoryText, escapeStoryText);
+}
+
+function renderMixedStoryBody(story, text) {
+  const runtime = mixedMediaRuntime();
+  const tableHtml = storyTablesHtml(text);
+  // 图片解码完成后才知道哪些块状媒体真挂上了：那时 ato-mm-layout 才出现，再按整屏重算字号。
+  const onChange = () => { if (activeMode === "story") fitStoryTextToViewport(true); };
+  if (runtime && tableHtml !== null) {
+    runtime.dispose(elements.storyBody);
+    elements.storyBody.innerHTML = tableHtml;
+    runtime.mount(elements.storyBody, runtime.enhanceHTML(elements.storyBody, story.mixedMedia, text), { onChange });
+  } else if (runtime) {
+    runtime.renderInto(elements.storyBody, story.mixedMedia, text, { onChange });
+  } else if (tableHtml !== null) {
+    elements.storyBody.innerHTML = tableHtml;
+  } else {
+    elements.storyBody.textContent = text;
+  }
+  // C5 战斗标题（R3 审计过的显示层加粗）：与第一屏同一份标题区间，只加字重。
+  const c5Headings = window.ATO_C5_BATTLE_HEADINGS;
+  if (c5Headings?.schema === 1 && typeof c5Headings.enhanceHTML === "function") {
+    c5Headings.enhanceHTML(elements.storyBody, story.mixedMedia, text);
+  }
+  elements.storyBody.scrollTop = 0;
+  elements.storyBody.scrollLeft = 0;
+}
+
+let mixedStoryGeneration = 0;
 function openStory(screen) {
+  latestStoryScreen = screen;
   const previousMode = activeMode;
   activeMode = "story";
   const story = screen.story && typeof screen.story === "object" && !Array.isArray(screen.story)
@@ -372,9 +431,14 @@ function openStory(screen) {
   // 只按 story.imagesOnly 走图，第二屏会只剩标题、正文一片空白。
   const scans = storyScanImages(story);
   const imagesOnly = Boolean(story.imagesOnly) && scans.length > 0;
-  const renderKey = JSON.stringify([screen.storyRevision, story.updatedAt, story.id, story.text, imagesOnly, scans]);
+  // Polls which only refresh revision/time must not close an open image.
+  const renderKey = JSON.stringify([story.id, story.title, story.bookTitle, story.section,
+    story.text, story.fallbackText, story.mixedMedia, imagesOnly, scans]);
+  if (!hasStorySnapshot(story) && storyRendered) return;
   if (renderKey === storyRenderKey && previousMode === "story") return;
   storyRenderKey = renderKey;
+  const mixedGeneration = ++mixedStoryGeneration;
+  mixedMediaRuntime()?.dispose?.(elements.storyBody);
   if (!hasStorySnapshot(story)) {
     // 第二屏是跟随显示：快照迟到或没写进来时保留上一屏内容，不要用阅读器视角的
     // 「请先在故事书中选择一个段落。」把已经显示的正文顶掉。真的一份都没有时才提示。
@@ -401,7 +465,7 @@ function openStory(screen) {
       image.src = src;
       image.alt = "官方故事书扫描图";
       image.addEventListener?.("error", () => {
-        if (storyRenderKey !== renderKey || activeMode !== "story") return;
+        if (storyRenderKey !== renderKey || mixedGeneration !== mixedStoryGeneration || activeMode !== "story") return;
         failedImages += 1;
         if (failedImages < scans.length) return;
         elements.storyView.classList.toggle("images-only", false);
@@ -410,7 +474,7 @@ function openStory(screen) {
         elements.storyTitle.textContent = story.title || "当前故事文本";
         elements.storyEntryId.textContent = story.id || "";
         elements.storyBody.replaceChildren();
-        elements.storyBody.textContent = story.fallbackText || "官方扫描图加载失败，请回到故事页重新选择该条目。";
+        renderMixedStoryBody(story, story.fallbackText || "官方扫描图加载失败，请回到故事页重新选择该条目。");
         fitStoryTextToViewport();
       });
       elements.storyBody.append(image);
@@ -422,32 +486,103 @@ function openStory(screen) {
   elements.storySection.textContent = story.section || "";
   elements.storyTitle.textContent = story.title || "当前故事文本";
   elements.storyEntryId.textContent = story.id || "";
-  elements.storyBody.textContent = story.text || story.fallbackText
-    || (story.imagesOnly ? "该条目暂无对应的官方扫描图与正文。" : "该条目暂无正文文本。");
+  renderMixedStoryBody(story, story.text || story.fallbackText
+    || (story.imagesOnly ? "该条目暂无对应的官方扫描图与正文。" : "该条目暂无正文文本。"));
   fitStoryTextToViewport();
 }
 
-function fitStoryTextToViewport() {
-  if (activeMode !== "story" || elements.storyView.hidden || elements.storyView.classList.contains("images-only")) return;
-  window.requestAnimationFrame(() => {
-    if (elements.storyView.classList.contains("images-only")) return;
-    const body = elements.storyBody;
-    let low = 10;
-    let high = 22;
-    let best = low;
-    while (low <= high) {
-      const size = Math.floor((low + high) / 2);
-      body.style.fontSize = `${size}px`;
-      if (body.scrollHeight <= body.clientHeight + 1 && body.scrollWidth <= body.clientWidth + 1) {
-        best = size;
-        low = size + 1;
-      } else {
-        high = size - 1;
-      }
+// 正文里挂出块状媒体（版图、铭文图……）时第二屏的排法：
+// 正文照旧双栏，图片按锚点留在正文里的原位、缩成随字号变化的小图（上限见 ss/styles.css 的
+// em 规则），整屏改为纵向滚动。这样做的原因是 .story-body 一旦是「定高 + 多栏」容器，装不下的
+// 内容会继续往右分栏，被挤到屏幕外（见 release-notes/c45-items4-5-report-20261005.md 的实测：
+// 1180px 视口 scrollWidth 7949px、约 7 栏）：高度交给内容、滚动交给外面那层 .story-view
+// （story-scroll 类），就只会纵向滚动，不会再把内容排到看不见的地方。
+function mixedStoryLayout() {
+  return Boolean(elements.storyBody?.classList?.contains?.("ato-mm-layout"));
+}
+
+// 战斗模块的条目 = 正文里挂出了「版图」（地形设置图 / 决战版图）。这类条目的版图不可拆，
+// 两栏里排版很浪费，三栏能把字号做大，字号打平时也优先三栏；铭文、字形这类块状小图不算，
+// 它们只在三栏确实能把字号做大时才换栏。
+function isStoryBoardItem(element) {
+  const kinds = ["terrain-diagram", "battle-map"];
+  if (!element || !element.classList || typeof element.classList.contains !== "function") return false;
+  return kinds.some(kind => element.classList.contains(`ato-mm-${kind}`));
+}
+
+function storyBoardLayout() {
+  const body = elements.storyBody;
+  if (!body || typeof body.querySelectorAll !== "function") return false;
+  return Array.from(body.querySelectorAll(".ato-mm-item.ato-mm-block")).some(isStoryBoardItem);
+}
+
+// 栏数按「字号能给到多大」挑。三栏并不总是更好，但正文里分段空行多、又有不可拆的版图时，
+// 三栏把同样的内容摊得更开，二分往往能选到更大的字号（实测 1920×1080：迈达狮之战两栏 13px、
+// 三栏 17px；没有迷宫之战两栏 10px 都放不下、三栏 11px 放得下）。窄屏不试三栏：
+// 手机竖屏里三栏每栏不到两百像素，字和图都没法看。
+const storyThreeColumnMinWidth = 900;
+
+function storyColumnChoices() {
+  const width = Number(elements.storyBody?.clientWidth) || Number(elements.storyView?.clientWidth) || 0;
+  return width >= storyThreeColumnMinWidth ? [2, 3] : [2];
+}
+
+function setStoryColumnCount(count) {
+  elements.storyView.style.setProperty("--story-columns", String(count));
+}
+
+// 按某个栏数二分字号，返回「放得下」的最大字号；measure() 报当前字号放不放得下。
+function searchStoryFontSize(count, measure) {
+  const body = elements.storyBody;
+  setStoryColumnCount(count);
+  void body.offsetHeight;
+  let low = 10;
+  let high = 22;
+  let best = low;
+  while (low <= high) {
+    const size = Math.floor((low + high) / 2);
+    body.style.setProperty("font-size", `${size}px`, "important");
+    if (measure()) {
+      best = size;
+      low = size + 1;
+    } else {
+      high = size - 1;
     }
-    body.style.fontSize = `${best}px`;
-    body.scrollTop = 0;
-    body.scrollLeft = 0;
+  }
+  body.style.setProperty("font-size", `${best}px`, "important");
+  return best;
+}
+
+function fitStoryTextToViewport(preserveScroll = false) {
+  const mixedMedia = mixedStoryLayout();
+  elements.storyView.classList.toggle("story-scroll", mixedMedia);
+  if (activeMode !== "story" || elements.storyView.hidden) return;
+  if (!mixedMedia && elements.storyView.classList.contains("images-only")) return;
+  window.requestAnimationFrame(() => {
+    const view = elements.storyView;
+    const body = elements.storyBody;
+    // 期间换了条目（含块状媒体与否变了）就作废，下一次渲染会重新排。
+    if (activeMode !== "story" || mixedMedia !== mixedStoryLayout()) return;
+    if (!mixedMedia && view.classList.contains("images-only")) return;
+    const bodyTop = body.scrollTop, bodyLeft = body.scrollLeft, viewTop = view.scrollTop;
+    // 含块状媒体：目标是整屏放得下；纯文字：容器内纵向横向都放得下（和原来一致）。
+    const measure = mixedMedia
+      ? () => view.scrollHeight <= view.clientHeight + 1
+      : () => body.scrollHeight <= body.clientHeight + 1 && body.scrollWidth <= body.clientWidth + 1;
+    const results = storyColumnChoices().map(count => ({ count, size: searchStoryFontSize(count, measure) }));
+    // 字号大的栏数胜出；一样大时：挂了版图的条目（战斗模块）用三栏，其余保持两栏，阅读节奏不变。
+    const boardMedia = storyBoardLayout();
+    const winner = results.reduce((best, item) => {
+      if (item.size > best.size) return item;
+      if (item.size === best.size && boardMedia && item.count > best.count) return item;
+      return best;
+    }, results[0]);
+    setStoryColumnCount(winner.count);
+    body.style.setProperty("font-size", `${winner.size}px`, "important");
+    void body.offsetHeight;
+    view.scrollTop = preserveScroll ? viewTop : 0;
+    body.scrollTop = preserveScroll ? bodyTop : 0;
+    body.scrollLeft = preserveScroll ? bodyLeft : 0;
   });
 }
 
@@ -486,6 +621,23 @@ function renderImageList(target, cards, emptyText) {
     image.title = card.label || "";
     target.appendChild(image);
   });
+}
+
+// 大迷宫轨道红圈（迷宫机牛 / 吞域兽）：控制台把当前那一格的百分比坐标随快照送来，
+// 这里照同一份坐标画在大卡上；点击仍然只在控制台做，第二屏是只读的。
+function renderLabyrinthTrack(track) {
+  const layer = elements.bossLabyrinthTrack;
+  if (!layer) return;
+  layer.replaceChildren();
+  const hasTrack = Boolean(track && track.left && track.top);
+  layer.hidden = !hasTrack;
+  if (!hasTrack) return;
+  const ring = document.createElement("span");
+  ring.style.setProperty("--track-left", track.left);
+  ring.style.setProperty("--track-top", track.top);
+  ring.style.setProperty("--track-width", track.width || "5.6%");
+  ring.title = track.hint || track.label || "大迷宫指示物";
+  layer.appendChild(ring);
 }
 
 function renderBossTokens(tokens) {
@@ -685,6 +837,7 @@ function renderBattleTerrain(apostle, level, battleMap, los) {
 }
 
 function openBattle(screen) {
+  mixedMediaRuntime()?.close?.();
   activeMode = "aibp";
   const state = screen.aibp || {};
   elements.unavailableView.hidden = true;
@@ -710,6 +863,8 @@ function openBattle(screen) {
     // 视线参数单列进 key：改锚点/攻击距离/朝向这类操作不动牌堆，光靠 updatedAt
     // 不一定变，漏掉会导致第二屏卡在旧标注上。
     state.los || null,
+    // 大迷宫轨道的红圈只存在控制台的 localStorage 状态里，也单列进 key。
+    state.labyrinthTrack || null,
   ]);
   if (renderKey === battleRenderKey) {
     applyBattleLayout(scale / 100, rotation, boardVisible);
@@ -735,6 +890,7 @@ function openBattle(screen) {
     ? window.BattleTerrain.getTerrainCards(map, new URL("./terrain-cards", document.baseURI).href)
     : [];
   applyBattleLayout(scale / 100, rotation, boardVisible);
+  renderLabyrinthTrack(state.labyrinthTrack);
   renderBossTokens(state.tokens || []);
   const pendingType = state.pendingType === "AI" || state.pendingType === "BP"
     ? state.pendingType
@@ -755,6 +911,29 @@ function openBattle(screen) {
   renderImageList(elements.damageCards, state.damage || [], "暂无损伤");
 }
 
+// 外观跟着主控台走：主题偏好存在浏览器 localStorage 里，第二屏是另一台设备（手机/电视），
+// 拿不到那份偏好，所以主控台把外观写进第二屏设置、每次轮询带回来（api/campaign-state.php 的
+// normalize_theme_setting / public_second_screen_payload）。战役的活动循环本来就在 payload 里，
+// auto 模式要靠它取色，不设的话 theme.js 会一直退回默认的 c1。
+let appliedThemeKey = "";
+
+function applySecondScreenTheme(screen) {
+  const theme = screen?.theme;
+  const cycleId = typeof screen?.cycleId === "string" && screen.cycleId
+    ? screen.cycleId
+    : (typeof theme?.cycleId === "string" ? theme.cycleId : "");
+  if (cycleId && document.body.dataset.cycle !== cycleId) document.body.dataset.cycle = cycleId;
+  if (!theme || typeof theme.mode !== "string") return;
+  // theme.js 是 defer 加载的，第一次轮询可能赶在它前头（那时 ATO_THEME 还没有）；
+  // 这种情况不能记成「已应用」，下一次轮询要接着试。
+  const api = window.ATO_THEME;
+  if (!api || typeof api.set !== "function") return;
+  const key = JSON.stringify([theme.mode, theme.rgb]);
+  if (key === appliedThemeKey) return;
+  appliedThemeKey = key;
+  api.set({ mode: theme.mode, rgb: theme.rgb });
+}
+
 async function checkConnection() {
   window.clearTimeout(retryTimer);
   try {
@@ -764,6 +943,7 @@ async function checkConnection() {
       showUnavailable(response.status === 404 ? "" : (payload?.error || `HTTP ${response.status}`));
       return;
     }
+    applySecondScreenTheme(payload.screen);
     if (payload.screen.displayMode === "aibp") openBattle(payload.screen);
     else if (payload.screen.displayMode === "story") openStory(payload.screen);
     else if (payload.screen.displayMode === "blank") openBlank();
@@ -794,3 +974,13 @@ window.CustomTraits?.ready.then(() => {
 });
 
 checkConnection();
+
+// A material map arriving after startup is an optional enhancement of the latest
+// snapshot. It must never restore an older snapshot or switch display modes.
+window.addEventListener("ato-mixed-media-map-ready", () => {
+  if (activeMode !== "story" || !latestStoryScreen) return;
+  storyRenderKey = "";
+  const top = elements.storyBody.scrollTop, left = elements.storyBody.scrollLeft;
+  openStory(latestStoryScreen);
+  elements.storyBody.scrollTop = top; elements.storyBody.scrollLeft = left;
+});

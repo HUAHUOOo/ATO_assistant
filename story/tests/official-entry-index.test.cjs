@@ -20,7 +20,7 @@ function setup() {
     activeEntry: null, selectedChapterKey: () => 'all', selectedEncounterKey: () => 'all',
   });
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../assets/pharos-codes.js'), 'utf8'), context);
-  for (const name of ['buildVersionData', 'entriesById', 'hasEntryContent', 'preferEntriesWithContent', 'preferredEntry', 'entryFromDeepLink', 'normalizeQuery', 'supportsOfficialVersion', 'searchEntryContent', 'sortForCurrentContext', 'searchEntries', 'pharosTitleAnswer', 'storyTitleText', 'renderEntryTitle', 'syncStoryLanguage']) {
+  for (const name of ['mixedMediaRuntime', 'buildVersionData', 'entriesById', 'hasEntryContent', 'preferEntriesWithContent', 'preferredEntry', 'entryFromDeepLink', 'normalizeQuery', 'supportsOfficialVersion', 'searchEntryContent', 'sortForCurrentContext', 'searchEntries', 'pharosTitleAnswer', 'storyTitleText', 'renderEntryTitle', 'syncStoryLanguage']) {
     const start = source.indexOf(`  function ${name}(`);
     const end = source.indexOf('\n  }', start) + 4;
     vm.runInContext(source.slice(start, end), context);

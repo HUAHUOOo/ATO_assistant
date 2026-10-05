@@ -21,7 +21,7 @@ ONWARDS_ODYSSEY_BOOKS = [
         "page_start": 6,
         "page_end": 48,
         "insert_after": "c1",
-        "preface_image": "./images/OO/DY1P5.png",
+        "preface_image": "./assets/OO/DY1P5.png",
         "chapter_markers": [
             ("setup", "破碎的图纹 起始设置"),
             ("hub-spiral-secret", "枢纽 1：螺旋秘密"),
@@ -40,7 +40,7 @@ ONWARDS_ODYSSEY_BOOKS = [
         "page_start": 49,
         "page_end": 90,
         "insert_after": "c2",
-        "preface_image": "./images/OO/DY2P5.png",
+        "preface_image": "./assets/OO/DY2P5.png",
         "chapter_markers": [
             ("setup", "破碎的锁链 起始设置"),
             ("hub-sins-of-the-past", "枢纽 1：过去的罪孽"),

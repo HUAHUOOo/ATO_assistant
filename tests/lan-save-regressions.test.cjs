@@ -310,8 +310,9 @@ for(const keepLocal of [false,true]) test(`dashboard reconnect asks about overla
 test('late errors from an old story image cannot overwrite newer story content',()=>{
   const images=[],element=()=>({classList:{toggle:noop},replaceChildren(){this.textContent='';},append:noop});
   const elements=Object.fromEntries(['unavailableView','mapStage','battleView','storyView','storyBody','storyBookTitle','storySection','storyTitle','storyEntryId'].map(k=>[k,element()]));
-  const c=context('ss/app.js',['hasStorySnapshot','openStory'],{
+  const c=context('ss/app.js',['escapeStoryText','storyTablesHtml','renderMixedStoryBody','mixedMediaRuntime','hasStorySnapshot','openStory'],{
     elements,activeMode:'map',storyRenderKey:'',storyRendered:false,storyScanImages:s=>s.images||[],fitStoryTextToViewport:noop,
+    mixedStoryGeneration:0,latestStoryScreen:null,window:{},
     document:{createElement:()=>{const img={addEventListener:(name,fn)=>{img[name]=fn;}};images.push(img);return img;}},
   });
   c.openStory({storyRevision:1,story:{id:'A',imagesOnly:true,images:['scan-A'],fallbackText:'Old A'}});
