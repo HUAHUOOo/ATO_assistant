@@ -68,7 +68,7 @@ function storySnapshotContext(locationHref) {
     window: { location: { href: locationHref } },
     URL,
   });
-  ['supportsOfficialVersion', 'getDisplayEntry', 'officialScanMissingLocally', 'storyTitleText', 'buildSecondScreenStorySnapshot']
+  ['supportsOfficialVersion', 'getDisplayEntry', 'officialScanMissingLocally', 'storyTitleText', 'mixedMediaContext', 'buildSecondScreenStorySnapshot']
     .forEach((name) => vm.runInContext(extract(STORY_SOURCE, name, '  '), context));
   return context;
 }
@@ -114,6 +114,8 @@ function ssStoryContext(href, origin) {
     activeMode: 'map',
     storyRenderKey: '',
     storyRendered: false,
+    mixedStoryGeneration: 0,
+    latestStoryScreen: null,
     document: {
       createElement: (tag) => {
         const handlers = {};
@@ -127,7 +129,7 @@ function ssStoryContext(href, origin) {
     URL,
     fitStoryTextToViewport() { context.fitCalls = (context.fitCalls || 0) + 1; },
   });
-  ['storyScanImages', 'hasStorySnapshot', 'openStory']
+  ['mixedMediaRuntime', 'renderMixedStoryBody', 'storyScanImages', 'hasStorySnapshot', 'openStory']
     .forEach((name) => vm.runInContext(extract(SS_SOURCE, name, ''), context));
   context.createdImages = createdImages;
   return context;

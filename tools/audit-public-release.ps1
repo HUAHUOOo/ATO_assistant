@@ -16,6 +16,8 @@ $blockedPaths = @(
   'log/',
   'tmp/',
   'story/data/',
+  'story/assets/mixed-media/mapping.js',
+  'story/assets/mixed-media/images/',
   'story/data/storybook-data.js',
   'story/data/entity-index.json',
   'story/audio-packs/',

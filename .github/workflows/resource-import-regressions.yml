@@ -38,6 +38,12 @@ jobs:
           node tests/hidden-exploration.test.cjs
           node tools/test-bgm-player.cjs
           node tools/test-story-bgm.cjs
+      - name: Test optional story mixed media without private assets
+        run: |
+          node --test tests/mixed-media*.test.cjs story/tests/mixed-media-gallery.test.cjs
+          node --test story/tests/second-screen-story.test.cjs story/tests/speech-version.test.cjs tests/lan-save-regressions.test.cjs tests/ss-second-screen-token.test.cjs
+          node tools/test-second-screen-story-snapshot.cjs
+          python tools/test_mixed_media_release.py
 
   android-import:
     runs-on: windows-latest

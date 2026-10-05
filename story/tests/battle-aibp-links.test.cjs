@@ -207,6 +207,8 @@ test("C5 translated battle links stay outside the collapsed source section", () 
     currentBook: () => ({ id: "c5", entries: [] }),
     escapeHtml: (value) => String(value),
     linkify: (value) => String(value),
+    renderMixedStoryText: (entry) => String(entry.text || ""),
+    renderC5BattleHeadings: (_entry, _text, html) => html,
   });
 
   const c5Book = storyContext.window.STORYBOOK_DATA.books.find(

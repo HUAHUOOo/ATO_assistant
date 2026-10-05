@@ -1,0 +1,63 @@
+/* Unavailable, slow, or mismatched optional media stays ordinary source layout. */
+[data-ato-mm-source], [data-ato-mm-item]:not(.ato-mm-item) { display: contents; }
+
+/* Native gallery images remain available until their inline replacement decodes. */
+.battle-gallery img[data-ato-mm-native-duplicate][hidden] { display: none !important; }
+
+/* Local narrative mixed-media: keep paper behind black source glyphs in every theme. */
+.ato-mm-item { box-sizing: border-box; }
+.ato-mm-button { display: inline-block; border: 1px solid #c7b8a1; border-radius: 3px; padding: 2px; margin: 0; min-width: 0; min-height: 0; max-width: 100%; background: #f8f2e6; color: #28241e; line-height: 1; font: inherit; cursor: zoom-in; vertical-align: baseline; }
+.ato-mm-button img { display: block; width: auto; height: auto; max-width: 100%; margin: 0; filter: none; mix-blend-mode: normal; }
+.ato-mm-button:focus-visible { outline: 3px solid var(--accent, #b27d37); outline-offset: 3px; }
+.ato-mm-inline { display: inline-block; vertical-align: -.22em; max-width: 100%; line-height: 1; }
+.ato-mm-inline .ato-mm-button { padding: 1px 2px; border-color: transparent; }
+.ato-mm-inline img { height: 1.35em; max-height: none; max-width: 100%; width: auto; object-fit: contain; }
+.ato-mm-block { display: block; width: fit-content; max-width: 100%; margin: .5em 0; break-inside: avoid; white-space: normal; }
+.ato-mm-block img { max-height: 65vh; max-width: 100%; object-fit: contain; }
+.ato-mm-missing { text-decoration: underline dotted; text-underline-offset: .2em; }
+.story-body.ato-mm-layout { column-count: 1; column-rule: 0; font-size: clamp(17px, 1.7vw, 22px) !important; overflow: auto; }
+.ato-mm-modal[hidden] { display: none !important; }
+.ato-mm-modal { position: fixed; z-index: 100000; inset: 0; padding: 4vh 4vw; background: #090b12cf; display: flex; align-items: center; justify-content: center; white-space: normal; color: #26241f; font: 16px/1.5 system-ui, sans-serif; }
+.ato-mm-modal-panel { box-sizing: border-box; position: relative; background: #f8f2e6; color: #26241f; border: 1px solid #b9aa91; border-radius: 6px; padding: 18px; max-width: 92vw; max-height: 92vh; overflow: auto; overscroll-behavior: contain; }
+.ato-mm-modal-title { padding-right: 112px; margin: 0 0 16px; }
+.ato-mm-close { position: absolute; top: 10px; right: 10px; border: 1px solid #746349; border-radius: 3px; background: #fcfaf5; color: #26241f; padding: 6px 10px; font: inherit; cursor: pointer; }
+.ato-mm-modal-image { display: block; width: auto; height: auto; min-height: 90px; max-width: 85vw; max-height: 73vh; margin: auto; object-fit: contain; background: #f8f2e6; mix-blend-mode: normal; filter: none; }
+.ato-mm-modal-status { margin: 12px 0 0; color: #625849; font-size: 13px; }
+@media (max-width: 600px) { .ato-mm-modal { padding: 3vw; } .ato-mm-modal-panel { padding: 12px; max-width: 94vw; } .ato-mm-modal-title { padding-top: 36px; padding-right: 0; } }
+
+
+/* Original PDF resource glyphs: compact inline baseline, all themes keep the paper backing. */
+.ato-mm-resource { position: relative; white-space: nowrap; vertical-align: -.18em; }
+.ato-mm-resource .ato-mm-button { padding: 0 1px; border: 0; border-radius: 2px; }
+.ato-mm-resource img { height: 1.15em; width: auto; max-width: 2.8em; object-fit: contain; }
+.ato-mm-icon-source { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; border: 0; overflow: hidden; clip: rect(0,0,0,0); clip-path: inset(50%); white-space: nowrap; user-select: text; }
+@media (forced-colors: active) { .ato-mm-resource .ato-mm-button { forced-color-adjust: none; background: #f8f2e6; } }
+
+/* Original terrain tiles keep their ID, edge and orientation readable, without reflowing icon-only pages. */
+.ato-mm-battle { position: relative; }
+.ato-mm-terrain-icon.ato-mm-inline { vertical-align: -.35em; }
+.ato-mm-terrain-icon.ato-mm-inline img { height: 2.4em; width: auto; max-width: none; object-fit: contain; }
+.ato-mm-terrain-icon.ato-mm-block img, .ato-mm-terrain-diagram img { max-height: 65vh; }
+@media (forced-colors: active) { .ato-mm-battle .ato-mm-button { forced-color-adjust: none; background: #f8f2e6; } }
+
+/* User-supplied token and banner pixels retain original colors and aspect ratio. */
+.ato-mm-user-token.ato-mm-inline, .ato-mm-component-icon.ato-mm-inline { vertical-align: -.35em; }
+.ato-mm-user-token.ato-mm-inline img, .ato-mm-component-icon.ato-mm-inline img { height: 2.4em; width: auto; max-width: 100%; object-fit: contain; }
+.ato-mm-user-banner.ato-mm-block img { max-height: 45vh; }
+
+/* Uploaded token and code-banner size follows the source's compact instruction role. */
+.ato-mm-user-token.ato-mm-inline img, .ato-mm-component-icon.ato-mm-inline img { height: 72px; max-height: 3.4em; max-width: 100%; }
+.ato-mm-user-banner.ato-mm-block img, .ato-mm-code-banner.ato-mm-block img { width: 112px; height: auto; max-width: 100%; max-height: none; }
+
+/* C5 audited title ranges only; preserve inherited size and source whitespace. */
+.ato-c5-battle-heading { font-weight: 700; }
+
+/* The authored display:block rule must not override hidden during modal decode/failure. */
+.ato-mm-modal-image[hidden] { display: none !important; }
+
+/* R4: audited viewports reference an inherited native image, never a copied crop. */
+.ato-mm-image-frame { display: block; max-width: 100%; }
+.ato-mm-map-caption { display: block; margin-top: .25em; font-size: .85em; line-height: 1.4; color: inherit; }
+.ato-mm-native-viewport { position: relative; overflow: hidden; max-width: 100%; }
+.ato-mm-native-viewport img { position: absolute; display: block; max-width: none !important; max-height: none !important; margin: 0; object-fit: initial; }
+.ato-mm-modal-panel .ato-mm-native-viewport { max-width: 85vw; margin: auto; }

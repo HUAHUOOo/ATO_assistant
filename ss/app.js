@@ -1,3 +1,10 @@
+// Runtime and optional material packs have independent versions.
+function mixedMediaRuntime() {
+  const api = window.ATO_MIXED_MEDIA;
+  const required = ["renderHTML", "renderInto", "sectionRenderer", "enhanceHTML", "mount", "dispose", "close", "speechText"];
+  return api && api.schema === 1 && required.every(name => typeof api[name] === "function") ? api : null;
+}
+
 // 第二屏的网址由 api/campaign-state.php 的 second_screen_urls() 生成，里面带着开启
 // 第二屏时生成的随机 token（?token=…）。服务端只认这个 token：匿名直接请求接口不再
 // 返回存档内容。这里从自己的网址里把它取出来，之后每次请求都附上（#hash 也接受一份，
@@ -63,6 +70,7 @@ let retryTimer = null;
 let battleRenderKey = "";
 let storyRenderKey = "";
 let storyRendered = false;
+let latestStoryScreen = null;
 let activeMode = "map";
 let latestBattleScale = 1;
 let latestBattleRotation = 0;
@@ -299,6 +307,7 @@ function applyBattleLayout(
 }
 
 function showUnavailable(message = "") {
+  mixedMediaRuntime()?.close?.();
   activeMode = "unavailable";
   elements.unavailableView.hidden = false;
   elements.unavailableMessage.textContent = message;
@@ -309,6 +318,7 @@ function showUnavailable(message = "") {
 }
 
 function openBlank() {
+  mixedMediaRuntime()?.close?.();
   activeMode = "blank";
   elements.unavailableView.hidden = true;
   elements.mapStage.hidden = true;
@@ -318,6 +328,7 @@ function openBlank() {
 }
 
 function openMap() {
+  mixedMediaRuntime()?.close?.();
   activeMode = "map";
   elements.unavailableView.hidden = true;
   elements.storyView.hidden = true;
@@ -358,7 +369,24 @@ function hasStorySnapshot(story) {
   return Boolean(story.id || story.title || story.text || story.imagesOnly);
 }
 
-function openStory(screen) {
+function renderMixedStoryBody(story, text) {
+  if (mixedMediaRuntime()) {
+    mixedMediaRuntime().renderInto(elements.storyBody, story.mixedMedia, text, {
+      onChange: () => { if (activeMode === "story") fitStoryTextToViewport(true); }
+    });
+  } else {
+    elements.storyBody.textContent = text;
+  }
+  const headings = window.ATO_C5_BATTLE_HEADINGS;
+  if (headings?.schema === 1 && typeof headings.enhanceHTML === "function") {
+    headings.enhanceHTML(elements.storyBody, story.mixedMedia, text);
+  }
+  elements.storyBody.scrollTop = 0;
+  elements.storyBody.scrollLeft = 0;
+}
+
+let mixedStoryGeneration = 0;
+function openStory(screen, preserveScroll = false) {
   const previousMode = activeMode;
   activeMode = "story";
   const story = screen.story && typeof screen.story === "object" && !Array.isArray(screen.story)
@@ -372,13 +400,18 @@ function openStory(screen) {
   // 只按 story.imagesOnly 走图，第二屏会只剩标题、正文一片空白。
   const scans = storyScanImages(story);
   const imagesOnly = Boolean(story.imagesOnly) && scans.length > 0;
-  const renderKey = JSON.stringify([screen.storyRevision, story.updatedAt, story.id, story.text, imagesOnly, scans]);
+  // Polls which only refresh revision/time must not close an open image.
+  const renderKey = JSON.stringify([story.id, story.title, story.bookTitle, story.section,
+    story.text, story.fallbackText, story.mixedMedia, imagesOnly, scans]);
+  if (!hasStorySnapshot(story) && storyRendered) return;
+  latestStoryScreen = screen;
   if (renderKey === storyRenderKey && previousMode === "story") return;
   storyRenderKey = renderKey;
+  const mixedGeneration = ++mixedStoryGeneration;
+  mixedMediaRuntime()?.dispose?.(elements.storyBody);
   if (!hasStorySnapshot(story)) {
     // 第二屏是跟随显示：快照迟到或没写进来时保留上一屏内容，不要用阅读器视角的
     // 「请先在故事书中选择一个段落。」把已经显示的正文顶掉。真的一份都没有时才提示。
-    if (storyRendered) return;
     elements.storyView.classList.toggle("images-only", false);
     elements.storyBookTitle.textContent = "";
     elements.storySection.textContent = "";
@@ -386,7 +419,7 @@ function openStory(screen) {
     elements.storyEntryId.textContent = "";
     elements.storyBody.textContent = "还没有收到故事书阅读文本。\n"
       + "请在故事页打开一个段落；若故事页已经打开，请确认它跟开启第二屏幕的是同一个账号。";
-    fitStoryTextToViewport();
+    fitStoryTextToViewport(preserveScroll);
     return;
   }
   storyRendered = true;
@@ -401,7 +434,7 @@ function openStory(screen) {
       image.src = src;
       image.alt = "官方故事书扫描图";
       image.addEventListener?.("error", () => {
-        if (storyRenderKey !== renderKey || activeMode !== "story") return;
+        if (storyRenderKey !== renderKey || mixedGeneration !== mixedStoryGeneration || activeMode !== "story") return;
         failedImages += 1;
         if (failedImages < scans.length) return;
         elements.storyView.classList.toggle("images-only", false);
@@ -410,8 +443,8 @@ function openStory(screen) {
         elements.storyTitle.textContent = story.title || "当前故事文本";
         elements.storyEntryId.textContent = story.id || "";
         elements.storyBody.replaceChildren();
-        elements.storyBody.textContent = story.fallbackText || "官方扫描图加载失败，请回到故事页重新选择该条目。";
-        fitStoryTextToViewport();
+        renderMixedStoryBody(story, story.fallbackText || "官方扫描图加载失败，请回到故事页重新选择该条目。");
+        fitStoryTextToViewport(preserveScroll);
       });
       elements.storyBody.append(image);
     }
@@ -422,16 +455,21 @@ function openStory(screen) {
   elements.storySection.textContent = story.section || "";
   elements.storyTitle.textContent = story.title || "当前故事文本";
   elements.storyEntryId.textContent = story.id || "";
-  elements.storyBody.textContent = story.text || story.fallbackText
-    || (story.imagesOnly ? "该条目暂无对应的官方扫描图与正文。" : "该条目暂无正文文本。");
-  fitStoryTextToViewport();
+  renderMixedStoryBody(story, story.text || story.fallbackText
+    || (story.imagesOnly ? "该条目暂无对应的官方扫描图与正文。" : "该条目暂无正文文本。"));
+  fitStoryTextToViewport(preserveScroll);
 }
 
-function fitStoryTextToViewport() {
+function fitStoryTextToViewport(preserveScroll = false) {
+  if (elements.storyBody.classList.contains("ato-mm-layout")) {
+    elements.storyBody.style.removeProperty("font-size");
+    return;
+  }
   if (activeMode !== "story" || elements.storyView.hidden || elements.storyView.classList.contains("images-only")) return;
   window.requestAnimationFrame(() => {
-    if (elements.storyView.classList.contains("images-only")) return;
+    if (elements.storyView.classList.contains("images-only") || elements.storyBody.classList.contains("ato-mm-layout")) return;
     const body = elements.storyBody;
+    const top = body.scrollTop, left = body.scrollLeft;
     let low = 10;
     let high = 22;
     let best = low;
@@ -446,8 +484,8 @@ function fitStoryTextToViewport() {
       }
     }
     body.style.fontSize = `${best}px`;
-    body.scrollTop = 0;
-    body.scrollLeft = 0;
+    body.scrollTop = preserveScroll ? top : 0;
+    body.scrollLeft = preserveScroll ? left : 0;
   });
 }
 
@@ -685,6 +723,7 @@ function renderBattleTerrain(apostle, level, battleMap, los) {
 }
 
 function openBattle(screen) {
+  mixedMediaRuntime()?.close?.();
   activeMode = "aibp";
   const state = screen.aibp || {};
   elements.unavailableView.hidden = true;
@@ -794,3 +833,13 @@ window.CustomTraits?.ready.then(() => {
 });
 
 checkConnection();
+
+// A material map arriving after startup is an optional enhancement of the latest
+// snapshot. It must never restore an older snapshot or switch display modes.
+window.addEventListener("ato-mixed-media-map-ready", () => {
+  if (activeMode !== "story" || !latestStoryScreen) return;
+  storyRenderKey = "";
+  const top = elements.storyBody.scrollTop, left = elements.storyBody.scrollLeft;
+  openStory(latestStoryScreen, true);
+  elements.storyBody.scrollTop = top; elements.storyBody.scrollLeft = left;
+});

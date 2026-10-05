@@ -1,4 +1,10 @@
 (function () {
+  // Optional renderer/materials never become a prerequisite for reading source.
+  function mixedMediaRuntime() {
+    const api = window.ATO_MIXED_MEDIA;
+    const required = ["renderHTML", "renderInto", "sectionRenderer", "enhanceHTML", "mount", "dispose", "close", "speechText"];
+    return api && api.schema === 1 && required.every(name => typeof api[name] === "function") ? api : null;
+  }
   const fanData = window.STORYBOOK_DATA;
   let data = fanData;
   const officialData = window.STORYBOOK_OFFICIAL_DATA || { books: [] };
@@ -294,7 +300,7 @@
         pattern.lastIndex = 0;
         if (!parent || !node.nodeValue || !pattern.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
         pattern.lastIndex = 0;
-        if (parent.closest("button, a, script, style, textarea, select, [data-entity-id], [data-id], [data-page-viewer]")) {
+        if (parent.closest("button, a, script, style, textarea, select, [data-entity-id], [data-id], [data-page-viewer], [data-ato-mm-item]")) {
           return NodeFilter.FILTER_REJECT;
         }
         return NodeFilter.FILTER_ACCEPT;
@@ -1691,10 +1697,10 @@
     };
   }
 
-  function renderBattleTable(table) {
-    const head = table.headers.map((cell) => `<th>${linkify(cell, currentBook())}</th>`).join("");
-    const body = table.rows.map((row) => {
-      return `<tr><td>${linkify(row[0], currentBook())}</td><td>${linkify(row[1], currentBook())}</td></tr>`;
+  function renderBattleTable(table, renderCell = (cell) => linkify(cell, currentBook())) {
+    const head = table.headers.map((cell, index) => `<th>${renderCell(cell, index)}</th>`).join("");
+    const body = table.rows.map((row, index) => {
+      return `<tr><td>${renderCell(row[0], 2 + index * 2)}</td><td>${renderCell(row[1], 3 + index * 2)}</td></tr>`;
     }).join("");
 
     return `<div class="battle-table-wrap"><table class="battle-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
@@ -1708,20 +1714,36 @@
     return value.length <= 48 && /[：:]$/.test(value);
   }
 
+  function prepareSectionedMedia(entry) {
+    const source = String(entry.text || "");
+    const media = mixedMediaRuntime()?.sectionRenderer?.(mixedMediaContext(entry), source);
+    if (media) mixedMediaRender = media.result;
+    const blocks = media ? media.blocks : source.split(/\n{2,}/).map(block => block.trim()).filter(Boolean);
+    return {
+      blocks,
+      render(index, mode = "body") {
+        const format = value => mode === "heading" ? escapeHtml(value)
+          : linkify(mode === "table" ? value.replace(/\s+/g, " ") : value, currentBook());
+        return media ? media.renderBlock(index, format) : format(blocks[index] || "");
+      }
+    };
+  }
+
   function renderSectionedStory(entry, imagesHtml) {
-    const blocks = entry.text.split(/\n{2,}/).map((block) => block.trim()).filter(Boolean);
+    const media = prepareSectionedMedia(entry);
+    const blocks = media.blocks;
     const rendered = [];
     let imagesInserted = false;
     let galleryPending = false;
 
-    blocks.forEach((block) => {
+    blocks.forEach((block, index) => {
       if (block === entry.title) return;
       if (isSectionSubheading(block, entry)) {
-        const heading = `<h3 class="battle-subheading">${escapeHtml(block)}</h3>`;
+        const heading = `<h3 class="battle-subheading">${media.render(index, "heading")}</h3>`;
         if (rendered[rendered.length - 1] !== heading) rendered.push(heading);
         galleryPending = /^介绍[：:]?$/.test(block);
       } else {
-        rendered.push(`<div class="battle-block">${linkify(block, currentBook())}</div>`);
+        rendered.push(`<div class="battle-block">${media.render(index)}</div>`);
         if (!imagesInserted && imagesHtml && galleryPending) {
           rendered.push(`<div class="battle-gallery">${imagesHtml}</div>`);
           imagesInserted = true;
@@ -1737,7 +1759,8 @@
   }
 
   function renderBattleSectionedStory(entry, imagesHtml) {
-    const blocks = entry.text.split(/\n{2,}/).map((block) => block.trim()).filter(Boolean);
+    const media = prepareSectionedMedia(entry);
+    const blocks = media.blocks;
     const rendered = [];
     let imagesInserted = false;
     let galleryPending = false;
@@ -1746,14 +1769,14 @@
       const block = blocks[index];
       if (block === entry.title) continue;
       if (isSectionSubheading(block, entry)) {
-        const heading = `<h3 class="battle-subheading">${escapeHtml(block)}</h3>`;
+        const heading = `<h3 class="battle-subheading">${media.render(index, "heading")}</h3>`;
         if (rendered[rendered.length - 1] !== heading) rendered.push(heading);
         galleryPending = /^介绍[：:]?$/.test(block);
         continue;
       }
       const table = parseBattleTable(blocks, index);
       if (table) {
-        rendered.push(renderBattleTable(table));
+        rendered.push(renderBattleTable(table, (_cell, offset) => media.render(index + offset, "table")));
         index = table.nextIndex - 1;
         if (!imagesInserted && imagesHtml && galleryPending) {
           rendered.push(`<div class="battle-gallery">${imagesHtml}</div>`);
@@ -1762,7 +1785,7 @@
         }
         continue;
       }
-      rendered.push(`<div class="battle-block">${linkify(block, currentBook())}</div>`);
+      rendered.push(`<div class="battle-block">${media.render(index)}</div>`);
       if (!imagesInserted && imagesHtml && galleryPending) {
         rendered.push(`<div class="battle-gallery">${imagesHtml}</div>`);
         imagesInserted = true;
@@ -2865,7 +2888,60 @@
     }
   }
 
+  // Source text, search and save schemas remain unchanged; verified icon names feed TTS.
+  // Only explicitly mapped text ranges are rendered as local images.
+  let mixedMediaRender = null;
+  function mixedMediaContext(entry) {
+    const bookId = currentBook()?.id || "";
+    const variant = storyVersion === "官方版" && supportsOfficialVersion() ? "official" : "fan";
+    // Only audited source variants and narrative sections can activate mappings.
+    if (!/^c[1-5]$/.test(bookId)) return null;
+    if ((/^c[1-3]$/.test(bookId) ? "official" : "fan") !== variant) return null;
+    if (/^(?:story-card|doom-card|rules?)$/.test(entry.chapterKey || "")) return null;
+    return { schema: 1, bookId, entryKey: entry.key, variant };
+  }
+  function renderC5BattleHeadings(entry, text, html) {
+    const headings = window.ATO_C5_BATTLE_HEADINGS;
+    return headings?.schema === 1 && typeof headings.formatHTML === "function"
+      ? headings.formatHTML(mixedMediaContext(entry), text, html) : html;
+  }
+  function renderMixedStoryText(entry) {
+    const format = text => renderC5BattleHeadings(entry, text, linkify(text, currentBook()));
+    if (!mixedMediaRuntime()) return format(entry.text || "");
+    mixedMediaRender = mixedMediaRuntime().renderHTML(
+      mixedMediaContext(entry), entry.text || "", format
+    );
+    return mixedMediaRender.html;
+  }
+
+  function refreshMixedMediaBattleGallery(paths = []) {
+    // Keep native gallery maps until their exact in-text counterpart is ready.
+    // Own only the hidden state we set so failures cannot reveal unrelated images.
+    const readyPaths = new Set(Array.isArray(paths) ? paths : []);
+    const marker = "data-ato-mm-native-duplicate";
+    for (const image of storyText.querySelectorAll(".battle-gallery img")) {
+      let duplicate = false;
+      try {
+        const root = new URL("../", window.location.href);
+        const url = new URL(image.getAttribute("src") || "", window.location.href);
+        duplicate = url.origin === root.origin && url.pathname.startsWith(root.pathname)
+          && readyPaths.has(decodeURIComponent(url.pathname.slice(root.pathname.length)));
+      } catch (_) {
+        // Unrecognized paths retain the original gallery behavior.
+      }
+      if (duplicate && !image.hidden) {
+        image.setAttribute(marker, "");
+        image.hidden = true;
+      } else if (!duplicate && image.hasAttribute(marker)) {
+        image.removeAttribute(marker);
+        image.hidden = false;
+      }
+    }
+  }
+
   function renderStory(entry) {
+    mixedMediaRuntime()?.dispose?.(storyText);
+    mixedMediaRender = null;
     const displayEntry = getDisplayEntry(entry);
     const isTranslatedSupplement = Boolean(displayEntry.originalText);
     const imagesHtml = renderBattleImages(displayEntry, {
@@ -2879,9 +2955,17 @@
       ? renderBattleSectionedStory(displayEntry, imagesHtml)
       : displayEntry.chapterKey === "special-aftermath"
         ? renderSectionedStory(displayEntry, imagesHtml)
-        : `${linkify(displayEntry.text, currentBook())}${imagesHtml ? `<div class="battle-gallery">${imagesHtml}</div>` : ""}`;
+        : `${renderMixedStoryText(displayEntry)}${imagesHtml ? `<div class="battle-gallery">${imagesHtml}</div>` : ""}`;
     const envelopeLink = isTranslatedSupplement ? "" : envelopeAibpLink(displayEntry, entryBookId(displayEntry));
     storyText.innerHTML = html + envelopeLink + renderOfficialScan(entry);
+    if (displayEntry.html && !isTranslatedSupplement && mixedMediaRuntime()?.enhanceHTML) {
+      mixedMediaRender = mixedMediaRuntime().enhanceHTML(
+        storyText.querySelector(".story-html"), mixedMediaContext(displayEntry), displayEntry.text || ""
+      );
+    }
+    mixedMediaRuntime()?.mount?.(storyText, mixedMediaRender, {
+      onChange: ({ readyNativePaths = [] } = {}) => refreshMixedMediaBattleGallery(readyNativePaths)
+    });
     annotateEntityTextNodes(storyText);
     refreshSecondScreenStoryContentToggle(Boolean(secondScreenStoryModeToggle?.checked));
   }
@@ -3021,6 +3105,8 @@
     }
     const text = imagesOnly ? "" : displayEntry.text || storyText.textContent || "";
     return {
+      // Optional rendering identity only; old clients ignore it. No paths or HTML.
+      mixedMedia: mixedMediaContext(activeEntry),
       imagesOnly,
       images: scanPath ? [scanPath] : [],
       // 「只看扫描图」时 text 故意留空（第二屏整屏看图），正文另存一份：扫描图仍然取不到
@@ -3214,8 +3300,8 @@
       ? `故事书第 ${entry.sourcePages.join("、")} 页`
       : "故事书补充页";
     const aibpLink = entry.chapterKey === "battle" ? battleAibpLink(entry) : "";
-    const translation = linkify(entry.text || "", currentBook());
-    const original = escapeHtml(entry.originalText || "");
+    const translation = renderMixedStoryText(entry);
+    const original = renderC5BattleHeadings(entry, entry.originalText || "", escapeHtml(entry.originalText || ""));
     const gallery = imagesHtml
       ? `<div class="supplement-gallery-hint">点击扫描页可放大查看</div><div class="battle-gallery supplement-gallery">${imagesHtml}</div>`
       : "";
@@ -3866,7 +3952,9 @@
   }
 
   async function speakEntry(entry) {
-    const text = prepareSpeechText(getSpeechEntryText(entry));
+    const sourceText = getSpeechEntryText(entry);
+    const spokenSource = mixedMediaRuntime()?.speechText?.(mixedMediaContext(entry), sourceText, storyText) || sourceText;
+    const text = prepareSpeechText(spokenSource);
     if (!text) {
       pushTtsStatus("当前版本暂无可朗读正文。", "warn");
       return;
@@ -4024,6 +4112,7 @@
       entryTitle.textContent = "当前版本没有此条目";
       if (pharosTitleDecodeButton) pharosTitleDecodeButton.hidden = true;
       entryBadge.textContent = "----";
+      mixedMediaRuntime()?.dispose?.(storyText);
       storyText.textContent = "该条目为官方版独有，请切换至官方版后打开。";
       linkPanel.innerHTML = "";
     }
@@ -4194,6 +4283,13 @@
     const message = event.data || {};
     if (message.type !== "ato-story-jump") return;
     navigateToStoryTarget(message.target || {});
+  });
+
+  window.addEventListener("ato-mixed-media-map-ready", () => {
+    if (!activeEntry) return;
+    const top = storyText.scrollTop, left = storyText.scrollLeft;
+    renderStory(activeEntry);
+    storyText.scrollTop = top; storyText.scrollLeft = left;
   });
 
   init();

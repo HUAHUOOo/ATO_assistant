@@ -38,6 +38,10 @@
 # Complete or extracted copyrighted game/story data
 /story/data.js
 /story/data/
+# Optional mixed-media mappings contain exact private story anchors. Runtime
+# renderer.js/styles.css stay public; the ledger and image files stay local.
+/story/assets/mixed-media/mapping.js
+/story/assets/mixed-media/images/
 /story/audio/
 /story/audio-packs/
 /supplements/
